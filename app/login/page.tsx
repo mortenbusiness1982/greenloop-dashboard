@@ -28,7 +28,7 @@ export default function LoginPage() {
       }
 
       setToken(String(data.token));
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
