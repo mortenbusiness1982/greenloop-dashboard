@@ -149,9 +149,9 @@ export default function DashboardPage() {
         </div>
 
         <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card label="Coca-Cola Units Recycled" value={String(traceData?.totalScans ?? 0)} />
-          <Card label="Verified Recycling Actions" value={String(traceData?.validatedScans ?? 0)} />
-          <Card label="Consumer Rewards Distributed" value={String(traceData?.ecoPointsIssued ?? 0)} />
+          <Card label="Coca-Cola Verified Units Recycled" value={String(traceData?.totalScans ?? 0)} />
+          <Card label="Verified Recycling Events" value={String(traceData?.validatedScans ?? 0)} />
+          <Card label="Brand-Funded Loyalty Points Issued" value={String(traceData?.ecoPointsIssued ?? 0)} />
           <Card
             label="Engaged Consumers"
             value={String(traceData?.uniqueConsumers ?? 0)}
@@ -161,7 +161,7 @@ export default function DashboardPage() {
             value={(traceData?.avgUnitsPerConsumer ?? 0).toFixed(2)}
           />
           <Card
-            label="Redemption Rate"
+            label="Points Redemption Rate"
             value={`${(((traceData?.redemptionRate ?? 0) * 100).toFixed(2))}%`}
           />
         </section>
