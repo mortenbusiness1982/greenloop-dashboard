@@ -51,10 +51,24 @@ type TraceabilityResponse = {
   }[];
 };
 
+type CampaignsResponse = {
+  ok: true;
+  campaigns: {
+    challengeId: string;
+    participants: number;
+    completed: number;
+    completionRate: number;
+    bonusPointsIssued: number;
+    avgUnitsPerParticipant: number;
+    incrementalUnitsLift: number;
+  }[];
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [reportData, setReportData] = useState<ReportsResponse | null>(null);
   const [traceData, setTraceData] = useState<TraceabilityResponse | null>(null);
+  const [campaignData, setCampaignData] = useState<CampaignsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
@@ -69,15 +83,20 @@ export default function DashboardPage() {
       }
 
       try {
-        const [reportsResult, traceResult] = await Promise.all([
+        const [reportsResult, traceResult, campaignsResult] = await Promise.all([
           apiFetch("/brand/reports/redemptions", { token }),
           apiFetch(
             `/brand/reports/traceability${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
             { token }
           ),
+          apiFetch(
+            `/brand/reports/campaigns${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
         ]);
         setReportData(reportsResult as ReportsResponse);
         setTraceData(traceResult as TraceabilityResponse);
+        setCampaignData(campaignsResult as CampaignsResponse);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load analytics");
       } finally {
@@ -107,6 +126,7 @@ export default function DashboardPage() {
   }
 
   const totals = reportData?.totals;
+  const primaryCampaign = campaignData?.campaigns?.[0];
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
@@ -174,6 +194,30 @@ export default function DashboardPage() {
             label="Redemption Rate"
             value={`${(((totals?.redemptionRate ?? 0) * 100).toFixed(2))}%`}
           />
+        </section>
+
+        <section className="mt-8">
+          <h2 className="text-lg font-medium text-gray-900">Campaign Performance</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card label="Participants" value={String(primaryCampaign?.participants ?? 0)} />
+            <Card label="Completed" value={String(primaryCampaign?.completed ?? 0)} />
+            <Card
+              label="Completion Rate"
+              value={`${(((primaryCampaign?.completionRate ?? 0) * 100).toFixed(1))}%`}
+            />
+            <Card
+              label="Bonus Points Issued"
+              value={String(primaryCampaign?.bonusPointsIssued ?? 0)}
+            />
+            <Card
+              label="Avg Units per Participant"
+              value={(primaryCampaign?.avgUnitsPerParticipant ?? 0).toFixed(2)}
+            />
+            <Card
+              label="Incremental Units Lift"
+              value={String(Math.round(primaryCampaign?.incrementalUnitsLift ?? 0))}
+            />
+          </div>
         </section>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-2">
