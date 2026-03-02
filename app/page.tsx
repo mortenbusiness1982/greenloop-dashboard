@@ -64,11 +64,21 @@ type CampaignsResponse = {
   }[];
 };
 
+type BehaviorResponse = {
+  brandShareRedeemers: number;
+  brandShareNonRedeemers: number;
+  brandLift: number;
+  relativeLift: number;
+  redeemerCount: number;
+  nonRedeemerCount: number;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [reportData, setReportData] = useState<ReportsResponse | null>(null);
   const [traceData, setTraceData] = useState<TraceabilityResponse | null>(null);
   const [campaignData, setCampaignData] = useState<CampaignsResponse | null>(null);
+  const [behaviorData, setBehaviorData] = useState<BehaviorResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
@@ -83,7 +93,7 @@ export default function DashboardPage() {
       }
 
       try {
-        const [reportsResult, traceResult, campaignsResult] = await Promise.all([
+        const [reportsResult, traceResult, campaignsResult, behaviorResult] = await Promise.all([
           apiFetch("/brand/reports/redemptions", { token }),
           apiFetch(
             `/brand/reports/traceability${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
@@ -93,10 +103,15 @@ export default function DashboardPage() {
             `/brand/reports/campaigns${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
             { token }
           ),
+          apiFetch(
+            `/brand/reports/behavior${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
         ]);
         setReportData(reportsResult as ReportsResponse);
         setTraceData(traceResult as TraceabilityResponse);
         setCampaignData(campaignsResult as CampaignsResponse);
+        setBehaviorData(behaviorResult as BehaviorResponse);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load analytics");
       } finally {
@@ -243,6 +258,36 @@ export default function DashboardPage() {
             <Card
               label="Incremental Units Lift"
               value={String(Math.round(primaryCampaign?.incrementalUnitsLift ?? 0))}
+            />
+          </div>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="text-lg font-medium text-gray-900">Behavior Influence</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card
+              label="Brand Share (Redeemers)"
+              value={`${(((behaviorData?.brandShareRedeemers ?? 0) * 100).toFixed(1))}%`}
+            />
+            <Card
+              label="Brand Share (Non-Redeemers)"
+              value={`${(((behaviorData?.brandShareNonRedeemers ?? 0) * 100).toFixed(1))}%`}
+            />
+            <Card
+              label="Absolute Lift"
+              value={`${(((behaviorData?.brandLift ?? 0) * 100).toFixed(1))}%`}
+            />
+            <Card
+              label="Relative Lift"
+              value={`${(((behaviorData?.relativeLift ?? 0) * 100).toFixed(1))}%`}
+            />
+            <Card
+              label="Redeemer Count"
+              value={String(behaviorData?.redeemerCount ?? 0)}
+            />
+            <Card
+              label="Non-Redeemer Count"
+              value={String(behaviorData?.nonRedeemerCount ?? 0)}
             />
           </div>
         </section>
