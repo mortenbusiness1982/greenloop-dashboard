@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
 import {
   LineChart,
@@ -110,6 +110,27 @@ export default function DashboardPage() {
     router.replace("/login");
   }
 
+  async function onDownloadCsv() {
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    const exportPath = `/brand/reports/export${
+      fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""
+    }`;
+    const blob = await apiFetchBlob(exportPath, { token });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "greenloop-export.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
   if (loading) {
     return <main className="min-h-screen p-6">Loading analytics...</main>;
   }
@@ -165,6 +186,12 @@ export default function DashboardPage() {
             className="rounded bg-gray-900 px-4 py-2 text-white"
           >
             Apply
+          </button>
+          <button
+            onClick={onDownloadCsv}
+            className="rounded bg-gray-900 px-4 py-2 text-white"
+          >
+            Download CSV
           </button>
         </div>
 

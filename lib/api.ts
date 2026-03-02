@@ -40,3 +40,24 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
 
   return json;
 }
+
+export async function apiFetchBlob(path: string, opts: { token: string }): Promise<Blob> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      Authorization: `Bearer ${opts.token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    throw new Error(json?.error || `Request failed with status ${res.status}`);
+  }
+
+  return await res.blob();
+}
