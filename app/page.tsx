@@ -218,7 +218,6 @@ export default function DashboardPage() {
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card label="Coca-Cola Verified Units Recycled" value={String(traceData?.totalScans ?? 0)} />
-          <Card label="Verified Recycling Events" value={String(traceData?.validatedScans ?? 0)} />
           <Card label="Brand-Funded Loyalty Points Issued" value={String(traceData?.ecoPointsIssued ?? 0)} />
           <Card
             label="Engaged Consumers"
@@ -227,10 +226,6 @@ export default function DashboardPage() {
           <Card
             label="Avg Units per Engaged Consumer"
             value={(traceData?.avgUnitsPerConsumer ?? 0).toFixed(2)}
-          />
-          <Card
-            label="Points Redemption Rate"
-            value={`${(((traceData?.redemptionRate ?? 0) * 100).toFixed(2))}%`}
           />
           </div>
         </section>
@@ -244,10 +239,6 @@ export default function DashboardPage() {
           <Card label="Total Redemptions" value={String(totals?.totalRedemptions ?? 0)} />
           <Card label="Active Tokens" value={String(totals?.activeTokens ?? 0)} />
           <Card label="Expired Tokens" value={String(totals?.expiredTokens ?? 0)} />
-          <Card
-            label="Redemption Rate"
-            value={`${(((totals?.redemptionRate ?? 0) * 100).toFixed(2))}%`}
-          />
           </div>
         </section>
 
