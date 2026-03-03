@@ -212,26 +212,36 @@ export default function DashboardPage() {
         </div>
 
         <section className="mb-4">
-          <h2 className="text-lg font-medium text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-10">
             Brand Performance Overview
             <InfoTooltip text="Are we generating activity? This section measures overall brand recycling engagement within the selected time period." />
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card label="Coca-Cola Verified Units Recycled" value={String(traceData?.totalScans ?? 0)} />
-          <Card label="Brand-Funded Loyalty Points Issued" value={String(traceData?.ecoPointsIssued ?? 0)} />
+          <Card
+            label="Verified Brand Units Recycled"
+            value={String(traceData?.totalScans ?? 0)}
+            info="Total verified brand product scans during the selected period."
+          />
+          <Card
+            label="Incentive Investment (EcoPoints)"
+            value={String(traceData?.ecoPointsIssued ?? 0)}
+            info="Total EcoPoints issued by this brand as incentives during the selected period."
+          />
           <Card
             label="Engaged Consumers"
             value={String(traceData?.uniqueConsumers ?? 0)}
+            info="Number of unique users who scanned this brand during the selected period."
           />
           <Card
-            label="Avg Units per Engaged Consumer"
+            label="Avg Units per Consumer"
             value={(traceData?.avgUnitsPerConsumer ?? 0).toFixed(2)}
+            info="Average number of brand product scans per engaged user."
           />
           </div>
         </section>
 
         <section>
-          <h2 className="text-lg font-medium text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-10">
             Reward Performance
             <InfoTooltip text="Are rewards converting? This section measures reward attractiveness and redemption efficiency." />
           </h2>
@@ -243,7 +253,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-10">
             Campaign Impact
             <InfoTooltip text="Are campaigns driving lift? This section measures challenge participation and incremental brand impact." />
           </h2>
@@ -270,7 +280,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-10">
             Behavior Influence
             <InfoTooltip text="Are we influencing behavior? This section compares brand scanning behavior between reward redeemers and non-redeemers." />
           </h2>
@@ -303,7 +313,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight mt-10">
             Activity & Distribution
             <InfoTooltip text="Where is activity happening? This section shows time trends, product mix, and geographic distribution." />
           </h2>
@@ -429,10 +439,23 @@ export default function DashboardPage() {
   );
 }
 
-function Card({ label, value }: { label: string; value: string }) {
+function Card({
+  label,
+  value,
+  info,
+}: {
+  label: string;
+  value: string;
+  info?: string;
+}) {
   return (
     <div className="rounded-lg bg-white p-4 shadow">
-      <p className="text-sm text-gray-600">{label}</p>
+      <div className="flex items-center text-sm text-gray-600">
+        {label}
+        {info && (
+          <InfoTooltip text={info} />
+        )}
+      </div>
       <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
     </div>
   );
