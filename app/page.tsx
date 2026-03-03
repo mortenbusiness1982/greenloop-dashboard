@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
+import InfoTooltip from "../components/InfoTooltip";
 import {
   LineChart,
   Line,
@@ -210,7 +211,12 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mb-4">
+          <h2 className="text-lg font-medium text-gray-900">
+            Brand Performance Overview
+            <InfoTooltip text="Are we generating activity? This section measures overall brand recycling engagement within the selected time period." />
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card label="Coca-Cola Verified Units Recycled" value={String(traceData?.totalScans ?? 0)} />
           <Card label="Verified Recycling Events" value={String(traceData?.validatedScans ?? 0)} />
           <Card label="Brand-Funded Loyalty Points Issued" value={String(traceData?.ecoPointsIssued ?? 0)} />
@@ -226,9 +232,15 @@ export default function DashboardPage() {
             label="Points Redemption Rate"
             value={`${(((traceData?.redemptionRate ?? 0) * 100).toFixed(2))}%`}
           />
+          </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section>
+          <h2 className="text-lg font-medium text-gray-900">
+            Reward Performance
+            <InfoTooltip text="Are rewards converting? This section measures reward attractiveness and redemption efficiency." />
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card label="Total Redemptions" value={String(totals?.totalRedemptions ?? 0)} />
           <Card label="Active Tokens" value={String(totals?.activeTokens ?? 0)} />
           <Card label="Expired Tokens" value={String(totals?.expiredTokens ?? 0)} />
@@ -236,10 +248,14 @@ export default function DashboardPage() {
             label="Redemption Rate"
             value={`${(((totals?.redemptionRate ?? 0) * 100).toFixed(2))}%`}
           />
+          </div>
         </section>
 
         <section className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900">Campaign Performance</h2>
+          <h2 className="text-lg font-medium text-gray-900">
+            Campaign Impact
+            <InfoTooltip text="Are campaigns driving lift? This section measures challenge participation and incremental brand impact." />
+          </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Card label="Participants" value={String(primaryCampaign?.participants ?? 0)} />
             <Card label="Completed" value={String(primaryCampaign?.completed ?? 0)} />
@@ -263,7 +279,10 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900">Behavior Influence</h2>
+          <h2 className="text-lg font-medium text-gray-900">
+            Behavior Influence
+            <InfoTooltip text="Are we influencing behavior? This section compares brand scanning behavior between reward redeemers and non-redeemers." />
+          </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Card
               label="Brand Share (Redeemers)"
@@ -292,7 +311,12 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-2">
+        <section className="mt-8">
+          <h2 className="text-lg font-medium text-gray-900">
+            Activity & Distribution
+            <InfoTooltip text="Where is activity happening? This section shows time trends, product mix, and geographic distribution." />
+          </h2>
+          <div className="mt-4 grid gap-6 lg:grid-cols-2">
           <div className="rounded-lg bg-white p-4 shadow">
             <h2 className="text-lg font-medium text-gray-900">Daily Recycling Trend</h2>
             <div className="mt-4 h-64">
@@ -329,6 +353,7 @@ export default function DashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
           </div>
         </section>
 
