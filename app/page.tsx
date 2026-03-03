@@ -288,26 +288,32 @@ export default function DashboardPage() {
             <Card
               label="Brand Share (Redeemers)"
               value={`${(((behaviorData?.brandShareRedeemers ?? 0) * 100).toFixed(1))}%`}
+              info="Percentage of total scans by reward redeemers that were this brand."
             />
             <Card
               label="Brand Share (Non-Redeemers)"
               value={`${(((behaviorData?.brandShareNonRedeemers ?? 0) * 100).toFixed(1))}%`}
+              info="Baseline percentage of total scans by non-redeemers that were this brand."
             />
             <Card
               label="Absolute Lift"
               value={`${(((behaviorData?.brandLift ?? 0) * 100).toFixed(1))}%`}
+              info="Difference in brand scan share between redeemers and baseline users."
             />
             <Card
               label="Relative Lift"
               value={`${(((behaviorData?.relativeLift ?? 0) * 100).toFixed(1))}%`}
+              info="Percentage increase or decrease in brand scan share among redeemers compared to baseline."
             />
             <Card
               label="Redeemer Count"
               value={String(behaviorData?.redeemerCount ?? 0)}
+              info="Number of users who redeemed this brand’s reward during the selected period."
             />
             <Card
               label="Non-Redeemer Count"
               value={String(behaviorData?.nonRedeemerCount ?? 0)}
+              info="Number of users who scanned but did not redeem this brand’s reward during the selected period."
             />
           </div>
         </section>
