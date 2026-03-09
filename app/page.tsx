@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch, apiFetchBlob } from "@/lib/api";
+import { API_BASE, apiFetch, apiFetchBlob } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
 import InfoTooltip from "../components/InfoTooltip";
 import {
@@ -158,6 +158,127 @@ export default function DashboardPage() {
     window.URL.revokeObjectURL(url);
   }
 
+  async function handleExportSummaryCSV() {
+    try {
+      const token = getToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const report = await apiFetch(
+        `/brand/reports/traceability${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+        { token }
+      );
+
+      const rows = [
+        ["GreenLoop Traceability Report"],
+        [],
+        ["Metric", "Value"],
+        ["Verified Units Recycled", report.validatedScans],
+        ["Recycling Events", report.totalScans],
+        ["Engaged Consumers", report.uniqueConsumers],
+        ["Avg Units per Consumer", report.avgUnitsPerConsumer],
+        ["EcoPoints Issued", report.ecoPointsIssued],
+        ["Points Redeemed", report.redeemedPoints],
+        ["Redemptions", report.redemptions],
+        ["Redemption Rate", report.redemptionRate],
+        [],
+        ["Top Recycled Products"],
+        ["Product", "Units Recycled"],
+        ...((report.perProduct ?? []).map((p: any) => [p.product_name, p.units_recycled])),
+        [],
+        ["Recycling by City"],
+        ["City", "Units Recycled"],
+        ...((report.geoBreakdown ?? []).map((c: any) => [c.city, c.units])),
+        [],
+        ["Recycling Activity"],
+        ["Date", "Units"],
+        ...((report.dailyTrend ?? []).map((d: any) => [
+          new Date(d.date).toISOString().split("T")[0],
+          d.units,
+        ])),
+      ];
+
+      const csv = rows.map((r: any[]) => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `greenloop-summary-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export summary CSV failed", error);
+    }
+  }
+
+  async function handleExportEventsCSV() {
+    try {
+      const token = getToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/brand/reports/events`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.warn("Events export unavailable:", res.status);
+        return;
+      }
+
+      const events = await res.json();
+      const rows = [
+        [
+          "recycled_at",
+          "product_name",
+          "barcode",
+          "units",
+          "points",
+          "city",
+          "lat",
+          "lng",
+          "scan_status",
+          "anonymized_user_id",
+          "recycling_event_id",
+          "recycling_event_item_id",
+          "scan_id",
+        ],
+        ...((events ?? []).map((e: any) => [
+          new Date(e.recycled_at).toISOString(),
+          e.product_name,
+          e.barcode,
+          e.units,
+          e.points,
+          e.city,
+          e.lat,
+          e.lng,
+          e.scan_status,
+          e.anonymized_user_id,
+          e.recycling_event_id,
+          e.recycling_event_item_id,
+          e.scan_id,
+        ])),
+      ];
+
+      const csv = rows.map((r: any[]) => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `greenloop-events-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export events CSV failed", error);
+    }
+  }
+
   if (loading) {
     return <main className="min-h-screen p-6">Loading analytics...</main>;
   }
@@ -208,6 +329,20 @@ export default function DashboardPage() {
               onChange={(e) => setToDate(e.target.value)}
               className="border rounded px-2 py-1"
             />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportSummaryCSV}
+              className="px-4 py-2 bg-[#2d6a4f] text-white rounded-md text-sm"
+            >
+              Export Summary CSV
+            </button>
+            <button
+              onClick={handleExportEventsCSV}
+              className="px-4 py-2 bg-[#2d6a4f] text-white rounded-md text-sm"
+            >
+              Export Raw Events CSV
+            </button>
           </div>
           <button
             className="rounded bg-gray-900 px-4 py-2 text-white"
