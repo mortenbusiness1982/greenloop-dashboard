@@ -24,24 +24,11 @@ export function MetricCard({
   const isPositive = change && change.value >= 0;
   
   return (
-    <Card
-      className="
-metric-card
-relative
-bg-white
-rounded-xl
-border border-gray-200
-p-6
-shadow-sm
-hover:shadow-md
-transition-all
-duration-200
-"
-    >
-      <div className="absolute top-0 left-0 w-full h-1 bg-[#2d6a4f] rounded-t-xl"></div>
+    <Card className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all duration-200">
+      <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm text-gray-500 font-medium">{title}</p>
+          <p className="text-sm font-medium text-gray-500">{title}</p>
           <p className="text-3xl font-semibold text-gray-900 mt-1">{value}</p>
           {change && (
             <div className="flex items-center gap-1">
