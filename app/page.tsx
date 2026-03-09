@@ -296,6 +296,14 @@ export default function DashboardPage() {
 
   const totals = reportData?.totals;
   const primaryCampaign = campaignData?.campaigns?.[0];
+  const products = traceData?.perProduct ?? [];
+  const cities = traceData?.geoBreakdown ?? [];
+  const topProducts = [...products]
+    .sort((a, b) => b.units_recycled - a.units_recycled)
+    .slice(0, 5);
+  const topCities = [...cities]
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 5);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -465,6 +473,48 @@ export default function DashboardPage() {
             />
           </Section>
         </section>
+
+        <div className="grid grid-cols-2 gap-6 mt-8">
+          <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Recycled Products</h2>
+            <div>
+              {topProducts.map((product, index) => (
+                <div
+                  key={`${product.product_id}-${index}`}
+                  className="flex justify-between items-center py-2 border-b border-gray-100"
+                >
+                  <span className="text-sm text-gray-900">
+                    {index + 1} {product.product_name}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {product.units_recycled}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Recycling by City</h2>
+            <div>
+              {topCities.map((city, index) => (
+                <div
+                  key={`${city.city}-${index}`}
+                  className="flex justify-between items-center py-2 border-b border-gray-100"
+                >
+                  <span className="text-sm text-gray-900">
+                    {index + 1} {city.city}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {city.units}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <section className="mt-8">
           <h2 className="mt-12 text-2xl font-bold text-gray-900 tracking-tight text-center">
