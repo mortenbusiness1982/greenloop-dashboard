@@ -16,8 +16,8 @@ type RecyclingEvent = {
   units?: number | null;
 };
 
-const greenIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/2907/2907253.png",
+const recyclingIcon = new L.Icon({
+  iconUrl: "/recycle-marker.png",
   iconSize: [26, 26],
 });
 
@@ -66,7 +66,7 @@ export default function RecyclingMap({ events }: { events: RecyclingEvent[] }) {
             <Marker
               key={event.scan_id ?? i}
               position={[event.lat as number, event.lng as number] as [number, number]}
-              icon={greenIcon}
+              icon={recyclingIcon}
             >
               <Popup>
                 <div className="text-sm">

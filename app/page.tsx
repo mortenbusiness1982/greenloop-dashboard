@@ -118,6 +118,8 @@ export default function DashboardPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
+  console.log("Map events:", events?.length);
+
   useEffect(() => {
     (async () => {
       const token = getToken();
