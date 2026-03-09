@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { API_BASE, apiFetch, apiFetchBlob } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
@@ -16,6 +17,10 @@ import {
   Bar,
   CartesianGrid,
 } from "recharts";
+
+const RecyclingMap = dynamic(() => import("@/components/RecyclingMap"), {
+  ssr: false,
+});
 
 type ReportsResponse = {
   totals: {
@@ -74,6 +79,22 @@ type BehaviorResponse = {
   nonRedeemerCount: number;
 };
 
+type EventItem = {
+  recycled_at: string;
+  product_name: string;
+  barcode: string;
+  units: number;
+  points: number;
+  city: string | null;
+  lat: number | null;
+  lng: number | null;
+  scan_status: string;
+  anonymized_user_id: string;
+  recycling_event_id: string;
+  recycling_event_item_id: string;
+  scan_id: string;
+};
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="mb-10">
@@ -91,6 +112,7 @@ export default function DashboardPage() {
   const [traceData, setTraceData] = useState<TraceabilityResponse | null>(null);
   const [campaignData, setCampaignData] = useState<CampaignsResponse | null>(null);
   const [behaviorData, setBehaviorData] = useState<BehaviorResponse | null>(null);
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
@@ -105,7 +127,7 @@ export default function DashboardPage() {
       }
 
       try {
-        const [reportsResult, traceResult, campaignsResult, behaviorResult] = await Promise.all([
+        const [reportsResult, traceResult, campaignsResult, behaviorResult, eventsResult] = await Promise.all([
           apiFetch("/brand/reports/redemptions", { token }),
           apiFetch(
             `/brand/reports/traceability${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
@@ -119,11 +141,16 @@ export default function DashboardPage() {
             `/brand/reports/behavior${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
             { token }
           ),
+          apiFetch(
+            `/brand/reports/events${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
         ]);
         setReportData(reportsResult as ReportsResponse);
         setTraceData(traceResult as TraceabilityResponse);
         setCampaignData(campaignsResult as CampaignsResponse);
         setBehaviorData(behaviorResult as BehaviorResponse);
+        setEvents(eventsResult as EventItem[]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load analytics");
       } finally {
@@ -485,6 +512,10 @@ export default function DashboardPage() {
               info="Number of users who scanned but did not redeem this brand’s reward during the selected period."
             />
           </Section>
+        </section>
+
+        <section className="mt-10">
+          <RecyclingMap events={events} />
         </section>
 
         <div className="mb-12">
