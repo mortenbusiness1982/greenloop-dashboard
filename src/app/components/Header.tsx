@@ -14,7 +14,7 @@ export function Header() {
   const { logout } = useAuth();
   const pathname = usePathname();
 
-  async function handleExportCSV() {
+  async function handleExportSummaryCSV() {
     try {
       const token =
         localStorage.getItem("token") ||
@@ -26,21 +26,6 @@ export function Header() {
       }
 
       const report = await fetchTraceability(token);
-      let events = [];
-
-      try {
-        const res = await fetch(`${API_BASE}/brand/reports/events`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (res.ok) {
-          events = await res.json();
-        } else {
-          console.warn("Events export unavailable:", res.status);
-        }
-      } catch (err) {
-        console.warn("Events export failed:", err);
-      }
 
       const rows = [
         ["GreenLoop Traceability Report"],
@@ -71,26 +56,61 @@ export function Header() {
         ])
       ];
 
-      rows.push([]);
-      rows.push(["Recycling Events"]);
-      rows.push([
-        "recycled_at",
-        "product_name",
-        "barcode",
-        "units",
-        "points",
-        "city",
-        "lat",
-        "lng",
-        "scan_status",
-        "anonymized_user_id",
-        "recycling_event_id",
-        "recycling_event_item_id",
-        "scan_id"
-      ]);
+      const csv = rows.map((r: any[]) => r.join(",")).join("\n");
 
-      (events ?? []).forEach((e: any) => {
-        rows.push([
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0,10);
+      a.download = `greenloop-summary-${today}.csv`;
+      a.click();
+
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export summary CSV failed", error);
+    }
+  }
+
+  async function handleExportEventsCSV() {
+    try {
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("greenloop_token");
+
+      if (!token) {
+        console.warn("No auth token found");
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/brand/reports/events`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        console.warn("Events export unavailable:", res.status);
+        return;
+      }
+
+      const events = await res.json();
+      const rows = [
+        [
+          "recycled_at",
+          "product_name",
+          "barcode",
+          "units",
+          "points",
+          "city",
+          "lat",
+          "lng",
+          "scan_status",
+          "anonymized_user_id",
+          "recycling_event_id",
+          "recycling_event_item_id",
+          "scan_id"
+        ],
+        ...(events ?? []).map((e: any) => [
           new Date(e.recycled_at).toISOString(),
           e.product_name,
           e.barcode,
@@ -104,23 +124,22 @@ export function Header() {
           e.recycling_event_id,
           e.recycling_event_item_id,
           e.scan_id
-        ]);
-      });
+        ])
+      ];
 
       const csv = rows.map((r: any[]) => r.join(",")).join("\n");
-
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
 
       const a = document.createElement("a");
       a.href = url;
       const today = new Date().toISOString().slice(0,10);
-      a.download = `greenloop-traceability-${today}.csv`;
+      a.download = `greenloop-events-${today}.csv`;
       a.click();
 
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Export CSV failed", error);
+      console.error("Export events CSV failed", error);
     }
   }
   
@@ -137,9 +156,16 @@ export function Header() {
             <Button
               variant="primary"
               icon={<Download className="w-4 h-4" />}
-              onClick={handleExportCSV}
+              onClick={handleExportSummaryCSV}
             >
-              Export CSV
+              Export Summary CSV
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Download className="w-4 h-4" />}
+              onClick={handleExportEventsCSV}
+            >
+              Export Raw Events CSV
             </Button>
             <Button variant="secondary" onClick={logout}>
               Logout
