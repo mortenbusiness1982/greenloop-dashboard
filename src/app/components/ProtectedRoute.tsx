@@ -1,4 +1,6 @@
-import { Navigate } from 'react-router';
+'use client';
+
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
@@ -7,9 +9,11 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated } = useAuth();
+  const router = useRouter();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    router.replace('/login');
+    return null;
   }
 
   return <>{children}</>;

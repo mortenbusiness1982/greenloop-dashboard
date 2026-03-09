@@ -1,4 +1,4 @@
-import { Card, CardHeader } from '../ui/Card';
+import { Card, CardHeader } from '../ui/card';
 import { Trophy, TrendingUp } from 'lucide-react';
 
 interface LeaderboardItem {

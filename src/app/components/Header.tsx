@@ -1,7 +1,10 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Calendar, Download } from 'lucide-react';
-import { NavLink } from 'react-router';
-import { Button } from './ui/Button';
-import { Select } from './ui/Select';
+import { Button } from './ui/button';
+import { Select } from './ui/select';
 import { Logo } from './ui/Logo';
 import { useAuth } from '../context/AuthContext';
 import { fetchTraceability } from '../../services/api';
@@ -9,6 +12,7 @@ import { API_BASE } from '../../config/api';
 
 export function Header() {
   const { logout } = useAuth();
+  const pathname = usePathname();
 
   async function handleExportCSV() {
     try {
@@ -53,15 +57,15 @@ export function Header() {
         [],
         ["Top Recycled Products"],
         ["Product","Units Recycled"],
-        ...(report.perProduct ?? []).map(p => [p.product_name, p.units_recycled]),
+        ...(report.perProduct ?? []).map((p: any) => [p.product_name, p.units_recycled]),
         [],
         ["Recycling by City"],
         ["City","Units Recycled"],
-        ...(report.geoBreakdown ?? []).map(c => [c.city, c.units]),
+        ...(report.geoBreakdown ?? []).map((c: any) => [c.city, c.units]),
         [],
         ["Recycling Activity"],
         ["Date","Units"],
-        ...(report.dailyTrend ?? []).map(d => [
+        ...(report.dailyTrend ?? []).map((d: any) => [
           new Date(d.date).toISOString().split("T")[0],
           d.units
         ])
@@ -85,7 +89,7 @@ export function Header() {
         "scan_id"
       ]);
 
-      (events ?? []).forEach(e => {
+      (events ?? []).forEach((e: any) => {
         rows.push([
           new Date(e.recycled_at).toISOString(),
           e.product_name,
@@ -103,7 +107,7 @@ export function Header() {
         ]);
       });
 
-      const csv = rows.map(r => r.join(",")).join("\n");
+      const csv = rows.map((r: any[]) => r.join(",")).join("\n");
 
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
@@ -147,19 +151,16 @@ export function Header() {
       {/* Navigation Tabs */}
       <div className="bg-white border-b border-gray-200 px-8">
         <div className="flex gap-1">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
-                isActive
-                  ? 'text-[#2d6a4f] border-[#2d6a4f]'
-                  : 'text-gray-600 border-transparent hover:text-gray-900'
-              }`
-            }
+          <Link
+            href="/"
+            className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+              pathname === '/'
+                ? 'text-[#2d6a4f] border-[#2d6a4f]'
+                : 'text-gray-600 border-transparent hover:text-gray-900'
+            }`}
           >
             Overview
-          </NavLink>
+          </Link>
         </div>
       </div>
     </div>

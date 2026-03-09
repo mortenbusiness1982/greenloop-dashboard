@@ -1,4 +1,4 @@
-import { Card } from '../ui/Card';
+import { Card } from '../ui/card';
 import { ArrowRight } from 'lucide-react';
 
 interface Metric {

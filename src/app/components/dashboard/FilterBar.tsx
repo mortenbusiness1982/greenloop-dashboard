@@ -1,6 +1,6 @@
 import { Search, Filter, Download, SlidersHorizontal } from 'lucide-react';
-import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
+import { Button } from '../ui/button';
+import { Select } from '../ui/select';
 
 interface FilterOption {
   label: string;

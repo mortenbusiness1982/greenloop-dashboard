@@ -1,7 +1,9 @@
+'use client';
+
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/ui/Button';
+import { Button } from '../components/ui/button';
 import { Logo } from '../components/ui/Logo';
 
 export function Login() {
@@ -9,7 +11,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
   const { login } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -19,7 +21,7 @@ export function Login() {
 
     try {
       await login(email, password);
-      navigate('/');
+      router.push('/');
     } catch (err) {
       setError('Invalid credentials. Please try again.');
     } finally {

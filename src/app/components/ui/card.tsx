@@ -15,7 +15,13 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+interface CardHeaderProps extends React.ComponentProps<"div"> {
+  title?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  action?: React.ReactNode;
+}
+
+function CardHeader({ className, title, subtitle, action, children, ...props }: CardHeaderProps) {
   return (
     <div
       data-slot="card-header"
@@ -24,7 +30,12 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
         className,
       )}
       {...props}
-    />
+    >
+      {action ? <div data-slot="card-action">{action}</div> : null}
+      {title ? <CardTitle>{title}</CardTitle> : null}
+      {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
+      {children}
+    </div>
   );
 }
 

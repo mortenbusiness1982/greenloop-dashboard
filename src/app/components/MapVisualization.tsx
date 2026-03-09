@@ -1,5 +1,5 @@
 import { MapPin } from 'lucide-react';
-import { Card } from './ui/Card';
+import { Card } from './ui/card';
 
 const cities = [
   { name: 'New York', units: 18432, top: '25%', left: '75%' },

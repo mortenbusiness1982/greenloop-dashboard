@@ -1,7 +1,7 @@
 import { DashboardSection } from '../components/ui/DashboardLayout';
 import { Grid } from '../components/ui/Grid';
-import { Card, CardHeader } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Card, CardHeader } from '../components/ui/card';
+import { Button } from '../components/ui/button';
 import { StatCard } from '../components/ui/StatCard';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ProgressCard } from '../components/dashboard/ProgressCard';

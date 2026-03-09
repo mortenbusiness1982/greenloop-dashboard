@@ -4,7 +4,43 @@ import * as React from "react";
 
 import { cn } from "./utils";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+interface DataTableColumn {
+  key: string;
+  header: React.ReactNode;
+  render?: (value: any, row: Record<string, any>) => React.ReactNode;
+}
+
+interface DataTableProps extends React.ComponentProps<"table"> {
+  columns?: DataTableColumn[];
+  data?: Record<string, any>[];
+}
+
+function Table({ className, columns, data, children, ...props }: DataTableProps) {
+  const content = columns && data ? (
+    <>
+      <TableHeader>
+        <TableRow>
+          {columns.map((column) => (
+            <TableHead key={column.key}>{column.header}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.map((row, rowIndex) => (
+          <TableRow key={rowIndex}>
+            {columns.map((column) => (
+              <TableCell key={column.key}>
+                {column.render ? column.render(row[column.key], row) : row[column.key]}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </>
+  ) : (
+    children
+  );
+
   return (
     <div
       data-slot="table-container"
@@ -14,7 +50,9 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
         {...props}
-      />
+      >
+        {content}
+      </table>
     </div>
   );
 }

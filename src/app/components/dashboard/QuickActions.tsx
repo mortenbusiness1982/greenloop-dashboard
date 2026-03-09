@@ -1,5 +1,5 @@
 import { LucideIcon } from 'lucide-react';
-import { Card, CardHeader } from '../ui/Card';
+import { Card, CardHeader } from '../ui/card';
 
 interface Action {
   icon: LucideIcon;

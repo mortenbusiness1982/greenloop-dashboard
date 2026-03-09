@@ -1,9 +1,11 @@
-import { useNavigate } from 'react-router';
-import { Button } from '../components/ui/Button';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { Button } from '../components/ui/button';
 import { Home, ArrowLeft } from 'lucide-react';
 
 export function NotFound() {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -23,14 +25,14 @@ export function NotFound() {
           <Button
             variant="secondary"
             icon={<ArrowLeft className="w-4 h-4" />}
-            onClick={() => navigate(-1)}
+            onClick={() => router.back()}
           >
             Go Back
           </Button>
           <Button
             variant="primary"
             icon={<Home className="w-4 h-4" />}
-            onClick={() => navigate('/')}
+            onClick={() => router.push('/')}
           >
             Go to Dashboard
           </Button>

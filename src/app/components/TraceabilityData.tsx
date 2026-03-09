@@ -1,7 +1,7 @@
 import { Download } from 'lucide-react';
-import { Card, CardHeader } from './ui/Card';
-import { Button } from './ui/Button';
-import { Table } from './ui/Table';
+import { Card, CardHeader } from './ui/card';
+import { Button } from './ui/button';
+import { Table } from './ui/table';
 
 const auditData = [
   {
