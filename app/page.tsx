@@ -301,17 +301,17 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-8 py-8">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">Brand Dashboard</h1>
+          <h1 className="text-3xl font-semibold text-[#2d6a4f] tracking-tight">Brand Dashboard</h1>
           <button onClick={onLogout} className="rounded bg-gray-900 px-4 py-2 text-white">
             Logout
           </button>
         </div>
-        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-4">
-          <p className="text-sm text-red-700 font-medium">
+        <div className="mb-6 rounded-xl border border-[#2d6a4f] bg-[#ecf7f2] px-6 py-4">
+          <p className="text-sm font-medium text-[#2d6a4f]">
             Coca-Cola Málaga Pilot — February 2026
           </p>
         </div>
-        <div className="mt-4 flex gap-4 items-end">
+        <div className="flex items-center gap-3 mb-8">
           <div>
             <label className="block text-xs text-gray-600 mb-1">From</label>
             <input
@@ -345,15 +345,9 @@ export default function DashboardPage() {
             </button>
           </div>
           <button
-            className="rounded bg-gray-900 px-4 py-2 text-white"
+            className="rounded-lg bg-[#2d6a4f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#24543f] transition"
           >
             Apply
-          </button>
-          <button
-            onClick={onDownloadCsv}
-            className="rounded bg-gray-900 px-4 py-2 text-white"
-          >
-            Download CSV
           </button>
         </div>
 
