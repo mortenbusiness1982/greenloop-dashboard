@@ -295,6 +295,7 @@ export default function DashboardPage() {
   }
 
   const totals = reportData?.totals;
+  const report = traceData;
   const primaryCampaign = campaignData?.campaigns?.[0];
   const products = traceData?.perProduct ?? [];
   const cities = traceData?.geoBreakdown ?? [];
@@ -304,18 +305,30 @@ export default function DashboardPage() {
   const topCities = [...cities]
     .sort((a, b) => b.units - a.units)
     .slice(0, 5);
+  const activityData =
+    (report?.dailyTrend ?? [])
+      .filter(d => {
+        const date = new Date(d.date);
+        if (fromDate && date < new Date(fromDate)) return false;
+        if (toDate && date > new Date(toDate)) return false;
+        return true;
+      })
+      .map(d => ({
+        date: new Date(d.date).toISOString().split("T")[0],
+        units: d.units
+      }));
 
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-8 py-8">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-3xl font-semibold text-[#2d6a4f] tracking-tight">Brand Dashboard</h1>
+          <h1 className="text-4xl font-bold text-gray-900">Brand Dashboard</h1>
           <button onClick={onLogout} className="rounded bg-gray-900 px-4 py-2 text-white">
             Logout
           </button>
         </div>
         <div className="mb-6 rounded-xl border border-[#2d6a4f] bg-[#ecf7f2] px-6 py-4">
-          <p className="text-sm font-medium text-[#2d6a4f]">
+          <p className="text-gray-900 text-lg">
             Coca-Cola Málaga Pilot — February 2026
           </p>
         </div>
@@ -473,6 +486,31 @@ export default function DashboardPage() {
             />
           </Section>
         </section>
+
+        <div className="mb-12">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Recycling Activity
+          </h2>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <div style={{ height: 280 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={activityData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="units"
+                    stroke="#2d6a4f"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-6 mt-8">
           <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
