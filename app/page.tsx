@@ -117,6 +117,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [productFilter, setProductFilter] = useState<string>("all");
 
   useEffect(() => {
     (async () => {
@@ -323,22 +324,26 @@ export default function DashboardPage() {
   }
 
   const totals = reportData?.totals;
-  const report = traceData;
   const primaryCampaign = campaignData?.campaigns?.[0];
-  const products = traceData?.perProduct ?? [];
-  const cities = traceData?.geoBreakdown ?? [];
-  const topProducts = [...products]
-    .sort((a, b) => b.units_recycled - a.units_recycled)
-    .slice(0, 5);
-  const topCities = [...cities]
-    .sort((a, b) => b.units - a.units)
-    .slice(0, 5);
-  const filteredEvents = events.filter((event) => {
-    const date = new Date(event.recycled_at);
-    if (fromDate && date < new Date(fromDate)) return false;
-    if (toDate && date > new Date(toDate)) return false;
+  const filteredEvents = (events ?? []).filter(event => {
+    const eventDate = new Date(event.recycled_at);
+
+    if (fromDate && eventDate < new Date(fromDate)) return false;
+    if (toDate && eventDate > new Date(toDate)) return false;
+    if (productFilter !== "all" && event.product_name !== productFilter) return false;
+
     return true;
   });
+  const productOptions = [
+    "all",
+    ...Array.from(new Set((events ?? []).map(e => e.product_name)))
+  ];
+  const totalUnits = filteredEvents.reduce((sum, event) => sum + event.units, 0);
+  const totalPoints = filteredEvents.reduce((sum, event) => sum + event.points, 0);
+  const productCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    acc[event.product_name] = (acc[event.product_name] || 0) + event.units;
+    return acc;
+  }, {});
   const locationCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
     const city = event.city || "Unknown";
     acc[city] = (acc[city] || 0) + event.units;
@@ -355,26 +360,37 @@ export default function DashboardPage() {
   const uniqueUsers = Object.keys(userStats).length;
   const repeatUsers =
     Object.values(userStats).filter(v => v > 1).length;
+  const avgUnitsPerConsumer =
+    uniqueUsers > 0
+      ? (totalUnits / uniqueUsers).toFixed(2)
+      : "0.00";
   const avgEventsPerUser =
     uniqueUsers > 0
       ? (filteredEvents.length / uniqueUsers).toFixed(2)
       : 0;
+  const topProducts = Object.entries(productCounts)
+    .map(([product_name, units_recycled]) => ({
+      product_name,
+      units_recycled,
+    }))
+    .sort((a, b) => b.units_recycled - a.units_recycled)
+    .slice(0, 5);
+  const topCities = Object.entries(locationCounts)
+    .map(([city, units]) => ({ city, units }))
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 5);
   const topLocations = Object.entries(locationCounts)
     .map(([city, units]) => ({ city, units }))
     .sort((a, b) => b.units - a.units)
     .slice(0, 5);
-  const activityData =
-    (report?.dailyTrend ?? [])
-      .filter(d => {
-        const date = new Date(d.date);
-        if (fromDate && date < new Date(fromDate)) return false;
-        if (toDate && date > new Date(toDate)) return false;
-        return true;
-      })
-      .map(d => ({
-        date: new Date(d.date).toISOString().split("T")[0],
-        units: d.units
-      }));
+  const activityCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    const date = new Date(event.recycled_at).toISOString().split("T")[0];
+    acc[date] = (acc[date] || 0) + event.units;
+    return acc;
+  }, {});
+  const activityData = Object.entries(activityCounts)
+    .map(([date, units]) => ({ date, units }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -409,6 +425,17 @@ export default function DashboardPage() {
               className="border rounded px-2 py-1"
             />
           </div>
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="border rounded-md px-3 py-2 text-sm"
+          >
+            {productOptions.map((p) => (
+              <option key={p} value={p}>
+                {p === "all" ? "All Products" : p}
+              </option>
+            ))}
+          </select>
           <div className="flex gap-3">
             <button
               onClick={handleExportSummaryCSV}
@@ -434,22 +461,22 @@ export default function DashboardPage() {
           <Section title="Brand Performance Overview">
           <Card
             label="Verified Brand Units Recycled"
-            value={String(traceData?.totalScans ?? 0)}
+            value={String(totalUnits)}
             info="Total verified brand product scans during the selected period."
           />
           <Card
             label="Incentive Investment (EcoPoints)"
-            value={String(traceData?.ecoPointsIssued ?? 0)}
+            value={String(totalPoints)}
             info="Total EcoPoints issued by this brand as incentives during the selected period."
           />
           <Card
             label="Engaged Consumers"
-            value={String(traceData?.uniqueConsumers ?? 0)}
+            value={String(uniqueUsers)}
             info="Number of unique users who scanned this brand during the selected period."
           />
           <Card
             label="Avg Units per Consumer"
-            value={(traceData?.avgUnitsPerConsumer ?? 0).toFixed(2)}
+            value={avgUnitsPerConsumer}
             info="Average number of brand product scans per engaged user."
           />
           </Section>
@@ -558,7 +585,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-10">
-          <RecyclingMap events={events} />
+          <RecyclingMap events={filteredEvents} />
         </section>
 
         <div className="mb-12">
@@ -593,7 +620,7 @@ export default function DashboardPage() {
             <div>
               {topProducts.map((product, index) => (
                 <div
-                  key={`${product.product_id}-${index}`}
+                  key={`${product.product_name}-${index}`}
                   className="flex justify-between items-center py-2 border-b border-gray-100"
                 >
                   <span className="text-sm text-gray-900">
