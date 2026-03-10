@@ -118,8 +118,6 @@ export default function DashboardPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  console.log("Map events:", events?.length);
-
   useEffect(() => {
     (async () => {
       const token = getToken();
@@ -152,6 +150,7 @@ export default function DashboardPage() {
         setTraceData(traceResult as TraceabilityResponse);
         setCampaignData(campaignsResult as CampaignsResponse);
         setBehaviorData(behaviorResult as BehaviorResponse);
+        console.log("Fetched events:", (eventsResult as EventItem[]).length);
         setEvents(eventsResult as EventItem[]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load analytics");
@@ -334,6 +333,36 @@ export default function DashboardPage() {
   const topCities = [...cities]
     .sort((a, b) => b.units - a.units)
     .slice(0, 5);
+  const filteredEvents = events.filter((event) => {
+    const date = new Date(event.recycled_at);
+    if (fromDate && date < new Date(fromDate)) return false;
+    if (toDate && date > new Date(toDate)) return false;
+    return true;
+  });
+  const locationCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    const city = event.city || "Unknown";
+    acc[city] = (acc[city] || 0) + event.units;
+    return acc;
+  }, {});
+  const userStats = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    const user = event.anonymized_user_id;
+
+    if (!acc[user]) acc[user] = 0;
+    acc[user] += 1;
+
+    return acc;
+  }, {});
+  const uniqueUsers = Object.keys(userStats).length;
+  const repeatUsers =
+    Object.values(userStats).filter(v => v > 1).length;
+  const avgEventsPerUser =
+    uniqueUsers > 0
+      ? (filteredEvents.length / uniqueUsers).toFixed(2)
+      : 0;
+  const topLocations = Object.entries(locationCounts)
+    .map(([city, units]) => ({ city, units }))
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 5);
   const activityData =
     (report?.dailyTrend ?? [])
       .filter(d => {
@@ -513,6 +542,18 @@ export default function DashboardPage() {
               value={String(behaviorData?.nonRedeemerCount ?? 0)}
               info="Number of users who scanned but did not redeem this brand’s reward during the selected period."
             />
+            <Card
+              label="Unique Recyclers"
+              value={String(uniqueUsers)}
+            />
+            <Card
+              label="Repeat Recyclers"
+              value={String(repeatUsers)}
+            />
+            <Card
+              label="Avg Events / User"
+              value={String(avgEventsPerUser)}
+            />
           </Section>
         </section>
 
@@ -526,7 +567,7 @@ export default function DashboardPage() {
           </h2>
 
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div style={{ height: 280 }}>
+            <div className="mt-6 h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={activityData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -581,6 +622,21 @@ export default function DashboardPage() {
                   <span className="text-sm font-semibold text-gray-900">
                     {city.units}
                   </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Recycling Locations</h3>
+            <div>
+              {topLocations.map((item, i) => (
+                <div key={i} className="flex justify-between border-b py-2">
+                  <span>{item.city}</span>
+                  <span>{item.units}</span>
                 </div>
               ))}
             </div>
