@@ -189,16 +189,19 @@ export default function DashboardPage() {
 
   async function handleExportSummaryCSV() {
     try {
-      const token = getToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
-      const report = await apiFetch(
-        `/brand/reports/traceability${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
-        { token }
-      );
+      const report = {
+        validatedScans: filteredEvents.length,
+        totalScans: filteredEvents.length,
+        uniqueConsumers: uniqueUsers,
+        avgUnitsPerConsumer,
+        ecoPointsIssued: totalPoints,
+        redeemedPoints: 0,
+        redemptions: totals?.totalRedemptions ?? 0,
+        redemptionRate: totals?.redemptionRate ?? 0,
+        perProduct: topProducts,
+        geoBreakdown: topCities,
+        dailyTrend: activityData,
+      };
 
       const rows = [
         ["GreenLoop Traceability Report"],
@@ -245,22 +248,21 @@ export default function DashboardPage() {
 
   async function handleExportEventsCSV() {
     try {
-      const token = getToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
-      const res = await fetch(`${API_BASE}/brand/reports/events`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        console.warn("Events export unavailable:", res.status);
-        return;
-      }
-
-      const events = await res.json();
+      const events = filteredEvents.map((event) => ({
+        recycled_at: event.recycled_at,
+        product_name: event.product_name,
+        barcode: event.barcode,
+        units: event.units,
+        points: event.points,
+        city: event.city,
+        lat: event.lat,
+        lng: event.lng,
+        scan_status: event.scan_status,
+        anonymized_user_id: event.anonymized_user_id,
+        recycling_event_id: event.recycling_event_id,
+        recycling_event_item_id: event.recycling_event_item_id,
+        scan_id: event.scan_id,
+      }));
       const rows = [
         [
           "recycled_at",
