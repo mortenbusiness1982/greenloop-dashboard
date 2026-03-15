@@ -1,0 +1,783 @@
+"use client";
+
+import { ReactNode, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { apiFetch, apiFetchBlob } from "@/lib/api";
+import { clearToken, getToken } from "@/lib/auth";
+import InfoTooltip from "../../../components/InfoTooltip";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+} from "recharts";
+
+const RecyclingMap = dynamic(() => import("@/components/RecyclingMap"), {
+  ssr: false,
+});
+
+type ReportsResponse = {
+  totals: {
+    totalRedemptions: number;
+    activeTokens: number;
+    expiredTokens: number;
+    redemptionRate: number;
+  };
+  redemptionsByReward: unknown[];
+  redemptionsByPartner: unknown[];
+};
+
+type TraceabilityResponse = {
+  totalScans: number;
+  validatedScans: number;
+  ecoPointsIssued: number;
+  redemptions: number;
+  redemptionRate: number;
+  uniqueConsumers?: number;
+  avgUnitsPerConsumer?: number;
+  perProduct?: {
+    product_id: string;
+    product_name: string;
+    units_recycled: number;
+  }[];
+  dailyTrend?: {
+    date: string;
+    units: number;
+  }[];
+  geoBreakdown?: {
+    city: string;
+    units: number;
+    consumers: number;
+  }[];
+};
+
+type CampaignsResponse = {
+  ok: true;
+  campaigns: {
+    challengeId: string;
+    participants: number;
+    completed: number;
+    completionRate: number;
+    bonusPointsIssued: number;
+    avgUnitsPerParticipant: number;
+    incrementalUnitsLift: number;
+  }[];
+};
+
+type BehaviorResponse = {
+  brandShareRedeemers: number;
+  brandShareNonRedeemers: number;
+  brandLift: number;
+  relativeLift: number;
+  redeemerCount: number;
+  nonRedeemerCount: number;
+};
+
+type EventItem = {
+  recycled_at: string;
+  product_name: string;
+  barcode: string;
+  units: number;
+  points: number;
+  city: string | null;
+  lat: number | null;
+  lng: number | null;
+  scan_status: string;
+  anonymized_user_id: string;
+  recycling_event_id: string;
+  recycling_event_item_id: string;
+  scan_id: string;
+};
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mb-10">
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">{title}</h2>
+      <div className="grid grid-cols-4 gap-6">{children}</div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [reportData, setReportData] = useState<ReportsResponse | null>(null);
+  const [traceData, setTraceData] = useState<TraceabilityResponse | null>(null);
+  const [campaignData, setCampaignData] = useState<CampaignsResponse | null>(null);
+  const [behaviorData, setBehaviorData] = useState<BehaviorResponse | null>(null);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [productFilter, setProductFilter] = useState<string>("all");
+
+  useEffect(() => {
+    (async () => {
+      const token = getToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        const [reportsResult, traceResult, campaignsResult, behaviorResult, eventsResult] = await Promise.all([
+          apiFetch("/brand/reports/redemptions", { token }),
+          apiFetch(
+            `/brand/reports/traceability${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
+          apiFetch(
+            `/brand/reports/campaigns${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
+          apiFetch(
+            `/brand/reports/behavior${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
+          apiFetch(
+            `/brand/reports/events${fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""}`,
+            { token }
+          ),
+        ]);
+        setReportData(reportsResult as ReportsResponse);
+        setTraceData(traceResult as TraceabilityResponse);
+        setCampaignData(campaignsResult as CampaignsResponse);
+        setBehaviorData(behaviorResult as BehaviorResponse);
+        console.log("Fetched events:", (eventsResult as EventItem[]).length);
+        setEvents(eventsResult as EventItem[]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to load analytics");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [router, fromDate, toDate]);
+
+  function onLogout() {
+    clearToken();
+    router.replace("/login");
+  }
+
+  async function onDownloadCsv() {
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    const exportPath = `/brand/reports/export${
+      fromDate || toDate ? `?from=${fromDate}&to=${toDate}` : ""
+    }`;
+    const blob = await apiFetchBlob(exportPath, { token });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "greenloop-export.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  async function handleExportSummaryCSV() {
+    try {
+      const report = {
+        validatedScans: filteredEvents.length,
+        totalScans: filteredEvents.length,
+        uniqueConsumers: uniqueUsers,
+        avgUnitsPerConsumer,
+        ecoPointsIssued: totalPoints,
+        redeemedPoints: 0,
+        redemptions: totals?.totalRedemptions ?? 0,
+        redemptionRate: totals?.redemptionRate ?? 0,
+        perProduct: topProducts,
+        geoBreakdown: topCities,
+        dailyTrend: activityData,
+      };
+
+      const rows = [
+        ["GreenLoop Traceability Report"],
+        [],
+        ["Metric", "Value"],
+        ["Verified Units Recycled", report.validatedScans],
+        ["Recycling Events", report.totalScans],
+        ["Engaged Consumers", report.uniqueConsumers],
+        ["Avg Units per Consumer", report.avgUnitsPerConsumer],
+        ["EcoPoints Issued", report.ecoPointsIssued],
+        ["Points Redeemed", report.redeemedPoints],
+        ["Redemptions", report.redemptions],
+        ["Redemption Rate", report.redemptionRate],
+        [],
+        ["Top Recycled Products"],
+        ["Product", "Units Recycled"],
+        ...((report.perProduct ?? []).map((p: any) => [p.product_name, p.units_recycled])),
+        [],
+        ["Recycling by City"],
+        ["City", "Units Recycled"],
+        ...((report.geoBreakdown ?? []).map((c: any) => [c.city, c.units])),
+        [],
+        ["Recycling Activity"],
+        ["Date", "Units"],
+        ...((report.dailyTrend ?? []).map((d: any) => [
+          new Date(d.date).toISOString().split("T")[0],
+          d.units,
+        ])),
+      ];
+
+      const csv = rows.map((r: any[]) => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `greenloop-summary-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export summary CSV failed", error);
+    }
+  }
+
+  async function handleExportEventsCSV() {
+    try {
+      const events = filteredEvents.map((event) => ({
+        recycled_at: event.recycled_at,
+        product_name: event.product_name,
+        barcode: event.barcode,
+        units: event.units,
+        points: event.points,
+        city: event.city,
+        lat: event.lat,
+        lng: event.lng,
+        scan_status: event.scan_status,
+        anonymized_user_id: event.anonymized_user_id,
+        recycling_event_id: event.recycling_event_id,
+        recycling_event_item_id: event.recycling_event_item_id,
+        scan_id: event.scan_id,
+      }));
+      const rows = [
+        [
+          "recycled_at",
+          "product_name",
+          "barcode",
+          "units",
+          "points",
+          "city",
+          "lat",
+          "lng",
+          "scan_status",
+          "anonymized_user_id",
+          "recycling_event_id",
+          "recycling_event_item_id",
+          "scan_id",
+        ],
+        ...((events ?? []).map((e: any) => [
+          new Date(e.recycled_at).toISOString(),
+          e.product_name,
+          e.barcode,
+          e.units,
+          e.points,
+          e.city,
+          e.lat,
+          e.lng,
+          e.scan_status,
+          e.anonymized_user_id,
+          e.recycling_event_id,
+          e.recycling_event_item_id,
+          e.scan_id,
+        ])),
+      ];
+
+      const csv = rows.map((r: any[]) => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `greenloop-events-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export events CSV failed", error);
+    }
+  }
+
+  if (loading) {
+    return <main className="min-h-screen p-6">Loading analytics...</main>;
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen p-6">
+        <div className="rounded border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
+        <button onClick={onLogout} className="mt-4 rounded bg-gray-900 px-4 py-2 text-white">
+          Logout
+        </button>
+      </main>
+    );
+  }
+
+  const totals = reportData?.totals;
+  const primaryCampaign = campaignData?.campaigns?.[0];
+  const filteredEvents = (events ?? []).filter((event) => {
+    const eventDate = new Date(event.recycled_at);
+
+    if (fromDate && eventDate < new Date(fromDate)) return false;
+    if (toDate && eventDate > new Date(toDate)) return false;
+    if (productFilter !== "all" && event.product_name !== productFilter) return false;
+
+    return true;
+  });
+  const productOptions = ["all", ...Array.from(new Set((events ?? []).map((e) => e.product_name)))];
+  const totalUnits = filteredEvents.reduce((sum, event) => sum + event.units, 0);
+  const totalPoints = filteredEvents.reduce((sum, event) => sum + event.points, 0);
+  const productCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    acc[event.product_name] = (acc[event.product_name] || 0) + event.units;
+    return acc;
+  }, {});
+  const locationCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    const city = event.city || "Unknown";
+    acc[city] = (acc[city] || 0) + event.units;
+    return acc;
+  }, {});
+  const userStats = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    const user = event.anonymized_user_id;
+
+    if (!acc[user]) acc[user] = 0;
+    acc[user] += 1;
+
+    return acc;
+  }, {});
+  const uniqueUsers = Object.keys(userStats).length;
+  const repeatUsers = Object.values(userStats).filter((v) => v > 1).length;
+  const avgUnitsPerConsumer = uniqueUsers > 0 ? (totalUnits / uniqueUsers).toFixed(2) : "0.00";
+  const avgEventsPerUser = uniqueUsers > 0 ? (filteredEvents.length / uniqueUsers).toFixed(2) : 0;
+  const topProducts = Object.entries(productCounts)
+    .map(([product_name, units_recycled]) => ({
+      product_name,
+      units_recycled,
+    }))
+    .sort((a, b) => b.units_recycled - a.units_recycled)
+    .slice(0, 5);
+  const topCities = Object.entries(locationCounts)
+    .map(([city, units]) => ({ city, units }))
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 5);
+  const topLocations = Object.entries(locationCounts)
+    .map(([city, units]) => ({ city, units }))
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 5);
+  const activityCounts = filteredEvents.reduce<Record<string, number>>((acc, event) => {
+    const date = new Date(event.recycled_at).toISOString().split("T")[0];
+    acc[date] = (acc[date] || 0) + event.units;
+    return acc;
+  }, {});
+  const activityData = Object.entries(activityCounts)
+    .map(([date, units]) => ({ date, units }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return (
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-4xl font-bold text-gray-900">Brand Dashboard</h1>
+          <button onClick={onLogout} className="rounded bg-gray-900 px-4 py-2 text-white">
+            Logout
+          </button>
+        </div>
+        <div className="mb-6 rounded-xl border border-[#2d6a4f] bg-[#ecf7f2] px-6 py-4">
+          <p className="text-gray-900 text-lg">Coca-Cola Malaga Pilot - February 2026</p>
+        </div>
+        <div className="flex items-center gap-3 mb-8">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">From</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="border rounded px-2 py-1"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">To</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="border rounded px-2 py-1"
+            />
+          </div>
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="border rounded-md px-3 py-2 text-sm"
+          >
+            {productOptions.map((p) => (
+              <option key={p} value={p}>
+                {p === "all" ? "All Products" : p}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportSummaryCSV}
+              className="px-4 py-2 bg-[#2d6a4f] text-white rounded-md text-sm"
+            >
+              Export Summary CSV
+            </button>
+            <button
+              onClick={handleExportEventsCSV}
+              className="px-4 py-2 bg-[#2d6a4f] text-white rounded-md text-sm"
+            >
+              Export Raw Events CSV
+            </button>
+          </div>
+          <button className="rounded-lg bg-[#2d6a4f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#24543f] transition">
+            Apply
+          </button>
+        </div>
+
+        <section className="mb-4 mt-12">
+          <Section title="Brand Performance Overview">
+            <Card
+              label="Verified Brand Units Recycled"
+              value={String(totalUnits)}
+              info="Total verified brand product scans during the selected period."
+            />
+            <Card
+              label="Incentive Investment (EcoPoints)"
+              value={String(totalPoints)}
+              info="Total EcoPoints issued by this brand as incentives during the selected period."
+            />
+            <Card
+              label="Engaged Consumers"
+              value={String(uniqueUsers)}
+              info="Number of unique users who scanned this brand during the selected period."
+            />
+            <Card
+              label="Avg Units per Consumer"
+              value={avgUnitsPerConsumer}
+              info="Average number of brand product scans per engaged user."
+            />
+          </Section>
+        </section>
+
+        <section>
+          <Section title="Reward Performance">
+            <Card
+              label="Total Redemptions"
+              value={String(totals?.totalRedemptions ?? 0)}
+              info="Number of times this brand’s rewards were redeemed during the selected period."
+            />
+            <Card
+              label="Unclaimed Rewards"
+              value={String(totals?.activeTokens ?? 0)}
+              info="Issued rewards that are still valid but have not yet been redeemed."
+            />
+            <Card
+              label="Expired Rewards"
+              value={String(totals?.expiredTokens ?? 0)}
+              info="Issued rewards that expired without being redeemed."
+            />
+          </Section>
+        </section>
+
+        <section className="mt-8">
+          <Section title="Campaign Impact">
+            <Card
+              label="Participants"
+              value={String(primaryCampaign?.participants ?? 0)}
+              info="Users who accepted the brand challenge."
+            />
+            <Card
+              label="Completed"
+              value={String(primaryCampaign?.completed ?? 0)}
+              info="Users who completed the challenge requirements."
+            />
+            <Card
+              label="Completion Rate"
+              value={`${(((primaryCampaign?.completionRate ?? 0) * 100).toFixed(1))}%`}
+              info="Percentage of participants who completed the challenge."
+            />
+            <Card
+              label="Bonus Points Issued"
+              value={String(primaryCampaign?.bonusPointsIssued ?? 0)}
+              info="Total EcoPoints awarded as challenge incentives."
+            />
+            <Card
+              label="Avg Units per Participant"
+              value={(primaryCampaign?.avgUnitsPerParticipant ?? 0).toFixed(2)}
+              info="Average number of brand scans among challenge participants."
+            />
+            <Card
+              label="Incremental Units Lift"
+              value={String(Math.round(primaryCampaign?.incrementalUnitsLift ?? 0))}
+              info="Did this campaign actually increase brand scanning? Estimated additional brand units generated by challenge participants compared to baseline."
+            />
+          </Section>
+        </section>
+
+        <section className="mt-8">
+          <Section title="Behavior Influence">
+            <Card
+              label="Brand Share (Redeemers)"
+              value={`${(((behaviorData?.brandShareRedeemers ?? 0) * 100).toFixed(1))}%`}
+              info="Percentage of total scans by reward redeemers that were this brand."
+            />
+            <Card
+              label="Brand Share (Non-Redeemers)"
+              value={`${(((behaviorData?.brandShareNonRedeemers ?? 0) * 100).toFixed(1))}%`}
+              info="Baseline percentage of total scans by non-redeemers that were this brand."
+            />
+            <Card
+              label="Absolute Lift"
+              value={`${(((behaviorData?.brandLift ?? 0) * 100).toFixed(1))}%`}
+              info="Difference in brand scan share between redeemers and baseline users."
+            />
+            <Card
+              label="Relative Lift"
+              value={`${(((behaviorData?.relativeLift ?? 0) * 100).toFixed(1))}%`}
+              info="Percentage increase or decrease in brand scan share among redeemers compared to baseline."
+            />
+            <Card
+              label="Redeemer Count"
+              value={String(behaviorData?.redeemerCount ?? 0)}
+              info="Number of users who redeemed this brand’s reward during the selected period."
+            />
+            <Card
+              label="Non-Redeemer Count"
+              value={String(behaviorData?.nonRedeemerCount ?? 0)}
+              info="Number of users who scanned but did not redeem this brand’s reward during the selected period."
+            />
+            <Card label="Unique Recyclers" value={String(uniqueUsers)} />
+            <Card label="Repeat Recyclers" value={String(repeatUsers)} />
+            <Card label="Avg Events / User" value={String(avgEventsPerUser)} />
+          </Section>
+        </section>
+
+        <section className="mt-10">
+          <RecyclingMap events={filteredEvents} />
+        </section>
+
+        <div className="mb-12">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recycling Activity</h2>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <div className="mt-6 h-[320px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={activityData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="units" stroke="#2d6a4f" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mt-8">
+          <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Recycled Products</h2>
+            <div>
+              {topProducts.map((product, index) => (
+                <div
+                  key={`${product.product_name}-${index}`}
+                  className="flex justify-between items-center py-2 border-b border-gray-100"
+                >
+                  <span className="text-sm text-gray-900">
+                    {index + 1} {product.product_name}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">{product.units_recycled}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Recycling by City</h2>
+            <div>
+              {topCities.map((city, index) => (
+                <div
+                  key={`${city.city}-${index}`}
+                  className="flex justify-between items-center py-2 border-b border-gray-100"
+                >
+                  <span className="text-sm text-gray-900">
+                    {index + 1} {city.city}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">{city.units}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <div className="relative bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#2d6a4f] rounded-t-xl"></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Recycling Locations</h3>
+            <div>
+              {topLocations.map((item, i) => (
+                <div key={i} className="flex justify-between border-b py-2">
+                  <span>{item.city}</span>
+                  <span>{item.units}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <section className="mt-8">
+          <h2 className="mt-12 text-2xl font-bold text-gray-900 tracking-tight text-center">
+            Activity & Distribution
+            <InfoTooltip text="Where is activity happening? This section shows time trends, product mix, and geographic distribution." />
+          </h2>
+          <div className="mt-4 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-lg bg-white p-4 shadow">
+              <h2 className="text-lg font-medium text-gray-900">Daily Recycling Trend</h2>
+              <div className="mt-4 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={traceData?.dailyTrend ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(value) =>
+                        new Date(value).toLocaleDateString("es-ES", {
+                          day: "2-digit",
+                          month: "short",
+                        })
+                      }
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="units" stroke="#16a34a" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-white p-4 shadow">
+              <h2 className="text-lg font-medium text-gray-900">Recycling by Product</h2>
+              <div className="mt-4 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={traceData?.perProduct ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="product_name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="units_recycled" fill="#2563eb" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8">
+          <div className="rounded-lg bg-white p-4 shadow">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Recycling Activity by City</h2>
+
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-sm text-gray-600">City</th>
+                  <th className="py-2 text-sm text-gray-600">Units Recycled</th>
+                  <th className="py-2 text-sm text-gray-600">Engaged Consumers</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(traceData?.geoBreakdown ?? []).length === 0 ? (
+                  <tr className="border-b">
+                    <td colSpan={3} className="py-3 text-gray-500 text-center">
+                      No recycling activity recorded for selected date range.
+                    </td>
+                  </tr>
+                ) : (
+                  (traceData?.geoBreakdown ?? []).map((row, idx) => (
+                    <tr key={idx} className="border-b">
+                      <td className="py-2 font-medium text-gray-900">{row.city}</td>
+                      <td className="py-2 text-gray-900">{row.units}</td>
+                      <td className="py-2 text-gray-900">{row.consumers}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="rounded-lg bg-white p-4 shadow">
+            <h2 className="text-lg font-medium text-gray-900">Redemptions By Reward</h2>
+            <table className="w-full text-left border-collapse mt-3">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-sm text-gray-600">Reward</th>
+                  <th className="py-2 text-sm text-gray-600">Redemptions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(reportData?.redemptionsByReward ?? []).map((row: any, idx: number) => (
+                  <tr key={idx} className="border-b">
+                    <td className="py-2 text-gray-900">{row.reward_name || row.name || "—"}</td>
+                    <td className="py-2 text-gray-900">{row.count || row.redemptions || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="rounded-lg bg-white p-4 shadow">
+            <h2 className="text-lg font-medium text-gray-900">Redemptions By Partner</h2>
+            <table className="w-full text-left border-collapse mt-3">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-sm text-gray-600">Partner</th>
+                  <th className="py-2 text-sm text-gray-600">Redemptions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(reportData?.redemptionsByPartner ?? []).map((row: any, idx: number) => (
+                  <tr key={idx} className="border-b">
+                    <td className="py-2 text-gray-900">{row.partner_name || row.name || row.partner || "—"}</td>
+                    <td className="py-2 text-gray-900">{row.count || row.redemptions || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function Card({
+  label,
+  value,
+  info,
+}: {
+  label: string;
+  value: string;
+  info?: string;
+}) {
+  return (
+    <div className="relative rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-200 hover:shadow-md">
+      <div className="absolute top-0 left-0 h-[3px] w-full rounded-t-xl bg-[#2d6a4f]"></div>
+      <div className="flex items-center text-sm font-medium text-gray-500">
+        {label}
+        {info && <InfoTooltip text={info} />}
+      </div>
+      <p className="mt-1 text-3xl font-semibold text-gray-900">{value}</p>
+    </div>
+  );
+}

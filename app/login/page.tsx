@@ -22,13 +22,24 @@ export default function LoginPage() {
         method: "POST",
         body: { email, password },
       });
+      const token = data?.token;
+      const role = data?.user?.role;
 
-      if (!data?.token) {
+      if (!token) {
         throw new Error("Missing token in response");
       }
 
-      setToken(String(data.token));
-      router.push("/");
+      setToken(String(token));
+
+      if (role === "admin") {
+        router.push("/admin");
+      } else if (role === "partner") {
+        router.push("/partner");
+      } else if (role === "brand_admin") {
+        router.push("/brand");
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

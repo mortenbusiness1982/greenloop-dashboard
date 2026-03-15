@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/$/, "");
 
 type ApiFetchOptions = {
   token?: string;
@@ -34,7 +34,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   }
 
   if (!res.ok) {
-    const message = json?.error || `Request failed with status ${res.status}`;
+    const message = json?.message || json?.error || `Request failed with status ${res.status}`;
     throw new Error(message);
   }
 
@@ -56,7 +56,7 @@ export async function apiFetchBlob(path: string, opts: { token: string }): Promi
     } catch {
       json = null;
     }
-    throw new Error(json?.error || `Request failed with status ${res.status}`);
+    throw new Error(json?.message || json?.error || `Request failed with status ${res.status}`);
   }
 
   return await res.blob();
