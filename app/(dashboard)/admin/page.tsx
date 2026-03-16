@@ -73,6 +73,7 @@ type ChallengeFormState = {
 
 type PlatformReportEvent = {
   id?: string | number;
+  event_id?: string | number;
   user_id?: string | number;
   bin_id?: string | number;
   created_at?: string;
@@ -494,37 +495,37 @@ export default function AdminPage() {
         return `"${s.replace(/"/g, '""')}"`;
       }
 
-      const events = platformReport?.events ?? [];
-      const rows = [
-        [
-          "created_at",
-          "product_name",
-          "barcode",
-          "units",
-          "city",
-          "lat",
-          "lng",
-          "scan_status",
-          "user_id",
-          "bin_id",
-          "event_id",
-        ],
-        ...events.map((event) => [
-          event.created_at ? new Date(event.created_at).toISOString() : "",
-          event.product_name ?? "",
-          event.barcode ?? "",
-          Number(event.units ?? 0),
-          event.city ?? "",
-          event.lat ?? "",
-          event.lng ?? "",
-          event.scan_status ?? "",
-          event.user_id ?? "",
-          event.bin_id ?? "",
-          event.id ?? "",
-        ]),
+      const headers = [
+        "created_at",
+        "product_name",
+        "barcode",
+        "units",
+        "city",
+        "lat",
+        "lng",
+        "scan_status",
+        "user_id",
+        "bin_id",
+        "event_id",
       ];
+      const rows = platformEvents.map((event) => ({
+        created_at: event.created_at ? new Date(event.created_at).toISOString() : "",
+        product_name: event.product_name ?? "",
+        barcode: event.barcode ?? "",
+        units: event.units ?? 0,
+        city: event.city ?? "",
+        lat: event.lat ?? "",
+        lng: event.lng ?? "",
+        scan_status: event.scan_status ?? "",
+        user_id: event.user_id ?? "",
+        bin_id: event.bin_id ?? "",
+        event_id: event.event_id ?? event.id ?? "",
+      }));
 
-      const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
+      const csv = [
+        headers.map(csvCell).join(","),
+        ...rows.map((row) => headers.map((key) => csvCell(row[key as keyof typeof row])).join(",")),
+      ].join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
