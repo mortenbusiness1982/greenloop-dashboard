@@ -26,8 +26,8 @@ import {
   YAxis,
 } from "recharts";
 
-const RecyclingMap = dynamic(
-  () => import("@/components/RecyclingMap"),
+const AdminRecyclingHeatmap = dynamic(
+  () => import("@/components/AdminRecyclingHeatmap"),
   { ssr: false }
 );
 
@@ -964,7 +964,7 @@ export default function AdminPage() {
 
             <div className="mb-8">
               <h3 className="mb-4 text-lg font-medium text-gray-900">Global Recycling Activity Map</h3>
-              <RecyclingMap events={platformEvents} />
+              <AdminRecyclingHeatmap events={platformEvents} />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
