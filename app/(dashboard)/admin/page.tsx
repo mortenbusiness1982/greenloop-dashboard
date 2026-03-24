@@ -78,12 +78,15 @@ type PlatformReportEvent = {
   bin_id?: string | number;
   created_at?: string;
   product_name?: string;
+  name?: string;
   barcode?: string;
+  ean?: string;
   units?: number;
   city?: string | null;
   lat?: number | null;
   lng?: number | null;
   scan_status?: string;
+  status?: string;
 };
 
 type PlatformReportResponse = {
@@ -153,7 +156,7 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="space-y-6 rounded-xl border border-gray-200 bg-white p-6 shadow">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
         {description ? <p className="mt-1 text-sm text-gray-600">{description}</p> : null}
@@ -249,13 +252,27 @@ export default function AdminPage() {
     try {
       setError(null);
       const [rewardsResult, challengesResult, platformResult] = await Promise.all([
-        apiFetch("/rewards", { token }),
-        apiFetch("/challenges", { token }),
+        apiFetch("/admin/rewards", { token }),
+        apiFetch("/admin/challenges", { token }),
         apiFetch("/admin/reports/platform", { token }),
       ]);
 
-      setRewards(normalizeList<Reward>(rewardsResult, ["rewards", "data"]));
-      setChallenges(normalizeList<Challenge>(challengesResult, ["challenges", "data"]));
+      console.log("RAW REWARDS RESPONSE", rewardsResult);
+      console.log("RAW CHALLENGES RESPONSE", challengesResult);
+      console.log("RAW PLATFORM RESPONSE", platformResult);
+
+      const normalizedRewards = normalizeList<Reward>(rewardsResult, ["rewards", "data"]);
+      const normalizedChallenges = normalizeList<Challenge>(challengesResult, ["challenges", "data"]);
+
+      console.log("NORMALIZED REWARDS", normalizedRewards);
+      console.log("NORMALIZED CHALLENGES", normalizedChallenges);
+
+      setRewards(normalizedRewards);
+      setChallenges(normalizedChallenges);
+      console.log(
+        "ADMIN platformReport.events sample",
+        ((platformResult ?? null) as PlatformReportResponse | null)?.events?.slice(0, 5)
+      );
       setPlatformReport((platformResult ?? null) as PlatformReportResponse | null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load admin dashboard");
@@ -267,6 +284,14 @@ export default function AdminPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    console.log("UPDATED REWARDS", rewards);
+  }, [rewards]);
+
+  useEffect(() => {
+    console.log("UPDATED CHALLENGES", challenges);
+  }, [challenges]);
 
   function onLogout() {
     clearToken();
@@ -381,6 +406,47 @@ export default function AdminPage() {
     }
   }
 
+  async function handleDeleteReward(id: string | number) {
+    if (!id) {
+      console.error("Invalid delete ID", id);
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!confirm("Delete this reward?")) return;
+
+    try {
+      console.log("DELETE CLICKED", id);
+      setActiveAction(`reward-delete-${id}`);
+      setError(null);
+      const res = await apiFetch(`/admin/rewards/${id}`, {
+        token,
+        method: "DELETE",
+      });
+
+      console.log("DELETE RESPONSE", res);
+
+      if (!res || res.error) {
+        console.error("DELETE FAILED", res);
+        throw new Error(res?.error || "Delete failed");
+      }
+
+      console.log("RELOADING DATA");
+      const updated = await apiFetch("/admin/rewards", { token });
+      const normalizedRewards = normalizeList(updated, ["rewards", "data"]);
+      setRewards(normalizedRewards);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete reward");
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
   async function toggleChallenge(id: string | number) {
     const token = getToken();
     if (!token) {
@@ -395,6 +461,47 @@ export default function AdminPage() {
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to toggle challenge");
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleDeleteChallenge(id: string | number) {
+    if (!id) {
+      console.error("Invalid delete ID", id);
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!confirm("Delete this challenge?")) return;
+
+    try {
+      console.log("DELETE CLICKED", id);
+      setActiveAction(`challenge-delete-${id}`);
+      setError(null);
+      const res = await apiFetch(`/admin/challenges/${id}`, {
+        token,
+        method: "DELETE",
+      });
+
+      console.log("DELETE RESPONSE", res);
+
+      if (!res || res.error) {
+        console.error("DELETE FAILED", res);
+        throw new Error(res?.error || "Delete failed");
+      }
+
+      console.log("RELOADING DATA");
+      const updated = await apiFetch("/admin/challenges", { token });
+      const normalizedChallenges = normalizeList(updated, ["challenges", "data"]);
+      setChallenges(normalizedChallenges);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete challenge");
     } finally {
       setActiveAction(null);
     }
@@ -445,7 +552,7 @@ export default function AdminPage() {
   });
   const platformEvents = platformReport?.events ?? [];
   const totals = platformReport?.totals;
-  const topProducts = (platformReport?.perProduct ?? []).slice(0, 5);
+  const topProducts = platformReport?.perProduct?.slice(0, 5) ?? [];
 
   async function handleExportSummaryCSV() {
     try {
@@ -509,7 +616,7 @@ export default function AdminPage() {
         "event_id",
       ];
       const rows = platformEvents.map((event) => ({
-        created_at: event.created_at ? new Date(event.created_at).toISOString() : "",
+        created_at: event.created_at ?? "",
         product_name: event.product_name ?? "",
         barcode: event.barcode ?? "",
         units: event.units ?? 0,
@@ -519,13 +626,15 @@ export default function AdminPage() {
         scan_status: event.scan_status ?? "",
         user_id: event.user_id ?? "",
         bin_id: event.bin_id ?? "",
-        event_id: event.event_id ?? event.id ?? "",
+        event_id: event.event_id ?? "",
       }));
 
       const csv = [
         headers.map(csvCell).join(","),
         ...rows.map((row) => headers.map((key) => csvCell(row[key as keyof typeof row])).join(",")),
       ].join("\n");
+      console.log("ADMIN raw CSV first 3 rows", rows.slice(0, 3));
+      console.log("ADMIN raw CSV string preview", csv.split("\n").slice(0, 4));
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -541,6 +650,9 @@ export default function AdminPage() {
   if (loading) {
     return <main className="min-h-screen p-6 text-gray-700">Loading admin dashboard...</main>;
   }
+
+  console.log("RENDER REWARDS LENGTH", rewards.length);
+  console.log("RENDER CHALLENGES LENGTH", challenges.length);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -559,14 +671,14 @@ export default function AdminPage() {
           <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
         ) : null}
 
-        <div className="space-y-8">
+        <div className="space-y-12">
           <SectionCard
             title="Rewards Manager"
             description="Create, update, and activate reward offers available in the network."
           >
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-              <div className="overflow-hidden rounded-lg border border-gray-200">
-                <table className="w-full border-collapse text-left">
+            <div className="grid grid-cols-[4fr_1fr] gap-8">
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-[900px] w-full border-collapse text-left">
                   <thead className="bg-gray-50">
                     <tr className="border-b border-gray-200">
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Title</th>
@@ -604,7 +716,7 @@ export default function AdminPage() {
                               {reward.active ? "Active" : "Inactive"}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
                             <div className="flex gap-2">
                               <button
                                 onClick={() => startRewardEdit(reward)}
@@ -619,6 +731,13 @@ export default function AdminPage() {
                               >
                                 Toggle active
                               </button>
+                              <button
+                                onClick={() => handleDeleteReward(reward.id)}
+                                disabled={activeAction === `reward-delete-${reward.id}`}
+                                className="ml-2 rounded bg-red-600 px-3 py-1 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -628,7 +747,7 @@ export default function AdminPage() {
                 </table>
               </div>
 
-              <form onSubmit={handleRewardSubmit} className="rounded-lg border border-gray-200 bg-gray-50 p-5">
+              <form onSubmit={handleRewardSubmit} className="max-w-md rounded-lg border border-gray-200 bg-gray-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">
                     {editingRewardId ? "Edit Reward" : "Create Reward"}
@@ -702,9 +821,9 @@ export default function AdminPage() {
             title="Challenge Manager"
             description="Create lifecycle-based challenges and control whether they are live."
           >
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-              <div className="overflow-hidden rounded-lg border border-gray-200">
-                <table className="w-full border-collapse text-left">
+            <div className="grid grid-cols-[4fr_1fr] gap-8">
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-[900px] w-full border-collapse text-left">
                   <thead className="bg-gray-50">
                     <tr className="border-b border-gray-200">
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Title</th>
@@ -744,7 +863,7 @@ export default function AdminPage() {
                               {challenge.active ? "Active" : "Inactive"}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
                             <div className="flex gap-2">
                               <button
                                 onClick={() => startChallengeEdit(challenge)}
@@ -759,6 +878,13 @@ export default function AdminPage() {
                               >
                                 Toggle active
                               </button>
+                              <button
+                                onClick={() => handleDeleteChallenge(challenge.id)}
+                                disabled={activeAction === `challenge-delete-${challenge.id}`}
+                                className="ml-2 rounded bg-red-600 px-3 py-1 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -770,7 +896,7 @@ export default function AdminPage() {
 
               <form
                 onSubmit={handleChallengeSubmit}
-                className="rounded-lg border border-gray-200 bg-gray-50 p-5"
+                className="max-w-md rounded-lg border border-gray-200 bg-gray-50 p-5"
               >
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -943,10 +1069,10 @@ export default function AdminPage() {
                   <div className="absolute left-0 top-0 h-[3px] w-full rounded-t-xl bg-[#2d6a4f]" />
                   <h4 className="text-sm font-medium text-gray-500">Top Recycled Products</h4>
                   <div className="mt-4 space-y-3">
-                    {topProducts.length === 0 ? (
+                    {!topProducts || topProducts.length === 0 ? (
                       <p className="text-sm text-gray-500">No recycling activity recorded.</p>
                     ) : (
-                      topProducts.map((product, index) => (
+                      (topProducts || []).map((product, index) => (
                         <div
                           key={`${product.product_name ?? "product"}-${index}`}
                           className="flex items-center justify-between border-b border-gray-100 pb-3 text-sm last:border-b-0 last:pb-0"
