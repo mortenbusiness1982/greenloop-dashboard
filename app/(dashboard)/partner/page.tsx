@@ -30,40 +30,12 @@ function normalizeList<T>(value: unknown, keys: string[]): T[] {
   return [];
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
-function SectionCard({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-        {description ? <p className="mt-1 text-sm text-gray-600">{description}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 export default function PartnerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingRedemptions, setPendingRedemptions] = useState<PendingRedemption[]>([]);
   const [history, setHistory] = useState<RedemptionHistoryItem[]>([]);
-  const [activeToken, setActiveToken] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const token = getToken();
@@ -97,32 +69,27 @@ export default function PartnerPage() {
     router.replace("/login");
   }
 
-  async function consumeReward(redemptionToken: string) {
-    const token = getToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      setActiveToken(redemptionToken);
-      setError(null);
-      await apiFetch("/rewards/consume", {
-        token,
-        method: "POST",
-        body: { token: redemptionToken },
-      });
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to consume reward");
-    } finally {
-      setActiveToken(null);
-    }
-  }
-
   if (loading) {
     return <main className="min-h-screen p-6 text-gray-700">Loading partner dashboard...</main>;
   }
+
+  const now = new Date();
+
+  const activeCount = pendingRedemptions.filter((r) => r.expires_at && new Date(r.expires_at) > now).length;
+
+  const expiredCount = pendingRedemptions.filter((r) => r.expires_at && new Date(r.expires_at) < now).length;
+
+  const redeemedCount = history.length;
+
+  const activeRedemptions = pendingRedemptions.filter(
+    (r) => r.expires_at && new Date(r.expires_at).getTime() > now.getTime(),
+  );
+
+  const sortedPendingRedemptions = [...activeRedemptions].sort((a, b) => {
+    const aTime = a.expires_at ? new Date(a.expires_at).getTime() : Number.POSITIVE_INFINITY;
+    const bTime = b.expires_at ? new Date(b.expires_at).getTime() : Number.POSITIVE_INFINITY;
+    return aTime - bTime;
+  });
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -141,93 +108,32 @@ export default function PartnerPage() {
           <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
         ) : null}
 
-        <div className="space-y-8">
-          <SectionCard
-            title="Pending Redemptions"
-            description="Consume active redemption tokens presented by users."
-          >
-            <div className="overflow-hidden rounded-lg border border-gray-200">
-              <table className="w-full border-collapse text-left">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Reward</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">User Email</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Token</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Expires At</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingRedemptions.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
-                        No pending redemptions.
-                      </td>
-                    </tr>
-                  ) : (
-                    pendingRedemptions.map((item) => (
-                      <tr key={item.token} className="border-b border-gray-100">
-                        <td className="px-4 py-3 text-sm text-gray-900">{item.reward_title}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{item.user_email}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{item.token}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{formatDateTime(item.expires_at)}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => consumeReward(item.token)}
-                            disabled={activeToken === item.token}
-                            className="rounded-md bg-[#2d6a4f] px-3 py-1.5 text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Consume
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+        <div>
+          <div className="mb-6 grid grid-cols-3 gap-4">
+            <div className="rounded-xl bg-white p-4 shadow">
+              <div className="text-sm text-gray-500">Active Rewards</div>
+              <div className="text-2xl font-bold">{activeCount}</div>
             </div>
-          </SectionCard>
 
-          <SectionCard
-            title="Redemption History"
-            description="Review previously consumed redemptions."
-          >
-            <div className="overflow-hidden rounded-lg border border-gray-200">
-              <table className="w-full border-collapse text-left">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Reward</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">User Email</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Redeemed At</th>
-                    <th className="px-4 py-3 text-sm font-medium text-gray-600">Redeemed By</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
-                        No redemption history found.
-                      </td>
-                    </tr>
-                  ) : (
-                    history.map((item, index) => (
-                      <tr
-                        key={`${item.reward_title}-${item.user_email}-${item.redeemed_at ?? index}`}
-                        className="border-b border-gray-100"
-                      >
-                        <td className="px-4 py-3 text-sm text-gray-900">{item.reward_title}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{item.user_email}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{formatDateTime(item.redeemed_at)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.redeemed_by_partner_email || "—"}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="rounded-xl bg-white p-4 shadow">
+              <div className="text-sm text-gray-500">Redeemed</div>
+              <div className="text-2xl font-bold">{redeemedCount}</div>
             </div>
-          </SectionCard>
+
+            <div className="rounded-xl bg-white p-4 shadow">
+              <div className="text-sm text-gray-500">Expired</div>
+              <div className="text-2xl font-bold">{expiredCount}</div>
+            </div>
+          </div>
+
+          {activeCount === 0 && (
+            <div className="mt-6 text-center">
+              <div className="text-lg font-semibold text-gray-700">No active rewards</div>
+              <div className="mt-2 text-sm text-gray-500">
+                All rewards have been redeemed or expired.
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

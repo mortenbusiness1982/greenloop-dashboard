@@ -1,5 +1,5 @@
 export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "https://greenloop-api.onrender.com"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/$/, "");
 
 type ApiFetchOptions = {

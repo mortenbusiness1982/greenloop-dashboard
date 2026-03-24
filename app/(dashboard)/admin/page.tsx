@@ -438,7 +438,7 @@ export default function AdminPage() {
 
       console.log("RELOADING DATA");
       const updated = await apiFetch("/admin/rewards", { token });
-      const normalizedRewards = normalizeList(updated, ["rewards", "data"]);
+      const normalizedRewards = normalizeList(updated, ["rewards", "data"]) as Reward[];
       setRewards(normalizedRewards);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete reward");
@@ -498,7 +498,7 @@ export default function AdminPage() {
 
       console.log("RELOADING DATA");
       const updated = await apiFetch("/admin/challenges", { token });
-      const normalizedChallenges = normalizeList(updated, ["challenges", "data"]);
+      const normalizedChallenges = normalizeList(updated, ["challenges", "data"]) as Challenge[];
       setChallenges(normalizedChallenges);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete challenge");
