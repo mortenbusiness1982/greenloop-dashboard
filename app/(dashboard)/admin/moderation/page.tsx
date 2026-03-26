@@ -29,6 +29,20 @@ function isLocalFileUrl(url?: string | null) {
   return typeof url === "string" && url.startsWith("file://");
 }
 
+function isHttpsUrl(url?: string | null) {
+  return typeof url === "string" && url.startsWith("https://");
+}
+
+function isAutoApprovable(event: ModerationEvent) {
+  return isHttpsUrl(event.bagImageUrl) && isHttpsUrl(event.containerImageUrl);
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
+}
+
 function formatUrlPreview(url?: string | null) {
   if (!url) return "No source URL";
   return url;
@@ -102,14 +116,20 @@ function ImageSlot({
   imageUrl: string | null;
   alt: string;
 }) {
+  const isLegacyImage = isLocalFileUrl(imageUrl);
+
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
       <div className="border-b border-gray-200 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-600">
         {label}
       </div>
       <div className="flex h-40 items-center justify-center p-2">
-        {imageUrl ? (
+        {imageUrl && !isLegacyImage ? (
           <img src={imageUrl} alt={alt} className="h-full w-full rounded-md border border-gray-200 object-cover" />
+        ) : isLegacyImage ? (
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-amber-300 bg-amber-50 text-sm text-amber-700">
+            Legacy image (not available)
+          </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center rounded-md border border-gray-200 bg-gray-100 text-sm text-gray-500">
             Missing
@@ -137,6 +157,7 @@ export default function ModerationPage() {
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("pending");
+  const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
 
   const loadEvents = useCallback(async () => {
     const token = getToken();
@@ -172,7 +193,18 @@ export default function ModerationPage() {
     });
   }, [activeFilter, events]);
 
+  const autoApprovableEventIds = useMemo(() => {
+    if (activeFilter !== "pending") return [];
+    return filteredEvents.filter(isAutoApprovable).map((event) => event.id);
+  }, [activeFilter, filteredEvents]);
+
   const hasEvents = filteredEvents.length > 0;
+
+  useEffect(() => {
+    setSelectedEventIds((current) =>
+      current.filter((id) => filteredEvents.some((event) => event.id === id))
+    );
+  }, [filteredEvents]);
 
   async function handleModerationAction(eventId: string, action: "approve" | "reject") {
     const token = getToken();
@@ -198,6 +230,44 @@ export default function ModerationPage() {
       setActiveEventId(null);
     }
   }
+
+  async function handleApproveSelected(ids: string[]) {
+    for (const id of ids) {
+      await handleModerationAction(id, "approve");
+    }
+    setSelectedEventIds([]);
+  }
+
+  function toggleSelectedEvent(eventId: string) {
+    setSelectedEventIds((current) =>
+      current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]
+    );
+  }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (isTypingTarget(event.target)) return;
+      if (activeEventId) return;
+      if (activeFilter !== "pending") return;
+
+      const firstVisiblePendingEvent = filteredEvents[0];
+      if (!firstVisiblePendingEvent) return;
+
+      const key = event.key.toLowerCase();
+      if (key === "a") {
+        event.preventDefault();
+        void handleModerationAction(firstVisiblePendingEvent.id, "approve");
+      }
+
+      if (key === "r") {
+        event.preventDefault();
+        void handleModerationAction(firstVisiblePendingEvent.id, "reject");
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeEventId, activeFilter, filteredEvents]);
 
   if (loading) {
     return (
@@ -236,6 +306,13 @@ export default function ModerationPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-3xl px-6 py-8">
         <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => router.push("/admin")}
+            className="mb-3 text-sm font-medium text-gray-500 transition hover:text-gray-700"
+          >
+            ← Back to Admin
+          </button>
           <h1 className="text-4xl font-bold text-gray-900">Moderation Queue</h1>
           <div className="mt-4 flex flex-wrap gap-2">
             {(["pending", "approved", "rejected"] as FilterKey[]).map((filter) => {
@@ -265,6 +342,34 @@ export default function ModerationPage() {
           <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{actionError}</div>
         ) : null}
 
+        {selectedEventIds.length > 0 ? (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-sm text-gray-600">{selectedEventIds.length} selected</p>
+            <button
+              type="button"
+              onClick={() => void handleApproveSelected(selectedEventIds)}
+              className="rounded bg-green-700 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Approve Selected ({selectedEventIds.length})
+            </button>
+          </div>
+        ) : null}
+
+        {autoApprovableEventIds.length > 0 ? (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <p className="text-sm text-emerald-900">
+              {autoApprovableEventIds.length} events have hosted bag + container images
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleApproveSelected(autoApprovableEventIds)}
+              className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Auto Approve All
+            </button>
+          </div>
+        ) : null}
+
         {!hasEvents ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
             No {activeFilter} events.
@@ -273,9 +378,28 @@ export default function ModerationPage() {
           <div className="space-y-4">
             {filteredEvents.map((event) => {
               const isSubmitting = activeEventId === event.id;
+              const isSelected = selectedEventIds.includes(event.id);
+              const showSelection = activeFilter === "pending";
 
               return (
-                <section key={event.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <section
+                  key={event.id}
+                  className={`relative rounded-xl border bg-white p-3 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md ${
+                    isSelected ? "border-green-300 ring-2 ring-green-100" : "border-gray-200"
+                  }`}
+                >
+                  {showSelection ? (
+                    <label className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectedEvent(event.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
+                      />
+                      Select
+                    </label>
+                  ) : null}
+
                   <div className="grid gap-3 md:grid-cols-2">
                     <ImageSlot label="Bag" imageUrl={event.bagImageUrl} alt={`Bag evidence for event ${event.id}`} />
                     <ImageSlot
@@ -289,6 +413,9 @@ export default function ModerationPage() {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
                       <span>Event: {shortenEventId(event.id)}</span>
                       <span className="capitalize">Status: {event.verificationStatus}</span>
+                      {isAutoApprovable(event) ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
+                      ) : null}
                     </div>
                     {isSubmitting ? <p className="text-xs text-gray-500">Submitting...</p> : null}
                   </div>
