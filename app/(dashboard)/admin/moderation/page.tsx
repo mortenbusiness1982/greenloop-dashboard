@@ -13,6 +13,10 @@ type EventRow = {
   verification_status?: string | null;
   type?: string | null;
   url?: string | null;
+  created_at?: string | null;
+  validation_status?: string | null;
+  validation_score?: number | null;
+  validation_flags?: string[] | null;
 };
 
 type ModerationEvent = {
@@ -21,9 +25,14 @@ type ModerationEvent = {
   verificationStatus: string;
   bagImageUrl: string | null;
   containerImageUrl: string | null;
+  createdAt: string | null;
+  validationStatus: string | null;
+  validationScore: number | null;
+  validationFlags: string[];
 };
 
 type FilterKey = "pending" | "approved" | "rejected";
+type RiskTier = "high" | "review" | "low" | "unknown";
 
 function isLocalFileUrl(url?: string | null) {
   return typeof url === "string" && url.startsWith("file://");
@@ -35,6 +44,91 @@ function isHttpsUrl(url?: string | null) {
 
 function isAutoApprovable(event: ModerationEvent) {
   return isHttpsUrl(event.bagImageUrl) && isHttpsUrl(event.containerImageUrl);
+}
+
+function getRiskTier(event: ModerationEvent): RiskTier {
+  if (
+    event.validationStatus === "flagged" ||
+    event.validationFlags.length > 0 ||
+    (event.validationScore !== null && event.validationScore < 50)
+  ) {
+    return "high";
+  }
+
+  if (event.validationStatus === "auto_approved" || (event.validationScore !== null && event.validationScore >= 85)) {
+    return "low";
+  }
+
+  if (event.validationScore !== null && event.validationScore >= 50 && event.validationScore < 85) {
+    return "review";
+  }
+
+  return "unknown";
+}
+
+function getRiskLabel(tier: RiskTier) {
+  if (tier === "high") return "High";
+  if (tier === "review") return "Review";
+  if (tier === "low") return "Low";
+  return "Unknown";
+}
+
+function getRiskWeight(tier: RiskTier) {
+  if (tier === "high") return 0;
+  if (tier === "review") return 1;
+  if (tier === "unknown") return 2;
+  return 3;
+}
+
+function getRiskClasses(tier: RiskTier) {
+  if (tier === "high") {
+    return {
+      badge: "bg-red-100 text-red-700",
+      card: "border-l-4 border-l-red-500",
+      label: "text-red-700",
+      summary: "bg-red-50 text-red-700 border-red-200",
+      flag: "bg-red-100 text-red-700",
+    };
+  }
+  if (tier === "review") {
+    return {
+      badge: "bg-amber-100 text-amber-800",
+      card: "border-l-4 border-l-amber-400",
+      label: "text-amber-700",
+      summary: "bg-amber-50 text-amber-800 border-amber-200",
+      flag: "bg-amber-100 text-amber-800",
+    };
+  }
+  if (tier === "low") {
+    return {
+      badge: "bg-emerald-100 text-emerald-700",
+      card: "border-l-4 border-l-emerald-500",
+      label: "text-emerald-700",
+      summary: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      flag: "bg-emerald-100 text-emerald-700",
+    };
+  }
+  return {
+    badge: "bg-gray-100 text-gray-700",
+    card: "border-l-4 border-l-gray-300",
+    label: "text-gray-600",
+    summary: "bg-gray-50 text-gray-700 border-gray-200",
+    flag: "bg-gray-100 text-gray-700",
+  };
+}
+
+function getCreatedAtTime(value: string | null) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortPendingEventsByPriority(events: ModerationEvent[]) {
+  return [...events].sort((a, b) => {
+    const tierDiff = getRiskWeight(getRiskTier(a)) - getRiskWeight(getRiskTier(b));
+    if (tierDiff !== 0) return tierDiff;
+    return getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt);
+  });
 }
 
 function isTypingTarget(target: EventTarget | null) {
@@ -79,6 +173,10 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
       verificationStatus: toText(row.verification_status),
       bagImageUrl: null,
       containerImageUrl: null,
+      createdAt: row.created_at ?? null,
+      validationStatus: row.validation_status ?? null,
+      validationScore: row.validation_score ?? null,
+      validationFlags: Array.isArray(row.validation_flags) ? row.validation_flags.filter(Boolean) : [],
     };
 
     if (existing.userId === "—" && row.user_id != null) {
@@ -87,6 +185,22 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
 
     if (existing.verificationStatus === "—" && row.verification_status) {
       existing.verificationStatus = String(row.verification_status);
+    }
+
+    if (!existing.createdAt && row.created_at) {
+      existing.createdAt = row.created_at;
+    }
+
+    if (!existing.validationStatus && row.validation_status) {
+      existing.validationStatus = row.validation_status;
+    }
+
+    if (existing.validationScore === null && typeof row.validation_score === "number") {
+      existing.validationScore = row.validation_score;
+    }
+
+    if (existing.validationFlags.length === 0 && Array.isArray(row.validation_flags)) {
+      existing.validationFlags = row.validation_flags.filter(Boolean);
     }
 
     const slot = resolveImageSlot(row);
@@ -187,11 +301,24 @@ export default function ModerationPage() {
   }, [loadEvents]);
 
   const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
+    const visibleEvents = events.filter((event) => {
       const status = event.verificationStatus.toLowerCase();
-      return status === activeFilter;
+      const hasValidUploadedImage = isHttpsUrl(event.bagImageUrl) || isHttpsUrl(event.containerImageUrl);
+      return status === activeFilter && hasValidUploadedImage;
     });
+    return activeFilter === "pending" ? sortPendingEventsByPriority(visibleEvents) : visibleEvents;
   }, [activeFilter, events]);
+
+  const pendingRiskSummary = useMemo(() => {
+    return filteredEvents.reduce(
+      (totals, event) => {
+        const tier = getRiskTier(event);
+        totals[tier] += 1;
+        return totals;
+      },
+      { high: 0, review: 0, low: 0, unknown: 0 } as Record<RiskTier, number>
+    );
+  }, [filteredEvents]);
 
   const autoApprovableEventIds = useMemo(() => {
     if (activeFilter !== "pending") return [];
@@ -370,6 +497,23 @@ export default function ModerationPage() {
           </div>
         ) : null}
 
+        {activeFilter === "pending" ? (
+          <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              High risk: {pendingRiskSummary.high}
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Review: {pendingRiskSummary.review}
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              Low risk: {pendingRiskSummary.low}
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+              Unknown: {pendingRiskSummary.unknown}
+            </div>
+          </div>
+        ) : null}
+
         {!hasEvents ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
             No {activeFilter} events.
@@ -380,11 +524,13 @@ export default function ModerationPage() {
               const isSubmitting = activeEventId === event.id;
               const isSelected = selectedEventIds.includes(event.id);
               const showSelection = activeFilter === "pending";
+              const riskTier = getRiskTier(event);
+              const riskClasses = getRiskClasses(riskTier);
 
               return (
                 <section
                   key={event.id}
-                  className={`relative rounded-xl border bg-white p-3 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md ${
+                  className={`relative rounded-xl border bg-white p-3 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md ${riskClasses.card} ${
                     isSelected ? "border-green-300 ring-2 ring-green-100" : "border-gray-200"
                   }`}
                 >
@@ -413,12 +559,29 @@ export default function ModerationPage() {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
                       <span>Event: {shortenEventId(event.id)}</span>
                       <span className="capitalize">Status: {event.verificationStatus}</span>
+                      <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
+                        AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
+                      </span>
+                      <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
                       {isAutoApprovable(event) ? (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
                       ) : null}
                     </div>
                     {isSubmitting ? <p className="text-xs text-gray-500">Submitting...</p> : null}
                   </div>
+
+                  {event.validationFlags.length > 0 ? (
+                    <div className="mt-2">
+                      <p className="mb-1 text-xs font-semibold text-gray-700">Flags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {event.validationFlags.map((flag) => (
+                          <span key={`${event.id}-${flag}`} className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClasses.flag}`}>
+                            {flag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="mt-3 flex flex-wrap gap-3">
                     <button
