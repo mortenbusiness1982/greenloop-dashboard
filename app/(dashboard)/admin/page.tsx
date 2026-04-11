@@ -45,6 +45,10 @@ type Reward = {
 type Challenge = {
   id: string | number;
   brand_key: string;
+  target_kind?: "brand" | "material" | "format" | null;
+  target_brand_key?: string | null;
+  target_material_type?: string | null;
+  target_format_type?: string | null;
   targetKind?: "brand" | "material" | "format";
   targetBrandKey?: string;
   targetMaterialType?: string;
@@ -142,6 +146,16 @@ function normalizeList<T>(value: unknown, keys: string[]): T[] {
     }
   }
   return [];
+}
+
+function normalizeChallenge(raw: Challenge): Challenge {
+  return {
+    ...raw,
+    targetKind: raw.targetKind ?? raw.target_kind ?? undefined,
+    targetBrandKey: raw.targetBrandKey ?? raw.target_brand_key ?? undefined,
+    targetMaterialType: raw.targetMaterialType ?? raw.target_material_type ?? undefined,
+    targetFormatType: raw.targetFormatType ?? raw.target_format_type ?? undefined,
+  };
 }
 
 function toDateTimeInput(value: string | null | undefined) {
@@ -275,7 +289,7 @@ export default function AdminPage() {
       console.log("RAW PLATFORM RESPONSE", platformResult);
 
       const normalizedRewards = normalizeList<Reward>(rewardsResult, ["rewards", "data"]);
-      const normalizedChallenges = normalizeList<Challenge>(challengesResult, ["challenges", "data"]);
+      const normalizedChallenges = normalizeList<Challenge>(challengesResult, ["challenges", "data"]).map(normalizeChallenge);
 
       console.log("NORMALIZED REWARDS", normalizedRewards);
       console.log("NORMALIZED CHALLENGES", normalizedChallenges);
@@ -523,7 +537,7 @@ export default function AdminPage() {
 
       console.log("RELOADING DATA");
       const updated = await apiFetch("/admin/challenges", { token });
-      const normalizedChallenges = normalizeList(updated, ["challenges", "data"]) as Challenge[];
+      const normalizedChallenges = (normalizeList(updated, ["challenges", "data"]) as Challenge[]).map(normalizeChallenge);
       setChallenges(normalizedChallenges);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete challenge");
@@ -877,7 +891,7 @@ export default function AdminPage() {
                   <tbody>
                     {challenges.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
+                        <td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">
                           No challenges found.
                         </td>
                       </tr>
@@ -1065,7 +1079,7 @@ export default function AdminPage() {
                     </label>
                   ) : null}
                   <p className="text-xs text-gray-500">
-                    Target fields are prepared here for the new challenge system. Saving still uses the legacy brand key until the submit payload is upgraded.
+                    Target fields are now used when saving challenges. Brand challenges remain backward-compatible with the legacy brand key.
                   </p>
                   <InputField
                     label="Title"
