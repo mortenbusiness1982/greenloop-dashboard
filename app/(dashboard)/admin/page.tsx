@@ -45,6 +45,10 @@ type Reward = {
 type Challenge = {
   id: string | number;
   brand_key: string;
+  targetKind?: "brand" | "material" | "format";
+  targetBrandKey?: string;
+  targetMaterialType?: string;
+  targetFormatType?: string;
   title: string;
   description?: string | null;
   required_count: number;
@@ -64,6 +68,10 @@ type RewardFormState = {
 
 type ChallengeFormState = {
   brand_key: string;
+  targetKind: "brand" | "material" | "format";
+  targetBrandKey: string;
+  targetMaterialType: string;
+  targetFormatType: string;
   title: string;
   description: string;
   required_count: string;
@@ -113,6 +121,10 @@ const emptyRewardForm: RewardFormState = {
 
 const emptyChallengeForm: ChallengeFormState = {
   brand_key: "",
+  targetKind: "brand",
+  targetBrandKey: "",
+  targetMaterialType: "",
+  targetFormatType: "",
   title: "",
   description: "",
   required_count: "",
@@ -361,7 +373,19 @@ export default function AdminPage() {
       setSubmitting("challenge");
       setError(null);
       const payload = {
-        brand_key: challengeForm.brand_key,
+        ...(challengeForm.targetKind === "brand"
+          ? {
+              brand_key: challengeForm.targetBrandKey || challengeForm.brand_key || undefined,
+              targetBrandKey: challengeForm.targetBrandKey || challengeForm.brand_key || undefined,
+            }
+          : {}),
+        ...(challengeForm.targetKind === "material"
+          ? { targetMaterialType: challengeForm.targetMaterialType || undefined }
+          : {}),
+        ...(challengeForm.targetKind === "format"
+          ? { targetFormatType: challengeForm.targetFormatType || undefined }
+          : {}),
+        targetKind: challengeForm.targetKind,
         title: challengeForm.title,
         description: challengeForm.description,
         required_count: Number(challengeForm.required_count),
@@ -523,6 +547,10 @@ export default function AdminPage() {
     setEditingChallengeId(challenge.id);
     setChallengeForm({
       brand_key: challenge.brand_key ?? "",
+      targetKind: challenge.targetKind || "brand",
+      targetBrandKey: challenge.targetBrandKey || challenge.brand_key || "",
+      targetMaterialType: challenge.targetMaterialType || "",
+      targetFormatType: challenge.targetFormatType || "",
       title: challenge.title ?? "",
       description: challenge.description ?? "",
       required_count: String(challenge.required_count ?? ""),
@@ -836,7 +864,8 @@ export default function AdminPage() {
                   <thead className="bg-gray-50">
                     <tr className="border-b border-gray-200">
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Title</th>
-                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Brand Key</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Target Type</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Target Value</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Required</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Bonus</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Starts</th>
@@ -856,7 +885,33 @@ export default function AdminPage() {
                       challenges.map((challenge) => (
                         <tr key={challenge.id} className="border-b border-gray-100 align-top">
                           <td className="px-4 py-3 text-sm text-gray-900">{challenge.title}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{challenge.brand_key}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 flex items-center gap-2">
+                            {challenge.targetKind === "material" ? (
+                              <>
+                                <span>♻️</span>
+                                <span>Material</span>
+                              </>
+                            ) : challenge.targetKind === "format" ? (
+                              <>
+                                <span>📦</span>
+                                <span>Format</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>🏢</span>
+                                <span>Brand</span>
+                              </>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {(
+                              challenge.targetKind === "material"
+                                ? challenge.targetMaterialType || "—"
+                                : challenge.targetKind === "format"
+                                  ? challenge.targetFormatType || "—"
+                                  : challenge.targetBrandKey || challenge.brand_key || "—"
+                            ).replace(/(^\p{L}|\s\p{L})/gu, (char) => char.toUpperCase())}
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-900">{challenge.required_count}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{challenge.bonus_points}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{formatDateTime(challenge.starts_at)}</td>
@@ -922,14 +977,96 @@ export default function AdminPage() {
                   ) : null}
                 </div>
                 <div className="space-y-4">
-                  <InputField
-                    label="Brand Key"
-                    value={challengeForm.brand_key}
-                    onChange={(e) =>
-                      setChallengeForm((current) => ({ ...current, brand_key: e.target.value }))
-                    }
-                    required
-                  />
+                  {challengeForm.targetKind === "brand" ? (
+                    <InputField
+                      label="Brand Key"
+                      value={challengeForm.brand_key}
+                      onChange={(e) =>
+                        setChallengeForm((current) => ({ ...current, brand_key: e.target.value }))
+                      }
+                      required={challengeForm.targetKind === "brand"}
+                    />
+                  ) : null}
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Target Type</span>
+                    <select
+                      value={challengeForm.targetKind}
+                      onChange={(e) =>
+                        setChallengeForm((current) => ({
+                          ...current,
+                          targetKind: e.target.value as "brand" | "material" | "format",
+                          brand_key: e.target.value === "brand" ? current.brand_key : "",
+                          targetMaterialType:
+                            e.target.value === "material" ? current.targetMaterialType : "",
+                          targetFormatType:
+                            e.target.value === "format" ? current.targetFormatType : "",
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                    >
+                      <option value="brand">brand</option>
+                      <option value="material">material</option>
+                      <option value="format">format</option>
+                    </select>
+                  </label>
+                  {challengeForm.targetKind === "brand" ? (
+                    <InputField
+                      label="Target Brand Key"
+                      value={challengeForm.targetBrandKey}
+                      onChange={(e) =>
+                        setChallengeForm((current) => ({ ...current, targetBrandKey: e.target.value }))
+                      }
+                    />
+                  ) : null}
+                  {challengeForm.targetKind === "material" ? (
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">
+                        Target Material Type
+                      </span>
+                      <select
+                        value={challengeForm.targetMaterialType}
+                        onChange={(e) =>
+                          setChallengeForm((current) => ({
+                            ...current,
+                            targetMaterialType: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                      >
+                        <option value="">Select material</option>
+                        <option value="plastic">plastic</option>
+                        <option value="aluminium">aluminium</option>
+                        <option value="glass">glass</option>
+                        <option value="paper">paper</option>
+                      </select>
+                    </label>
+                  ) : null}
+                  {challengeForm.targetKind === "format" ? (
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">
+                        Target Format Type
+                      </span>
+                      <select
+                        value={challengeForm.targetFormatType}
+                        onChange={(e) =>
+                          setChallengeForm((current) => ({
+                            ...current,
+                            targetFormatType: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                      >
+                        <option value="">Select format</option>
+                        <option value="bottle">bottle</option>
+                        <option value="can">can</option>
+                        <option value="jar">jar</option>
+                        <option value="carton">carton</option>
+                      </select>
+                    </label>
+                  ) : null}
+                  <p className="text-xs text-gray-500">
+                    Target fields are prepared here for the new challenge system. Saving still uses the legacy brand key until the submit payload is upgraded.
+                  </p>
                   <InputField
                     label="Title"
                     value={challengeForm.title}

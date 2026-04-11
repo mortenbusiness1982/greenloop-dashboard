@@ -351,6 +351,9 @@ export default function ModerationPage() {
             : event
         )
       );
+      setTimeout(() => {
+        setActiveFilter(action === "approve" ? "approved" : "rejected");
+      }, 150);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : `Unable to ${action} event`);
     } finally {
