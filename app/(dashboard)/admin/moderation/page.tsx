@@ -43,7 +43,7 @@ function isHttpsUrl(url?: string | null) {
 }
 
 function isAutoApprovable(event: ModerationEvent) {
-  return isHttpsUrl(event.bagImageUrl) && isHttpsUrl(event.containerImageUrl);
+  return event.validationStatus === "auto_approved";
 }
 
 function getRiskTier(event: ModerationEvent): RiskTier {
@@ -325,6 +325,11 @@ export default function ModerationPage() {
     return filteredEvents.filter(isAutoApprovable).map((event) => event.id);
   }, [activeFilter, filteredEvents]);
 
+  const pendingVisibleEventIds = useMemo(() => {
+    if (activeFilter !== "pending") return [];
+    return filteredEvents.map((event) => event.id);
+  }, [activeFilter, filteredEvents]);
+
   const hasEvents = filteredEvents.length > 0;
 
   useEffect(() => {
@@ -351,9 +356,6 @@ export default function ModerationPage() {
             : event
         )
       );
-      setTimeout(() => {
-        setActiveFilter(action === "approve" ? "approved" : "rejected");
-      }, 150);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : `Unable to ${action} event`);
     } finally {
@@ -361,11 +363,19 @@ export default function ModerationPage() {
     }
   }
 
-  async function handleApproveSelected(ids: string[]) {
+  async function handleBulkModeration(ids: string[], action: "approve" | "reject") {
     for (const id of ids) {
-      await handleModerationAction(id, "approve");
+      await handleModerationAction(id, action);
     }
-    setSelectedEventIds([]);
+    setSelectedEventIds((current) => current.filter((id) => !ids.includes(id)));
+  }
+
+  async function handleApproveSelected(ids: string[]) {
+    await handleBulkModeration(ids, "approve");
+  }
+
+  async function handleRejectSelected(ids: string[]) {
+    await handleBulkModeration(ids, "reject");
   }
 
   function toggleSelectedEvent(eventId: string) {
@@ -472,31 +482,54 @@ export default function ModerationPage() {
           <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{actionError}</div>
         ) : null}
 
-        {selectedEventIds.length > 0 ? (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-sm text-gray-600">{selectedEventIds.length} selected</p>
-            <button
-              type="button"
-              onClick={() => void handleApproveSelected(selectedEventIds)}
-              className="rounded bg-green-700 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Approve Selected ({selectedEventIds.length})
-            </button>
-          </div>
-        ) : null}
-
-        {autoApprovableEventIds.length > 0 ? (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <p className="text-sm text-emerald-900">
-              {autoApprovableEventIds.length} events have hosted bag + container images
+        {activeFilter === "pending" ? (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-gray-600">
+                {selectedEventIds.length > 0
+                  ? `${selectedEventIds.length} selected`
+                  : `${pendingVisibleEventIds.length} pending in view`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleApproveSelected(selectedEventIds)}
+                  disabled={selectedEventIds.length === 0 || !!activeEventId}
+                  className="rounded bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Approve Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRejectSelected(selectedEventIds)}
+                  disabled={selectedEventIds.length === 0 || !!activeEventId}
+                  className="rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reject Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleApproveSelected(pendingVisibleEventIds)}
+                  disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
+                  className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Approve All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRejectSelected(pendingVisibleEventIds)}
+                  disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
+                  className="rounded bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reject All
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              {autoApprovableEventIds.length > 0
+                ? `${autoApprovableEventIds.length} events are marked for true auto-approval`
+                : "Bulk moderation stays available while you work through the pending queue."}
             </p>
-            <button
-              type="button"
-              onClick={() => void handleApproveSelected(autoApprovableEventIds)}
-              className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Auto Approve All
-            </button>
           </div>
         ) : null}
 
