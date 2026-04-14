@@ -40,6 +40,16 @@ type Reward = {
   partner_name: string;
   brand_id: string | number | null;
   active: boolean;
+  fulfillment_type?: 'qr_token' | 'promo_code';
+  code_mode?: 'shared' | 'pooled' | null;
+  shared_code?: string | null;
+  instructions?: string | null;
+  expires_in_hours?: number | null;
+  inventory_total?: number;
+  inventory_available?: number;
+  inventory_assigned?: number;
+  inventory_consumed?: number;
+  inventory_revoked?: number;
 };
 
 type Challenge = {
@@ -57,6 +67,10 @@ type Challenge = {
   description?: string | null;
   required_count: number;
   bonus_points: number;
+  completion_reward_id?: string | null;
+  completion_reward_title?: string | null;
+  completionRewardId?: string | null;
+  completionRewardTitle?: string | null;
   starts_at: string | null;
   ends_at: string | null;
   active: boolean;
@@ -68,6 +82,12 @@ type RewardFormState = {
   cost_points: string;
   partner_name: string;
   brand_id: string;
+  fulfillment_type: 'qr_token' | 'promo_code';
+  code_mode: 'shared' | 'pooled' | '';
+  shared_code: string;
+  instructions: string;
+  expires_in_hours: string;
+  pooled_codes: string;
 };
 
 type ChallengeFormState = {
@@ -80,6 +100,7 @@ type ChallengeFormState = {
   description: string;
   required_count: string;
   bonus_points: string;
+  completionRewardId: string;
   starts_at: string;
   ends_at: string;
 };
@@ -121,6 +142,12 @@ const emptyRewardForm: RewardFormState = {
   cost_points: "",
   partner_name: "",
   brand_id: "",
+  fulfillment_type: 'qr_token',
+  code_mode: '',
+  shared_code: '',
+  instructions: '',
+  expires_in_hours: '24',
+  pooled_codes: '',
 };
 
 const emptyChallengeForm: ChallengeFormState = {
@@ -133,6 +160,7 @@ const emptyChallengeForm: ChallengeFormState = {
   description: "",
   required_count: "",
   bonus_points: "",
+  completionRewardId: "",
   starts_at: "",
   ends_at: "",
 };
@@ -155,6 +183,19 @@ function normalizeChallenge(raw: Challenge): Challenge {
     targetBrandKey: raw.targetBrandKey ?? raw.target_brand_key ?? undefined,
     targetMaterialType: raw.targetMaterialType ?? raw.target_material_type ?? undefined,
     targetFormatType: raw.targetFormatType ?? raw.target_format_type ?? undefined,
+    completionRewardId: raw.completionRewardId ?? raw.completion_reward_id ?? undefined,
+    completionRewardTitle: raw.completionRewardTitle ?? raw.completion_reward_title ?? undefined,
+  };
+}
+
+function normalizeReward(raw: Reward): Reward {
+  return {
+    ...raw,
+    fulfillment_type: raw.fulfillment_type ?? 'qr_token',
+    code_mode: raw.code_mode ?? null,
+    shared_code: raw.shared_code ?? null,
+    instructions: raw.instructions ?? null,
+    expires_in_hours: raw.expires_in_hours ?? 24,
   };
 }
 
@@ -288,7 +329,7 @@ export default function AdminPage() {
       console.log("RAW CHALLENGES RESPONSE", challengesResult);
       console.log("RAW PLATFORM RESPONSE", platformResult);
 
-      const normalizedRewards = normalizeList<Reward>(rewardsResult, ["rewards", "data"]);
+      const normalizedRewards = normalizeList<Reward>(rewardsResult, ["rewards", "data"]).map(normalizeReward);
       const normalizedChallenges = normalizeList<Challenge>(challengesResult, ["challenges", "data"]).map(normalizeChallenge);
 
       console.log("NORMALIZED REWARDS", normalizedRewards);
@@ -354,9 +395,17 @@ export default function AdminPage() {
         partner_name: rewardForm.partner_name,
         brand_id:
           rewardForm.brand_id && rewardForm.brand_id.length > 10 ? rewardForm.brand_id : null,
+        fulfillment_type: rewardForm.fulfillment_type,
+        code_mode: rewardForm.fulfillment_type === 'promo_code' ? rewardForm.code_mode || null : null,
+        shared_code:
+          rewardForm.fulfillment_type === 'promo_code' && rewardForm.code_mode === 'shared'
+            ? rewardForm.shared_code || null
+            : null,
+        instructions: rewardForm.instructions || null,
+        expires_in_hours: rewardForm.expires_in_hours ? Number(rewardForm.expires_in_hours) : 24,
       };
 
-      await apiFetch(
+      const savedReward = await apiFetch(
         editingRewardId ? `/admin/rewards/${editingRewardId}` : "/admin/rewards",
         {
           token,
@@ -364,6 +413,25 @@ export default function AdminPage() {
           body: payload,
         }
       );
+
+      const rewardIdForCodes = editingRewardId ?? savedReward?.id;
+      const pooledCodes = rewardForm.pooled_codes
+        .split(/\r?\n/)
+        .map((code) => code.trim())
+        .filter(Boolean);
+
+      if (
+        rewardForm.fulfillment_type === 'promo_code' &&
+        rewardForm.code_mode === 'pooled' &&
+        rewardIdForCodes &&
+        pooledCodes.length > 0
+      ) {
+        await apiFetch(`/admin/rewards/${rewardIdForCodes}/promo-codes`, {
+          token,
+          method: 'POST',
+          body: { codes: pooledCodes },
+        });
+      }
 
       resetRewardForm();
       await loadData();
@@ -404,6 +472,7 @@ export default function AdminPage() {
         description: challengeForm.description,
         required_count: Number(challengeForm.required_count),
         bonus_points: Number(challengeForm.bonus_points),
+        completionRewardId: challengeForm.completionRewardId || null,
         starts_at: challengeForm.starts_at ? new Date(challengeForm.starts_at).toISOString() : null,
         ends_at: challengeForm.ends_at ? new Date(challengeForm.ends_at).toISOString() : null,
       };
@@ -477,7 +546,7 @@ export default function AdminPage() {
 
       console.log("RELOADING DATA");
       const updated = await apiFetch("/admin/rewards", { token });
-      const normalizedRewards = normalizeList(updated, ["rewards", "data"]) as Reward[];
+      const normalizedRewards = (normalizeList(updated, ["rewards", "data"]) as Reward[]).map(normalizeReward);
       setRewards(normalizedRewards);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete reward");
@@ -554,6 +623,12 @@ export default function AdminPage() {
       cost_points: String(reward.cost_points ?? ""),
       partner_name: reward.partner_name ?? "",
       brand_id: reward.brand_id == null ? "" : String(reward.brand_id),
+      fulfillment_type: reward.fulfillment_type ?? 'qr_token',
+      code_mode: reward.code_mode ?? '',
+      shared_code: reward.shared_code ?? '',
+      instructions: reward.instructions ?? '',
+      expires_in_hours: reward.expires_in_hours == null ? '24' : String(reward.expires_in_hours),
+      pooled_codes: '',
     });
   }
 
@@ -569,6 +644,7 @@ export default function AdminPage() {
       description: challenge.description ?? "",
       required_count: String(challenge.required_count ?? ""),
       bonus_points: String(challenge.bonus_points ?? ""),
+      completionRewardId: challenge.completionRewardId ?? "",
       starts_at: toDateTimeInput(challenge.starts_at),
       ends_at: toDateTimeInput(challenge.ends_at),
     });
@@ -735,6 +811,9 @@ export default function AdminPage() {
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Title</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Partner</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Cost</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Fulfillment</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Code Mode</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Inventory</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Brand ID</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Active</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
@@ -743,7 +822,7 @@ export default function AdminPage() {
                   <tbody>
                     {rewards.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">
+                        <td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">
                           No rewards found.
                         </td>
                       </tr>
@@ -753,6 +832,23 @@ export default function AdminPage() {
                           <td className="px-4 py-3 text-sm text-gray-900">{reward.title}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{reward.partner_name || "—"}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{reward.cost_points}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {reward.fulfillment_type === 'promo_code' ? 'Promo Code' : 'QR Token'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {reward.fulfillment_type === 'promo_code' ? reward.code_mode || '—' : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {reward.fulfillment_type !== 'promo_code'
+                              ? 'Unlimited'
+                              : reward.code_mode === 'shared'
+                                ? 'Shared'
+                                : reward.inventory_total
+                                  ? reward.inventory_available && reward.inventory_available > 0
+                                    ? `${reward.inventory_available}/${reward.inventory_total} available`
+                                    : `Depleted (${reward.inventory_total})`
+                                  : 'No codes uploaded'}
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {reward.brand_id == null ? "—" : reward.brand_id}
                           </td>
@@ -850,7 +946,75 @@ export default function AdminPage() {
                     label="Brand ID"
                     value={rewardForm.brand_id}
                     onChange={(e) => setRewardForm((current) => ({ ...current, brand_id: e.target.value }))}
-                    required
+                  />
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Fulfillment Type</span>
+                    <select
+                      value={rewardForm.fulfillment_type}
+                      onChange={(e) =>
+                        setRewardForm((current) => ({
+                          ...current,
+                          fulfillment_type: e.target.value as 'qr_token' | 'promo_code',
+                          code_mode: e.target.value === 'promo_code' ? current.code_mode || 'shared' : '',
+                          shared_code: e.target.value === 'promo_code' ? current.shared_code : '',
+                          pooled_codes: e.target.value === 'promo_code' ? current.pooled_codes : '',
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                    >
+                      <option value="qr_token">QR Token</option>
+                      <option value="promo_code">Promo Code</option>
+                    </select>
+                  </label>
+                  {rewardForm.fulfillment_type === 'promo_code' ? (
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Code Mode</span>
+                      <select
+                        value={rewardForm.code_mode}
+                        onChange={(e) =>
+                          setRewardForm((current) => ({
+                            ...current,
+                            code_mode: e.target.value as 'shared' | 'pooled' | '',
+                            shared_code: e.target.value === 'shared' ? current.shared_code : '',
+                            pooled_codes: e.target.value === 'pooled' ? current.pooled_codes : '',
+                          }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                      >
+                        <option value="">Select mode</option>
+                        <option value="shared">Shared Code</option>
+                        <option value="pooled">Finite Code Pool</option>
+                      </select>
+                    </label>
+                  ) : null}
+                  {rewardForm.fulfillment_type === 'promo_code' && rewardForm.code_mode === 'shared' ? (
+                    <InputField
+                      label="Shared Code"
+                      value={rewardForm.shared_code}
+                      onChange={(e) => setRewardForm((current) => ({ ...current, shared_code: e.target.value }))}
+                      required
+                    />
+                  ) : null}
+                  {rewardForm.fulfillment_type === 'promo_code' && rewardForm.code_mode === 'pooled' ? (
+                    <TextareaField
+                      label={editingRewardId ? 'Add Promo Codes (one per line)' : 'Promo Codes (one per line)'}
+                      value={rewardForm.pooled_codes}
+                      onChange={(e) => setRewardForm((current) => ({ ...current, pooled_codes: e.target.value }))}
+                      required={!editingRewardId}
+                    />
+                  ) : null}
+                  <TextareaField
+                    label="Instructions"
+                    value={rewardForm.instructions}
+                    onChange={(e) => setRewardForm((current) => ({ ...current, instructions: e.target.value }))}
+                  />
+                  <InputField
+                    label="Expires In Hours"
+                    type="number"
+                    min="1"
+                    value={rewardForm.expires_in_hours}
+                    onChange={(e) => setRewardForm((current) => ({ ...current, expires_in_hours: e.target.value }))}
+                    required={rewardForm.fulfillment_type === 'qr_token'}
                   />
                   <button
                     type="submit"
@@ -882,6 +1046,7 @@ export default function AdminPage() {
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Target Value</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Required</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Bonus</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Completion Reward</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Starts</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Ends</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Active</th>
@@ -891,7 +1056,7 @@ export default function AdminPage() {
                   <tbody>
                     {challenges.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">
+                        <td colSpan={10} className="px-4 py-6 text-center text-sm text-gray-500">
                           No challenges found.
                         </td>
                       </tr>
@@ -928,6 +1093,7 @@ export default function AdminPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900">{challenge.required_count}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{challenge.bonus_points}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{challenge.completionRewardTitle || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{formatDateTime(challenge.starts_at)}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{formatDateTime(challenge.ends_at)}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
@@ -1081,6 +1247,26 @@ export default function AdminPage() {
                   <p className="text-xs text-gray-500">
                     Target fields are now used when saving challenges. Brand challenges remain backward-compatible with the legacy brand key.
                   </p>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Completion Reward</span>
+                    <select
+                      value={challengeForm.completionRewardId}
+                      onChange={(e) =>
+                        setChallengeForm((current) => ({
+                          ...current,
+                          completionRewardId: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                    >
+                      <option value="">No completion reward</option>
+                      {rewards.filter((reward) => reward.active).map((reward) => (
+                        <option key={reward.id} value={String(reward.id)}>
+                          {reward.title} ({reward.fulfillment_type === 'promo_code' ? 'Promo' : 'QR'})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <InputField
                     label="Title"
                     value={challengeForm.title}
