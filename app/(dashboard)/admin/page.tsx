@@ -781,12 +781,20 @@ export default function AdminPage() {
             <h1 className="text-4xl font-bold text-gray-900">Admin Dashboard</h1>
             <p className="mt-1 text-sm text-gray-600">Manage rewards and challenges.</p>
             <div className="mt-3">
-              <Link
-                href="/admin/moderation"
-                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Open Moderation Queue
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/admin/moderation"
+                  className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Open Moderation Queue
+                </Link>
+                <Link
+                  href="/admin/users"
+                  className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Open Users
+                </Link>
+              </div>
             </div>
           </div>
           <button onClick={onLogout} className="rounded bg-gray-900 px-4 py-2 text-white">
