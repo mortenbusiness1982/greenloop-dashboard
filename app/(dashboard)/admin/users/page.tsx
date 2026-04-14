@@ -11,10 +11,12 @@ type AdminUser = {
   display_name: string;
   email: string;
   role: string;
+  brand_id?: string | null;
   created_at: string;
   deactivated_at?: string | null;
   wallet_points: number;
   scan_events_count: number;
+  redeemed_rewards_count?: number;
   recycling_events_count: number;
   recycled_units_count: number;
   last_activity_at?: string | null;
@@ -43,6 +45,17 @@ type UserActivityResponse = {
   }[];
 };
 
+type Brand = {
+  id: string;
+  name: string;
+};
+
+type EditUserFormState = {
+  display_name: string;
+  role: string;
+  brand_id: string;
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -60,10 +73,17 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserActivityResponse | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState<EditUserFormState>({
+    display_name: "",
+    role: "user",
+    brand_id: "",
+  });
 
   const loadUsers = useCallback(async () => {
     const token = getToken();
@@ -74,8 +94,12 @@ export default function AdminUsersPage() {
 
     try {
       setError(null);
-      const result = await apiFetch("/admin/users", { token });
-      setUsers(Array.isArray(result?.users) ? result.users : []);
+      const [usersResult, brandsResult] = await Promise.all([
+        apiFetch("/admin/users", { token }),
+        apiFetch("/admin/brands", { token }),
+      ]);
+      setUsers(Array.isArray(usersResult?.users) ? usersResult.users : []);
+      setBrands(Array.isArray(brandsResult?.brands) ? brandsResult.brands : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load users");
     } finally {
@@ -111,6 +135,11 @@ export default function AdminUsersPage() {
         token,
       })) as UserActivityResponse;
       setSelectedUser(result);
+      setEditForm({
+        display_name: result.user.display_name || "",
+        role: result.user.role || "user",
+        brand_id: result.user.brand_id || "",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load user activity");
     } finally {
@@ -143,6 +172,36 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function saveUserEdits() {
+    if (!selectedUser) return;
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      setError(null);
+      await apiFetch(`/admin/users/${selectedUser.user.id}`, {
+        token,
+        method: "PATCH",
+        body: {
+          display_name: editForm.display_name.trim(),
+          role: editForm.role,
+          brand_id: editForm.brand_id || null,
+        },
+      });
+      await loadUsers();
+      await loadUserActivity(selectedUser.user.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save user");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   function exportVisibleUsers() {
     const headers = [
       "display_name",
@@ -151,7 +210,7 @@ export default function AdminUsersPage() {
       "created_at",
       "status",
       "wallet_points",
-      "scan_events_count",
+      "redeemed_rewards_count",
       "recycling_events_count",
       "recycled_units_count",
       "last_activity_at",
@@ -166,7 +225,7 @@ export default function AdminUsersPage() {
       created_at: user.created_at,
       status: user.deactivated_at ? "deactivated" : "active",
       wallet_points: user.wallet_points,
-      scan_events_count: user.scan_events_count,
+      redeemed_rewards_count: user.redeemed_rewards_count ?? 0,
       recycling_events_count: user.recycling_events_count,
       recycled_units_count: user.recycled_units_count,
       last_activity_at: user.last_activity_at ?? "",
@@ -244,14 +303,14 @@ export default function AdminUsersPage() {
 
         <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
           <section className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-[1000px] w-full border-collapse text-left">
+            <table className="min-w-[980px] w-full border-collapse text-left">
               <thead className="bg-gray-50">
                 <tr className="border-b border-gray-200">
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Name</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Email</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Role</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Wallet</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Scans</th>
+                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Rewards</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Recycling Events</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Units</th>
                   <th className="px-4 py-3 text-sm font-medium text-gray-600">Last Activity</th>
@@ -268,12 +327,17 @@ export default function AdminUsersPage() {
                   </tr>
                 ) : (
                   filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-gray-100 align-top">
+                    <tr
+                      key={user.id}
+                      className={`border-b border-gray-100 align-top transition ${
+                        selectedUser?.user.id === user.id ? "bg-emerald-50/50" : "hover:bg-gray-50"
+                      }`}
+                    >
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.display_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{user.email}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{user.role}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{user.wallet_points}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.scan_events_count}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{user.redeemed_rewards_count ?? 0}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{user.recycling_events_count}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{user.recycled_units_count}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(user.last_activity_at)}</td>
@@ -289,12 +353,12 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => loadUserActivity(user.id)}
                             className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 transition hover:bg-gray-50"
                           >
-                            View
+                            {selectedUser?.user.id === user.id ? "Viewing" : "View"}
                           </button>
                           <button
                             onClick={() => toggleDeactivate(user.id)}
@@ -327,8 +391,21 @@ export default function AdminUsersPage() {
             ) : (
               <div className="space-y-5">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-base font-semibold text-gray-900">{selectedUser.user.display_name}</p>
-                  <p className="text-sm text-gray-600">{selectedUser.user.email}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold text-gray-900">{selectedUser.user.display_name}</p>
+                      <p className="text-sm text-gray-600">{selectedUser.user.email}</p>
+                    </div>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        selectedUser.user.deactivated_at
+                          ? "bg-gray-200 text-gray-700"
+                          : "bg-green-100 text-green-800"
+                      }`}
+                    >
+                      {selectedUser.user.deactivated_at ? "Deactivated" : "Active"}
+                    </span>
+                  </div>
                   <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-gray-700">
                     <div>
                       <p className="font-medium text-gray-500">Role</p>
@@ -339,13 +416,79 @@ export default function AdminUsersPage() {
                       <p>{selectedUser.user.wallet_points} EcoPoints</p>
                     </div>
                     <div>
+                      <p className="font-medium text-gray-500">Rewards Redeemed</p>
+                      <p>{selectedUser.user.redeemed_rewards_count ?? 0}</p>
+                    </div>
+                    <div>
                       <p className="font-medium text-gray-500">Joined</p>
                       <p>{formatDateTime(selectedUser.user.created_at)}</p>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-500">Status</p>
-                      <p>{selectedUser.user.deactivated_at ? "Deactivated" : "Active"}</p>
+                      <p className="font-medium text-gray-500">Last Activity</p>
+                      <p>{formatDateTime(selectedUser.user.last_activity_at)}</p>
                     </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                      Edit User
+                    </h3>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Display Name</span>
+                      <input
+                        value={editForm.display_name}
+                        onChange={(e) =>
+                          setEditForm((current) => ({ ...current, display_name: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Role</span>
+                      <select
+                        value={editForm.role}
+                        onChange={(e) =>
+                          setEditForm((current) => ({ ...current, role: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                      >
+                        <option value="user">user</option>
+                        <option value="partner">partner</option>
+                        <option value="brand_admin">brand_admin</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Brand</span>
+                      <select
+                        value={editForm.brand_id}
+                        onChange={(e) =>
+                          setEditForm((current) => ({ ...current, brand_id: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                      >
+                        <option value="">No brand</option>
+                        {brands.map((brand) => (
+                          <option key={brand.id} value={brand.id}>
+                            {brand.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <button
+                      onClick={saveUserEdits}
+                      disabled={savingEdit}
+                      className="w-full rounded-md bg-[#2d6a4f] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingEdit ? "Saving..." : "Save Changes"}
+                    </button>
                   </div>
                 </div>
 
