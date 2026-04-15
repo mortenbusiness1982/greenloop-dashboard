@@ -329,9 +329,11 @@ export default function AdminUsersPage() {
                   filteredUsers.map((user) => (
                     <tr
                       key={user.id}
+                      onClick={() => loadUserActivity(user.id)}
                       className={`border-b border-gray-100 align-top transition ${
                         selectedUser?.user.id === user.id ? "bg-emerald-50/50" : "hover:bg-gray-50"
                       }`}
+                      style={{ cursor: "pointer" }}
                     >
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.display_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{user.email}</td>
@@ -355,13 +357,21 @@ export default function AdminUsersPage() {
                       <td className="px-4 py-3 text-sm">
                         <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => loadUserActivity(user.id)}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              loadUserActivity(user.id);
+                            }}
                             className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 transition hover:bg-gray-50"
                           >
                             {selectedUser?.user.id === user.id ? "Viewing" : "View"}
                           </button>
                           <button
-                            onClick={() => toggleDeactivate(user.id)}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleDeactivate(user.id);
+                            }}
                             disabled={activeAction === user.id}
                             className="rounded-md bg-[#2d6a4f] px-3 py-1.5 text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
                           >

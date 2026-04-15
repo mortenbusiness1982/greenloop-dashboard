@@ -45,6 +45,8 @@ type Reward = {
   shared_code?: string | null;
   instructions?: string | null;
   expires_in_hours?: number | null;
+  acquisition_mode?: 'redeem' | 'challenge_completion';
+  visible_in_wallet_catalog?: boolean;
   inventory_total?: number;
   inventory_available?: number;
   inventory_assigned?: number;
@@ -88,6 +90,7 @@ type RewardFormState = {
   instructions: string;
   expires_in_hours: string;
   pooled_codes: string;
+  acquisition_mode: 'redeem' | 'challenge_completion';
 };
 
 type ChallengeFormState = {
@@ -148,6 +151,7 @@ const emptyRewardForm: RewardFormState = {
   instructions: '',
   expires_in_hours: '24',
   pooled_codes: '',
+  acquisition_mode: 'redeem',
 };
 
 const emptyChallengeForm: ChallengeFormState = {
@@ -196,6 +200,8 @@ function normalizeReward(raw: Reward): Reward {
     shared_code: raw.shared_code ?? null,
     instructions: raw.instructions ?? null,
     expires_in_hours: raw.expires_in_hours ?? 24,
+    acquisition_mode: raw.acquisition_mode ?? 'redeem',
+    visible_in_wallet_catalog: raw.visible_in_wallet_catalog ?? true,
   };
 }
 
@@ -391,7 +397,7 @@ export default function AdminPage() {
       const payload = {
         title: rewardForm.title,
         description: rewardForm.description,
-        cost_points: Number(rewardForm.cost_points),
+        cost_points: rewardForm.acquisition_mode === 'challenge_completion' ? 0 : Number(rewardForm.cost_points),
         partner_name: rewardForm.partner_name,
         brand_id:
           rewardForm.brand_id && rewardForm.brand_id.length > 10 ? rewardForm.brand_id : null,
@@ -403,6 +409,8 @@ export default function AdminPage() {
             : null,
         instructions: rewardForm.instructions || null,
         expires_in_hours: rewardForm.expires_in_hours ? Number(rewardForm.expires_in_hours) : 24,
+        acquisition_mode: rewardForm.acquisition_mode,
+        visible_in_wallet_catalog: rewardForm.acquisition_mode === 'redeem',
       };
 
       const savedReward = await apiFetch(
@@ -629,6 +637,7 @@ export default function AdminPage() {
       instructions: reward.instructions ?? '',
       expires_in_hours: reward.expires_in_hours == null ? '24' : String(reward.expires_in_hours),
       pooled_codes: '',
+      acquisition_mode: reward.acquisition_mode ?? 'redeem',
     });
   }
 
@@ -819,9 +828,11 @@ export default function AdminPage() {
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Title</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Partner</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Cost</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">Access</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Fulfillment</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Code Mode</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Inventory</th>
+                      <th className="px-4 py-3 text-sm font-medium text-gray-600">In Redeem</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Brand ID</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Active</th>
                       <th className="px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
@@ -830,7 +841,7 @@ export default function AdminPage() {
                   <tbody>
                     {rewards.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">
+                        <td colSpan={11} className="px-4 py-6 text-center text-sm text-gray-500">
                           No rewards found.
                         </td>
                       </tr>
@@ -840,6 +851,7 @@ export default function AdminPage() {
                           <td className="px-4 py-3 text-sm text-gray-900">{reward.title}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{reward.partner_name || "—"}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{reward.cost_points}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{reward.acquisition_mode === 'challenge_completion' ? 'Challenge completion only' : 'Redeem with EcoPoints'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {reward.fulfillment_type === 'promo_code' ? 'Promo Code' : 'QR Token'}
                           </td>
@@ -856,6 +868,9 @@ export default function AdminPage() {
                                     ? `${reward.inventory_available}/${reward.inventory_total} available`
                                     : `Depleted (${reward.inventory_total})`
                                   : 'No codes uploaded'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {reward.visible_in_wallet_catalog ? 'Yes' : 'Hidden'}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {reward.brand_id == null ? "—" : reward.brand_id}
@@ -932,15 +947,34 @@ export default function AdminPage() {
                     }
                     required
                   />
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">How users get this reward</span>
+                    <select
+                      value={rewardForm.acquisition_mode}
+                      onChange={(e) =>
+                        setRewardForm((current) => ({
+                          ...current,
+                          acquisition_mode: e.target.value as 'redeem' | 'challenge_completion',
+                          cost_points: e.target.value === 'challenge_completion' ? '0' : current.cost_points || '',
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                    >
+                      <option value="redeem">Redeem with EcoPoints</option>
+                      <option value="challenge_completion">Challenge completion only</option>
+                    </select>
+                    <p className="mt-2 text-xs text-gray-500">Challenge-only rewards stay hidden from the Redeem screen and are only issued when a linked challenge is completed.</p>
+                  </label>
                   <InputField
-                    label="Cost Points"
+                    label={rewardForm.acquisition_mode === 'challenge_completion' ? 'EcoPoints Cost (not used for challenge-only rewards)' : 'EcoPoints Cost'}
                     type="number"
                     min="0"
                     value={rewardForm.cost_points}
                     onChange={(e) =>
                       setRewardForm((current) => ({ ...current, cost_points: e.target.value }))
                     }
-                    required
+                    required={rewardForm.acquisition_mode === 'redeem'}
+                    disabled={rewardForm.acquisition_mode === 'challenge_completion'}
                   />
                   <InputField
                     label="Partner Name"
@@ -1270,7 +1304,7 @@ export default function AdminPage() {
                       <option value="">No completion reward</option>
                       {rewards.filter((reward) => reward.active).map((reward) => (
                         <option key={reward.id} value={String(reward.id)}>
-                          {reward.title} ({reward.fulfillment_type === 'promo_code' ? 'Promo' : 'QR'})
+                          {reward.title} · {reward.fulfillment_type === 'promo_code' ? 'Promo Code' : 'QR Reward'}{reward.acquisition_mode === 'challenge_completion' ? ' · Challenge Only' : ''}
                         </option>
                       ))}
                     </select>
