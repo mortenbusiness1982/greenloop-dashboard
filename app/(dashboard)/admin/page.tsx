@@ -479,7 +479,7 @@ export default function AdminPage() {
         title: challengeForm.title,
         description: challengeForm.description,
         required_count: Number(challengeForm.required_count),
-        bonus_points: Number(challengeForm.bonus_points),
+        bonus_points: challengeForm.bonus_points ? Number(challengeForm.bonus_points) : 0,
         completionRewardId: challengeForm.completionRewardId || null,
         starts_at: challengeForm.starts_at ? new Date(challengeForm.starts_at).toISOString() : null,
         ends_at: challengeForm.ends_at ? new Date(challengeForm.ends_at).toISOString() : null,
@@ -1007,6 +1007,7 @@ export default function AdminPage() {
                       <option value="qr_token">QR Token</option>
                       <option value="promo_code">Promo Code</option>
                     </select>
+                    <p className="mt-2 text-xs text-gray-500">The selected reward is automatically issued when this challenge is completed. If you are only giving a reward, you can leave bonus points at 0.</p>
                   </label>
                   {rewardForm.fulfillment_type === 'promo_code' ? (
                     <label className="block">
@@ -1034,7 +1035,7 @@ export default function AdminPage() {
                       label="Shared Code"
                       value={rewardForm.shared_code}
                       onChange={(e) => setRewardForm((current) => ({ ...current, shared_code: e.target.value }))}
-                      required
+                      required={!challengeForm.completionRewardId}
                     />
                   ) : null}
                   {rewardForm.fulfillment_type === 'promo_code' && rewardForm.code_mode === 'pooled' ? (
@@ -1290,13 +1291,14 @@ export default function AdminPage() {
                     Target fields are now used when saving challenges. Brand challenges remain backward-compatible with the legacy brand key.
                   </p>
                   <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-gray-700">Completion Reward</span>
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Completion Reward (Auto-Issued)</span>
                     <select
                       value={challengeForm.completionRewardId}
                       onChange={(e) =>
                         setChallengeForm((current) => ({
                           ...current,
                           completionRewardId: e.target.value,
+                          bonus_points: e.target.value ? current.bonus_points || "0" : current.bonus_points,
                         }))
                       }
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
@@ -1338,14 +1340,14 @@ export default function AdminPage() {
                       required
                     />
                     <InputField
-                      label="Bonus Points"
+                      label={challengeForm.completionRewardId ? "Bonus Points (optional when completion reward is set)" : "Bonus Points"}
                       type="number"
                       min="0"
                       value={challengeForm.bonus_points}
                       onChange={(e) =>
                         setChallengeForm((current) => ({ ...current, bonus_points: e.target.value }))
                       }
-                      required
+                      required={!challengeForm.completionRewardId}
                     />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
