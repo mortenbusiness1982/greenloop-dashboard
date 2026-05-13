@@ -41,7 +41,13 @@ type UserActivityResponse = {
     province: string | null;
     lat: number | null;
     lng: number | null;
+    verification_status: string;
     units: number;
+    points_issued: number;
+    items: {
+      barcode: string;
+      product_name: string;
+    }[];
   }[];
 };
 
@@ -54,6 +60,11 @@ type EditUserFormState = {
   display_name: string;
   role: string;
   brand_id: string;
+};
+
+type ActivityFiltersState = {
+  from: string;
+  to: string;
 };
 
 function formatDateTime(value?: string | null) {
@@ -84,6 +95,32 @@ export default function AdminUsersPage() {
     role: "user",
     brand_id: "",
   });
+  const [activityFilters, setActivityFilters] = useState<ActivityFiltersState>({
+    from: "",
+    to: "",
+  });
+  const recycleHistorySummary = useMemo(() => {
+    if (!selectedUser) {
+      return {
+        totalEvents: 0,
+        totalUnits: 0,
+        totalPoints: 0,
+      };
+    }
+
+    return selectedUser.recycling_events.reduce(
+      (summary, event) => ({
+        totalEvents: summary.totalEvents + 1,
+        totalUnits: summary.totalUnits + Number(event.units || 0),
+        totalPoints: summary.totalPoints + Number(event.points_issued || 0),
+      }),
+      {
+        totalEvents: 0,
+        totalUnits: 0,
+        totalPoints: 0,
+      }
+    );
+  }, [selectedUser]);
 
   const loadUsers = useCallback(async () => {
     const token = getToken();
@@ -121,7 +158,7 @@ export default function AdminUsersPage() {
     );
   }, [search, users]);
 
-  async function loadUserActivity(userId: string) {
+  async function loadUserActivity(userId: string, filters?: ActivityFiltersState) {
     const token = getToken();
     if (!token) {
       router.replace("/login");
@@ -131,7 +168,12 @@ export default function AdminUsersPage() {
     try {
       setActivityLoading(true);
       setError(null);
-      const result = (await apiFetch(`/admin/users/${userId}/activity`, {
+      const nextFilters = filters ?? activityFilters;
+      const params = new URLSearchParams();
+      if (nextFilters.from) params.set("from", nextFilters.from);
+      if (nextFilters.to) params.set("to", nextFilters.to);
+      const path = `/admin/users/${userId}/activity${params.toString() ? `?${params.toString()}` : ""}`;
+      const result = (await apiFetch(path, {
         token,
       })) as UserActivityResponse;
       setSelectedUser(result);
@@ -140,6 +182,7 @@ export default function AdminUsersPage() {
         role: result.user.role || "user",
         brand_id: result.user.brand_id || "",
       });
+      setActivityFilters(nextFilters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load user activity");
     } finally {
@@ -250,6 +293,18 @@ export default function AdminUsersPage() {
   function onLogout() {
     clearToken();
     router.replace("/login");
+  }
+
+  function applyActivityFilters() {
+    if (!selectedUser) return;
+    void loadUserActivity(selectedUser.user.id, activityFilters);
+  }
+
+  function resetActivityFilters() {
+    if (!selectedUser) return;
+    const resetFilters = { from: "", to: "" };
+    setActivityFilters(resetFilters);
+    void loadUserActivity(selectedUser.user.id, resetFilters);
   }
 
   if (loading) {
@@ -504,23 +559,140 @@ export default function AdminUsersPage() {
 
                 <div>
                   <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                    Recent Recycling Events
+                    Recycle History
                   </h3>
+                  <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          From
+                        </span>
+                        <input
+                          type="date"
+                          value={activityFilters.from}
+                          onChange={(e) =>
+                            setActivityFilters((current) => ({ ...current, from: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          To
+                        </span>
+                        <input
+                          type="date"
+                          value={activityFilters.to}
+                          onChange={(e) =>
+                            setActivityFilters((current) => ({ ...current, to: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={applyActivityFilters}
+                        disabled={!selectedUser || activityLoading}
+                        className="rounded-md bg-[#2d6a4f] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {activityLoading ? "Loading..." : "Apply Date Filter"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetActivityFilters}
+                        disabled={!selectedUser || activityLoading}
+                        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  {selectedUser.recycling_events.length > 0 ? (
+                    <div className="mb-3 grid grid-cols-3 gap-2">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                        <p className="font-medium text-gray-500">Events</p>
+                        <p className="mt-1 text-base font-semibold text-gray-900">
+                          {recycleHistorySummary.totalEvents}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                        <p className="font-medium text-gray-500">Units</p>
+                        <p className="mt-1 text-base font-semibold text-gray-900">
+                          {recycleHistorySummary.totalUnits}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                        <p className="font-medium text-gray-500">EcoPoints</p>
+                        <p className="mt-1 text-base font-semibold text-gray-900">
+                          {recycleHistorySummary.totalPoints}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="space-y-2">
                     {selectedUser.recycling_events.length === 0 ? (
                       <p className="text-sm text-gray-500">No recycling events yet.</p>
                     ) : (
                       selectedUser.recycling_events.map((event) => (
                         <div key={event.id} className="rounded-lg border border-gray-200 p-3 text-sm">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-gray-900">
-                              {event.units} units
-                              {event.city || event.province
-                                ? ` · ${[event.city, event.province].filter(Boolean).join(", ")}`
-                                : ""}
-                            </p>
-                            <p className="text-xs text-gray-500">{formatDateTime(event.created_at)}</p>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {event.units} units
+                                {event.city || event.province
+                                  ? ` · ${[event.city, event.province].filter(Boolean).join(", ")}`
+                                  : ""}
+                              </p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Event ID: {event.id}
+                              </p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                User: {selectedUser.user.display_name}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">{formatDateTime(event.created_at)}</p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Day: {new Date(event.created_at).toLocaleDateString()}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-emerald-700">
+                                {event.points_issued} EcoPoints
+                              </p>
+                            </div>
                           </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                event.verification_status === "approved"
+                                  ? "bg-green-100 text-green-800"
+                                  : event.verification_status === "rejected"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {event.verification_status}
+                            </span>
+                          </div>
+                          {event.items.length > 0 ? (
+                            <div className="mt-3 rounded-md bg-gray-50 p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Recycled Products
+                              </p>
+                              <div className="space-y-1.5">
+                                {event.items.map((item, index) => (
+                                  <div
+                                    key={`${event.id}-${item.barcode}-${index}`}
+                                    className="flex items-start justify-between gap-3 text-xs"
+                                  >
+                                    <p className="font-medium text-gray-800">{item.product_name}</p>
+                                    <p className="text-gray-500">{item.barcode || "—"}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                           {(event.lat !== null && event.lng !== null) ? (
                             <p className="mt-1 text-xs text-gray-500">
                               {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
