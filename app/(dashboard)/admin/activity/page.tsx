@@ -113,6 +113,21 @@ export default function AdminActivityPage() {
   const topCities = useMemo(() => report?.geoBreakdown ?? [], [report]);
   const dailyTrend = useMemo(() => report?.dailyTrend ?? [], [report]);
   const events = useMemo(() => report?.events ?? [], [report]);
+  const cityOptions = useMemo(() => {
+    const values = new Set<string>();
+
+    for (const location of topCities) {
+      const city = String(location.city || "").trim();
+      if (city) values.add(city);
+    }
+
+    for (const event of events) {
+      const city = String(event.city || "").trim();
+      if (city) values.add(city);
+    }
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [events, topCities]);
 
   if (loading) {
     return <main className="min-h-screen p-6 text-gray-700">Loading recycling activity...</main>;
@@ -179,12 +194,18 @@ export default function AdminActivityPage() {
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700">City</span>
-              <input
+              <select
                 value={filters.city}
                 onChange={(e) => setFilters((current) => ({ ...current, city: e.target.value }))}
-                placeholder="Filter by city"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              />
+              >
+                <option value="">All cities</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700">User ID</span>
