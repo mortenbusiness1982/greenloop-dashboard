@@ -327,6 +327,12 @@ export default function AdminUsersPage() {
               >
                 Back to Admin
               </Link>
+              <Link
+                href="/admin/activity"
+                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Review Total Activity
+              </Link>
               <button
                 onClick={exportVisibleUsers}
                 className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
