@@ -48,6 +48,12 @@ type FilterState = {
   userId: string;
 };
 
+type UserOption = {
+  id: string;
+  label: string;
+  email: string;
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -66,6 +72,8 @@ export default function AdminActivityPage() {
     city: "",
     userId: "",
   });
+  const [citySearch, setCitySearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
 
   const loadReport = useCallback(
     async (nextFilters?: FilterState) => {
@@ -128,6 +136,36 @@ export default function AdminActivityPage() {
 
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [events, topCities]);
+  const filteredCityOptions = useMemo(() => {
+    const query = citySearch.trim().toLowerCase();
+    if (!query) return cityOptions;
+    return cityOptions.filter((city) => city.toLowerCase().includes(query));
+  }, [cityOptions, citySearch]);
+  const userOptions = useMemo(() => {
+    const values = new Map<string, UserOption>();
+
+    for (const event of events) {
+      const id = String(event.user_id || "").trim();
+      if (!id) continue;
+      const displayName = String(event.display_name || "").trim();
+      const email = String(event.email || "").trim();
+
+      values.set(id, {
+        id,
+        label: displayName || email || id,
+        email,
+      });
+    }
+
+    return Array.from(values.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [events]);
+  const filteredUserOptions = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    if (!query) return userOptions;
+    return userOptions.filter((user) =>
+      `${user.label} ${user.email} ${user.id}`.toLowerCase().includes(query)
+    );
+  }, [userOptions, userSearch]);
 
   if (loading) {
     return <main className="min-h-screen p-6 text-gray-700">Loading recycling activity...</main>;
@@ -170,7 +208,7 @@ export default function AdminActivityPage() {
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Filter by day range, location, or a specific user ID.
+              Filter by day range, location, or user name.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -200,20 +238,38 @@ export default function AdminActivityPage() {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
               >
                 <option value="">All cities</option>
-                {cityOptions.map((city) => (
+                {filteredCityOptions.map((city) => (
                   <option key={city} value={city}>
                     {city}
                   </option>
                 ))}
               </select>
+              <input
+                value={citySearch}
+                onChange={(e) => setCitySearch(e.target.value)}
+                placeholder="Search city"
+                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+              />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">User ID</span>
-              <input
+              <span className="mb-1 block text-sm font-medium text-gray-700">User Name</span>
+              <select
                 value={filters.userId}
                 onChange={(e) => setFilters((current) => ({ ...current, userId: e.target.value }))}
-                placeholder="Filter by user UUID"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+              >
+                <option value="">All users</option>
+                {filteredUserOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.label}{user.email ? ` · ${user.email}` : ""}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search user"
+                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
               />
             </label>
           </div>
@@ -227,14 +283,16 @@ export default function AdminActivityPage() {
             </button>
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
+                setCitySearch("");
+                setUserSearch("");
                 loadReport({
                   from: "",
                   to: "",
                   city: "",
                   userId: "",
-                })
-              }
+                });
+              }}
               className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Reset
