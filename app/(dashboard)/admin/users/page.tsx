@@ -419,7 +419,7 @@ export default function AdminUsersPage() {
                             }}
                             className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 transition hover:bg-gray-50"
                           >
-                            {selectedUser?.user.id === user.id ? "Viewing" : "View"}
+                            {selectedUser?.user.id === user.id ? "Viewing Activity" : "Review Activity"}
                           </button>
                           <button
                             type="button"
