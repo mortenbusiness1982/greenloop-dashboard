@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* -------------------------------------------------------------------------- */
+/* Next.js + Tailwind defaults                                                */
+/* Preserved so any usage of bg-background / text-foreground utilities works. */
+/* -------------------------------------------------------------------------- */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -19,29 +24,58 @@
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* -------------------------------------------------------------------------- */
+/* GreenLoop design tokens                                                    */
+/* Source of truth for color, hairline, radius. Mobile-canonical palette.     */
+/* -------------------------------------------------------------------------- */
 
 :root {
-  --gl-green: #2d6a4f;
-  --gl-green-soft: #edf7f2;
-  --gl-border: #e5e7eb;
+  /* Surfaces */
+  --gl-bg-cream: #F3F0E2;
+  --gl-paper: #FFFFFF;
+  --gl-card-cream: #FCFCF8;
+
+  /* Ink (text) */
+  --gl-ink: #14211B;
+  --gl-ink-soft: #3D4A43;
+  --gl-ink-muted: #6C8077;
+  --gl-ink-faint: #A6B3AD;
+
+  /* Brand green */
+  --gl-green: #15785A;
+  --gl-green-deep: #0F2B21;
+  --gl-green-forest: #0A1F18;
+  --gl-green-soft: #D6EBE0;
+  --gl-green-ring: rgba(21, 120, 90, 0.20);
+
+  /* Amber accent */
+  --gl-amber: #F1A531;
+  --gl-amber-soft: #FFF2D8;
+  --gl-amber-ink: #7A4E00;
+
+  /* Coral accent */
+  --gl-coral: #C95B3E;
+  --gl-coral-soft: #F7DDD2;
+  --gl-coral-ink: #7A2E18;
+
+  /* Hairlines */
+  --gl-hairline: rgba(20, 32, 26, 0.10);
+  --gl-hairline-strong: rgba(20, 32, 26, 0.18);
+
+  /* Shape + elevation */
   --gl-radius: 12px;
-  --gl-shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --gl-shadow-md: 0 8px 20px rgba(0,0,0,0.06);
-}
+  --gl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --gl-shadow-md: 0 8px 20px rgba(0, 0, 0, 0.06);
 
-:root {
-  --gl-green: #2d6a4f;
-  --gl-green-soft: #40916c;
-  --gl-bg: #f8faf9;
-  --gl-border: #e5e7eb;
+  /* Legacy aliases — kept temporarily so any remaining ad-hoc usage doesn't
+     break. Re-pointed to the new palette so colors converge automatically.
+     Migrate call sites in follow-up passes, then remove. */
+  --gl-bg: var(--gl-bg-cream);
+  --gl-border: var(--gl-hairline);
 }
 
 body {
-  background: var(--gl-bg);
+  background: var(--gl-bg-cream);
+  color: var(--gl-ink);
   font-family: Inter, system-ui, sans-serif;
 }
