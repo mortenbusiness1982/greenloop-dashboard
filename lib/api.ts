@@ -5,10 +5,32 @@ export const API_BASE = (
 type ApiFetchOptions = {
   token?: string;
   method?: string;
-  body?: any;
+  body?: unknown;
 };
 
-export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
+type ApiErrorBody = {
+  message?: string;
+  error?: string;
+};
+
+function parseJson(text: string): unknown {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getErrorMessage(body: unknown, fallback: string) {
+  if (body && typeof body === "object") {
+    const apiError = body as ApiErrorBody;
+    return apiError.message || apiError.error || fallback;
+  }
+
+  return fallback;
+}
+
+export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { token, method = "GET", body } = options;
 
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
@@ -27,20 +49,13 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   });
 
   const text = await res.text();
-  let json: any = null;
-
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
+  const json = parseJson(text);
 
   if (!res.ok) {
-    const message = json?.message || json?.error || `Request failed with status ${res.status}`;
-    throw new Error(message);
+    throw new Error(getErrorMessage(json, `Request failed with status ${res.status}`));
   }
 
-  return json;
+  return json as T;
 }
 
 export async function apiFetchBlob(path: string, opts: { token: string }): Promise<Blob> {
@@ -52,13 +67,8 @@ export async function apiFetchBlob(path: string, opts: { token: string }): Promi
 
   if (!res.ok) {
     const text = await res.text();
-    let json: any = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    throw new Error(json?.message || json?.error || `Request failed with status ${res.status}`);
+    const json = parseJson(text);
+    throw new Error(getErrorMessage(json, `Request failed with status ${res.status}`));
   }
 
   return await res.blob();
