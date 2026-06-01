@@ -30,7 +30,7 @@ function getErrorMessage(body: unknown, fallback: string) {
   return fallback;
 }
 
-export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+export async function apiFetch<T = any>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { token, method = "GET", body } = options;
 
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
