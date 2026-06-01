@@ -10,9 +10,14 @@ type Reward = {
   id: string | number;
   title: string;
   description?: string | null;
+  short_description?: string | null;
+  full_description?: string | null;
   cost_points: number;
   partner_name?: string | null;
   brand_id?: string | number | null;
+  category_id?: string | null;
+  banner_image_url?: string | null;
+  estimated_savings_text?: string | null;
   reward_source?: "affiliate" | "sponsored" | "internal" | "challenge" | "local_partner";
   reward_type?: "catalog_reward" | "challenge_reward";
   unlock_method?: "points" | "challenge" | "sponsored" | "gifted" | "admin_granted";
@@ -30,6 +35,7 @@ type Reward = {
   placement_type?: "hero" | "featured" | "standard" | "sponsored";
   max_total_claims?: number | null;
   max_claims_per_user?: number | null;
+  remaining_claims_visible?: boolean;
   unlock_duration_hours?: number | null;
   active: boolean;
   fulfillment_type?: "qr_token" | "promo_code";
@@ -43,12 +49,23 @@ type Reward = {
   inventory_available?: number;
 };
 
+type RewardCategory = {
+  id: string;
+  key?: string | null;
+  label: string;
+};
+
 type RewardForm = {
   title: string;
   description: string;
+  short_description: string;
+  full_description: string;
   cost_points: string;
   partner_name: string;
   brand_id: string;
+  category_id: string;
+  banner_image_url: string;
+  estimated_savings_text: string;
   reward_source: NonNullable<Reward["reward_source"]>;
   acquisition_mode: NonNullable<Reward["acquisition_mode"]>;
   redemption_type: NonNullable<Reward["redemption_type"]>;
@@ -67,7 +84,9 @@ type RewardForm = {
   priority: string;
   max_total_claims: string;
   max_claims_per_user: string;
+  remaining_claims_visible: boolean;
   unlock_duration_hours: string;
+  terms_text: string;
   starts_at: string;
   ends_at: string;
 };
@@ -75,12 +94,17 @@ type RewardForm = {
 const emptyForm: RewardForm = {
   title: "",
   description: "",
+  short_description: "",
+  full_description: "",
   cost_points: "",
   partner_name: "",
   brand_id: "",
+  category_id: "",
+  banner_image_url: "",
+  estimated_savings_text: "",
   reward_source: "internal",
   acquisition_mode: "redeem",
-  redemption_type: "manual_claim",
+  redemption_type: "link_only",
   fulfillment_type: "qr_token",
   code_mode: "",
   affiliate_url: "",
@@ -96,7 +120,9 @@ const emptyForm: RewardForm = {
   priority: "0",
   max_total_claims: "",
   max_claims_per_user: "",
+  remaining_claims_visible: false,
   unlock_duration_hours: "24",
+  terms_text: "",
   starts_at: "",
   ends_at: "",
 };
@@ -157,6 +183,7 @@ function inventoryLabel(reward: Reward) {
 export function AdminRewardsWorkspace() {
   const router = useRouter();
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [categories, setCategories] = useState<RewardCategory[]>([]);
   const [form, setForm] = useState<RewardForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const [query, setQuery] = useState("");
@@ -175,8 +202,12 @@ export function AdminRewardsWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiFetch("/admin/rewards", { token });
+      const [result, categoryResult] = await Promise.all([
+        apiFetch("/admin/rewards", { token }),
+        apiFetch("/admin/reward-categories", { token }).catch(() => ({ categories: [] })),
+      ]);
       setRewards(normalizeList<Reward>(result, ["rewards", "data"]).map(normalizeReward));
+      setCategories(normalizeList<RewardCategory>(categoryResult, ["categories", "data"]));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load rewards");
     } finally {
@@ -215,13 +246,18 @@ export function AdminRewardsWorkspace() {
     setForm({
       title: reward.title,
       description: reward.description || "",
+      short_description: reward.short_description || reward.description || "",
+      full_description: reward.full_description || reward.description || "",
       cost_points: String(reward.cost_points ?? ""),
       partner_name: reward.partner_name || "",
       brand_id: reward.brand_id == null ? "" : String(reward.brand_id),
+      category_id: reward.category_id || "",
+      banner_image_url: reward.banner_image_url || "",
+      estimated_savings_text: reward.estimated_savings_text || "",
       reward_source: reward.reward_source || "internal",
       acquisition_mode: reward.acquisition_mode || "redeem",
       redemption_type: reward.redemption_type || "manual_claim",
-      fulfillment_type: reward.fulfillment_type || "qr_token",
+      fulfillment_type: reward.redemption_type === "link_with_code" ? "promo_code" : reward.fulfillment_type || "qr_token",
       code_mode: reward.code_mode || "",
       affiliate_url: reward.affiliate_url || "",
       affiliate_network: reward.affiliate_network || "",
@@ -236,7 +272,9 @@ export function AdminRewardsWorkspace() {
       priority: String(reward.priority ?? 0),
       max_total_claims: reward.max_total_claims == null ? "" : String(reward.max_total_claims),
       max_claims_per_user: reward.max_claims_per_user == null ? "" : String(reward.max_claims_per_user),
+      remaining_claims_visible: Boolean(reward.remaining_claims_visible),
       unlock_duration_hours: String(reward.unlock_duration_hours ?? reward.expires_in_hours ?? 24),
+      terms_text: "",
       starts_at: toDateTimeInput(reward.starts_at),
       ends_at: toDateTimeInput(reward.ends_at),
     });
@@ -254,20 +292,27 @@ export function AdminRewardsWorkspace() {
     setError(null);
     try {
       const isChallengeReward = form.acquisition_mode === "challenge_completion";
+      const fulfillmentType = form.redemption_type === "link_with_code" ? "promo_code" : "qr_token";
+      const hasPromoCode = form.redemption_type === "link_with_code";
       const payload = {
         title: form.title,
-        description: form.description,
+        description: form.short_description || form.description || form.full_description,
+        short_description: form.short_description || form.description,
+        full_description: form.full_description || form.description,
         cost_points: isChallengeReward ? 0 : Number(form.cost_points || 0),
         partner_name: form.partner_name,
         brand_id: form.brand_id && form.brand_id.length > 10 ? form.brand_id : null,
+        category_id: form.category_id || null,
+        banner_image_url: form.banner_image_url || null,
+        estimated_savings_text: form.estimated_savings_text || null,
         reward_source: form.reward_source,
         reward_type: isChallengeReward ? "challenge_reward" : "catalog_reward",
         unlock_method: isChallengeReward ? "challenge" : "points",
         redemption_type: form.redemption_type,
         affiliate_url: form.affiliate_url || null,
         affiliate_network: form.affiliate_network || null,
-        has_promo_code: form.fulfillment_type === "promo_code" || Boolean(form.promo_code),
-        promo_code: form.promo_code || form.shared_code || null,
+        has_promo_code: hasPromoCode,
+        promo_code: hasPromoCode ? form.promo_code || form.shared_code || null : null,
         redemption_instructions: form.instructions || null,
         cta_text: form.cta_text || null,
         status: form.status,
@@ -278,10 +323,11 @@ export function AdminRewardsWorkspace() {
         placement_type: form.placement_type,
         max_total_claims: form.max_total_claims ? Number(form.max_total_claims) : null,
         max_claims_per_user: form.max_claims_per_user ? Number(form.max_claims_per_user) : null,
+        remaining_claims_visible: form.remaining_claims_visible,
         unlock_duration_hours: form.unlock_duration_hours ? Number(form.unlock_duration_hours) : null,
-        fulfillment_type: form.fulfillment_type,
-        code_mode: form.fulfillment_type === "promo_code" ? form.code_mode || null : null,
-        shared_code: form.fulfillment_type === "promo_code" && form.code_mode === "shared" ? form.shared_code || null : null,
+        fulfillment_type: fulfillmentType,
+        code_mode: hasPromoCode ? form.code_mode || "shared" : null,
+        shared_code: hasPromoCode && (form.code_mode || "shared") === "shared" ? form.shared_code || form.promo_code || null : null,
         instructions: form.instructions || null,
         expires_in_hours: form.unlock_duration_hours ? Number(form.unlock_duration_hours) : 24,
         acquisition_mode: form.acquisition_mode,
@@ -298,7 +344,7 @@ export function AdminRewardsWorkspace() {
         .map((code) => code.trim())
         .filter(Boolean);
 
-      if (rewardId && form.fulfillment_type === "promo_code" && form.code_mode === "pooled" && pooledCodes.length) {
+      if (rewardId && hasPromoCode && form.code_mode === "pooled" && pooledCodes.length) {
         await apiFetch(`/admin/rewards/${rewardId}/promo-codes`, {
           token,
           method: "POST",
@@ -444,6 +490,7 @@ export function AdminRewardsWorkspace() {
         <RewardFormPanel
           form={form}
           setForm={setForm}
+          categories={categories}
           editingId={editingId}
           saving={saving}
           onCancel={() => {
@@ -460,6 +507,7 @@ export function AdminRewardsWorkspace() {
 function RewardFormPanel({
   form,
   setForm,
+  categories,
   editingId,
   saving,
   onCancel,
@@ -467,13 +515,26 @@ function RewardFormPanel({
 }: {
   form: RewardForm;
   setForm: (updater: (current: RewardForm) => RewardForm) => void;
+  categories: RewardCategory[];
   editingId: string | number | null;
   saving: boolean;
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const isChallengeReward = form.acquisition_mode === "challenge_completion";
-  const isPromo = form.fulfillment_type === "promo_code";
+  const isPromo = form.redemption_type === "link_with_code";
+  const handleUnlockTypeChange = (value: string) => {
+    const redemptionType = value as RewardForm["redemption_type"];
+    setForm((current) => ({
+      ...current,
+      redemption_type: redemptionType,
+      fulfillment_type: redemptionType === "link_with_code" ? "promo_code" : "qr_token",
+      code_mode: redemptionType === "link_with_code" ? current.code_mode || "shared" : "",
+      promo_code: redemptionType === "link_with_code" ? current.promo_code : "",
+      shared_code: redemptionType === "link_with_code" ? current.shared_code : "",
+      pooled_codes: redemptionType === "link_with_code" ? current.pooled_codes : "",
+    }));
+  };
 
   return (
     <div className="space-y-6">
@@ -488,17 +549,34 @@ function RewardFormPanel({
       <div className="space-y-6">
         <FormSection title="Basic Info">
           <Field label="Title" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} required />
-          <Textarea label="Description" value={form.description} onChange={(value) => setForm((current) => ({ ...current, description: value }))} required />
+          <Textarea label="Short description" value={form.short_description} onChange={(value) => setForm((current) => ({ ...current, short_description: value, description: current.description || value }))} required />
+          <Textarea label="Full description" value={form.full_description} onChange={(value) => setForm((current) => ({ ...current, full_description: value, description: current.description || value }))} />
           <Field label="Partner name" value={form.partner_name} onChange={(value) => setForm((current) => ({ ...current, partner_name: value }))} required />
           <Field label="Brand ID" value={form.brand_id} onChange={(value) => setForm((current) => ({ ...current, brand_id: value }))} />
+          <Field label="Banner image URL" value={form.banner_image_url} onChange={(value) => setForm((current) => ({ ...current, banner_image_url: value }))} placeholder="https://..." />
+          {categories.length ? (
+            <Select label="Category" value={form.category_id} onChange={(value) => setForm((current) => ({ ...current, category_id: value }))}>
+              <option value="">No category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.label}</option>
+              ))}
+            </Select>
+          ) : (
+            <Field label="Category ID" value={form.category_id} onChange={(value) => setForm((current) => ({ ...current, category_id: value }))} />
+          )}
         </FormSection>
 
         <FormSection title="Reward Economics">
           {!isChallengeReward ? <Field label="EcoPoints cost" type="number" min="0" value={form.cost_points} onChange={(value) => setForm((current) => ({ ...current, cost_points: value }))} required /> : null}
+          <Field label="Estimated savings text" value={form.estimated_savings_text} onChange={(value) => setForm((current) => ({ ...current, estimated_savings_text: value }))} placeholder="Save up to 25%" />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Max total claims" type="number" min="0" value={form.max_total_claims} onChange={(value) => setForm((current) => ({ ...current, max_total_claims: value }))} />
             <Field label="Max claims / user" type="number" min="1" value={form.max_claims_per_user} onChange={(value) => setForm((current) => ({ ...current, max_claims_per_user: value }))} />
           </div>
+          <label className="flex items-center gap-2 text-sm font-medium text-[var(--gl-ink-soft)]">
+            <input type="checkbox" checked={form.remaining_claims_visible} onChange={(event) => setForm((current) => ({ ...current, remaining_claims_visible: event.target.checked }))} className="h-4 w-4 rounded border-[var(--gl-hairline-strong)] text-[var(--gl-green)] focus:ring-[var(--gl-green-ring)]" />
+            Show remaining unlocks to users
+          </label>
         </FormSection>
 
         <FormSection title="Reward Type">
@@ -516,14 +594,10 @@ function RewardFormPanel({
         </FormSection>
 
         <FormSection title="Unlock Type">
-          <Select label="Redemption type" value={form.redemption_type} onChange={(value) => setForm((current) => ({ ...current, redemption_type: value as RewardForm["redemption_type"] }))}>
-            <option value="manual_claim">Manual claim</option>
+          <Select label="Unlock type" value={form.redemption_type} onChange={handleUnlockTypeChange}>
             <option value="link_only">Link only</option>
-            <option value="link_with_code">Link with code</option>
-          </Select>
-          <Select label="Delivery format" value={form.fulfillment_type} onChange={(value) => setForm((current) => ({ ...current, fulfillment_type: value as RewardForm["fulfillment_type"], code_mode: value === "promo_code" ? current.code_mode || "shared" : "" }))}>
-            <option value="qr_token">QR/manual token</option>
-            <option value="promo_code">Promo code</option>
+            <option value="link_with_code">Link + Promo Code</option>
+            <option value="manual_claim">Manual Claim</option>
           </Select>
           <Field label="Unlock duration hours" type="number" min="1" value={form.unlock_duration_hours} onChange={(value) => setForm((current) => ({ ...current, unlock_duration_hours: value }))} />
         </FormSection>
@@ -549,7 +623,9 @@ function RewardFormPanel({
         ) : null}
 
         <FormSection title="User Experience">
+          <Field label="CTA text" value={form.cta_text} onChange={(value) => setForm((current) => ({ ...current, cta_text: value }))} placeholder="Unlock" />
           <Textarea label="Unlock instructions" value={form.instructions} onChange={(value) => setForm((current) => ({ ...current, instructions: value }))} />
+          <Textarea label="Terms & conditions" value={form.terms_text} onChange={(value) => setForm((current) => ({ ...current, terms_text: value }))} placeholder="Optional internal note for now; detailed terms page support can be added next." />
         </FormSection>
 
         <FormSection title="Visibility">
@@ -589,15 +665,22 @@ function RewardFormPanel({
 }
 
 function RewardPreviewCard({ form }: { form: RewardForm }) {
-  const isPromo = form.fulfillment_type === "promo_code";
+  const isPromo = form.redemption_type === "link_with_code";
   const hasLink = form.redemption_type !== "manual_claim" && form.affiliate_url.trim().length > 0;
   const code = form.code_mode === "shared" && form.shared_code.trim() ? form.shared_code.trim() : "PROMO-CODE";
   const expiry = form.unlock_duration_hours.trim() ? `Expires ${form.unlock_duration_hours.trim()}h after unlock` : null;
   const title = form.title.trim() || "Reward title";
+  const imageUrl = form.banner_image_url.trim();
   return (
     <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">What users will see after unlock</p>
       <div className="mt-4 rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-5 text-center">
+        {imageUrl ? (
+          <div className="mx-auto mb-4 flex h-24 max-w-[220px] items-center justify-center overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-white">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="" className="h-full w-full object-contain" />
+          </div>
+        ) : null}
         <p className="text-lg font-bold text-[var(--gl-ink)]">{isPromo ? "Code Revealed 🎉" : "Reward Unlocked 🎉"}</p>
         <p className="mt-1 text-sm font-semibold text-[var(--gl-ink-soft)]">{title}</p>
         {isPromo ? (
@@ -609,7 +692,7 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
         {expiry ? <p className="mt-3 text-xs font-semibold text-[var(--gl-ink-muted)]">{expiry}</p> : null}
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {isPromo ? <span className="rounded-full bg-[var(--gl-green-deep)] px-3 py-1.5 text-xs font-semibold text-white">Copy Code</span> : null}
-          {hasLink ? <span className="rounded-full bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white">Open Offer</span> : null}
+          {hasLink ? <span className="rounded-full bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white">Unlock</span> : null}
           {hasLink ? <span className="rounded-full border border-[var(--gl-hairline-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-green-deep)]">Copy Link</span> : null}
         </div>
       </div>
