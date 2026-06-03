@@ -97,6 +97,7 @@ type Filters = {
 
 const reportLinks = [
   { title: "Platform Reports", href: "/admin/reports/platform", description: "Units, events, EcoPoints, products, and activity rows." },
+  { title: "Product Behavior / App Analytics", href: "/admin/reports/app-analytics", description: "Movement, funnels, drop-offs, friction, outcomes, and instrumentation health from app events." },
   { title: "Brand Reports", href: "/admin/reports/brands", description: "Brand customer reporting and brand-linked operational counts." },
   { title: "User Reports", href: "/admin/reports/users", description: "User activity, wallet points, recycling counts, and city signals." },
   { title: "Geo Reports", href: "/admin/reports/geo", description: "City performance and location export." },

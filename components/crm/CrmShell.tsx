@@ -56,6 +56,7 @@ type NavItemKey =
   | "binsMaps"
   | "reports"
   | "platformReport"
+  | "appAnalytics"
   | "exportCenter"
   | "maps"
   | "settings"
@@ -117,6 +118,7 @@ const shellCopy: Record<DashboardLanguage, {
       binsMaps: "Bins & Maps",
       reports: "Reports",
       platformReport: "Platform Report",
+      appAnalytics: "App Analytics",
       exportCenter: "Export Center",
       maps: "Maps",
       settings: "Settings",
@@ -176,6 +178,7 @@ const shellCopy: Record<DashboardLanguage, {
       binsMaps: "Contenedores y mapas",
       reports: "Informes",
       platformReport: "Informe de plataforma",
+      appAnalytics: "Analítica de app",
       exportCenter: "Centro de exportación",
       maps: "Mapas",
       settings: "Configuración",
@@ -234,6 +237,7 @@ const navigation: Record<Exclude<DashboardRole, "user">, NavGroup[]> = {
       items: [
         { key: "reports", href: "/admin/reports", icon: BarChart3 },
         { key: "platformReport", href: "/admin/reports/platform", icon: Globe2 },
+        { key: "appAnalytics", href: "/admin/reports/app-analytics", icon: Activity },
         { key: "exportCenter", href: "/admin/reports/exports", icon: Package },
       ],
     },
@@ -308,6 +312,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     partners: "partners",
     maps: "maps",
     reports: "reports",
+    "app-analytics": "app analytics",
     exports: "export center",
     platform: "platform report",
     settings: "settings",
@@ -329,6 +334,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     partners: "socios",
     maps: "mapas",
     reports: "informes",
+    "app-analytics": "analítica de app",
     exports: "centro de exportación",
     platform: "informe de plataforma",
     settings: "configuración",
