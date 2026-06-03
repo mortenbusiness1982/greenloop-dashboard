@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { clearToken, getToken } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 type ActivityEvent = {
   created_at?: string;
@@ -61,6 +60,17 @@ function formatDateTime(value?: string | null) {
   return date.toLocaleString();
 }
 
+function csvCell(value: unknown) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function getTime(value?: string | null) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 export default function AdminActivityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -113,14 +123,65 @@ export default function AdminActivityPage() {
     loadReport();
   }, [loadReport]);
 
-  function onLogout() {
-    clearToken();
-    router.replace("/login");
+  function exportSelectedActivityCsv() {
+    const headers = [
+      "created_at",
+      "user",
+      "email",
+      "user_id",
+      "city",
+      "product_name",
+      "barcode",
+      "units",
+      "ecopoints",
+      "scan_status",
+      "lat",
+      "lng",
+      "bin_id",
+      "event_id",
+    ];
+
+    const rows = events.map((event) => ({
+      created_at: event.created_at ?? "",
+      user: event.display_name || "Unknown user",
+      email: event.email ?? "",
+      user_id: event.user_id ?? "",
+      city: event.city || "Unknown city",
+      product_name: event.product_name || "Unknown product",
+      barcode: event.barcode ?? "",
+      units: Number(event.units || 0),
+      ecopoints: Number(event.points_issued || 0),
+      scan_status: event.scan_status ?? "",
+      lat: event.lat ?? "",
+      lng: event.lng ?? "",
+      bin_id: event.bin_id ?? "",
+      event_id: event.event_id ?? "",
+    }));
+
+    const csv = [
+      headers.map(csvCell).join(","),
+      ...rows.map((row) => headers.map((key) => csvCell(row[key as keyof typeof row])).join(",")),
+    ].join("\n");
+    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const from = filters.from || "all";
+    const to = filters.to || "all";
+    anchor.href = url;
+    anchor.download = `greenloop-recycling-activity-${from}-to-${to}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   const topCities = useMemo(() => report?.geoBreakdown ?? [], [report]);
-  const dailyTrend = useMemo(() => report?.dailyTrend ?? [], [report]);
-  const events = useMemo(() => report?.events ?? [], [report]);
+  const dailyTrend = useMemo(
+    () => [...(report?.dailyTrend ?? [])].sort((a, b) => getTime(b.date) - getTime(a.date)),
+    [report]
+  );
+  const events = useMemo(
+    () => [...(report?.events ?? [])].sort((a, b) => getTime(b.created_at) - getTime(a.created_at)),
+    [report]
+  );
   const cityOptions = useMemo(() => {
     const values = new Set<string>();
 
@@ -168,236 +229,244 @@ export default function AdminActivityPage() {
   }, [userOptions, userSearch]);
 
   if (loading) {
-    return <main className="min-h-screen p-6 text-gray-700">Loading recycling activity...</main>;
+    return (
+      <div className="space-y-5">
+        <p className="text-sm text-[var(--gl-ink-muted)]">Loading recycling activity...</p>
+      </div>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-8 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900">Recycling Activity</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Review platform-wide recycling history across all users.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href="/admin/users"
-                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Back to Users
-              </Link>
-              <Link
-                href="/admin"
-                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Back to Admin
-              </Link>
-            </div>
-          </div>
-          <button onClick={onLogout} className="rounded bg-gray-900 px-4 py-2 text-white">
-            Logout
+    <div className="space-y-5">
+      <header>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
+          Admin · Operations
+        </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
+          Recycling activity
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
+          Review platform-wide recycling history across all users.
+        </p>
+      </header>
+
+      {error ? (
+        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">
+          {error}
+        </div>
+      ) : null}
+
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Filters</h2>
+          <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+            Filter by day range, location, or user name.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">From</span>
+            <input
+              type="date"
+              value={filters.from}
+              onChange={(e) => setFilters((current) => ({ ...current, from: e.target.value }))}
+              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">To</span>
+            <input
+              type="date"
+              value={filters.to}
+              onChange={(e) => setFilters((current) => ({ ...current, to: e.target.value }))}
+              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">City</span>
+            <select
+              value={filters.city}
+              onChange={(e) => setFilters((current) => ({ ...current, city: e.target.value }))}
+              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            >
+              <option value="">All cities</option>
+              {filteredCityOptions.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+            <input
+              value={citySearch}
+              onChange={(e) => setCitySearch(e.target.value)}
+              placeholder="Search city"
+              className="mt-2 w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">User Name</span>
+            <select
+              value={filters.userId}
+              onChange={(e) => setFilters((current) => ({ ...current, userId: e.target.value }))}
+              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            >
+              <option value="">All users</option>
+              {filteredUserOptions.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.label}{user.email ? ` · ${user.email}` : ""}
+                </option>
+              ))}
+            </select>
+            <input
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder="Search user"
+              className="mt-2 w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => loadReport(filters)}
+            className="rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)]"
+          >
+            Review Activity
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCitySearch("");
+              setUserSearch("");
+              loadReport({
+                from: "",
+                to: "",
+                city: "",
+                userId: "",
+              });
+            }}
+            className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
+          >
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={exportSelectedActivityCsv}
+            disabled={events.length === 0}
+            className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Selected CSV
           </button>
         </div>
+      </section>
 
-        {error ? (
-          <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
-        ) : null}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Units Recycled" value={String(report?.totals?.totalUnits ?? 0)} />
+        <MetricCard label="Recycling Events" value={String(report?.totals?.totalEvents ?? 0)} />
+        <MetricCard label="Unique Users" value={String(report?.totals?.uniqueConsumers ?? 0)} />
+        <MetricCard label="EcoPoints Issued" value={String(report?.totals?.ecoPointsIssued ?? 0)} />
+      </section>
 
-        <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Filter by day range, location, or user name.
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">From</span>
-              <input
-                type="date"
-                value={filters.from}
-                onChange={(e) => setFilters((current) => ({ ...current, from: e.target.value }))}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">To</span>
-              <input
-                type="date"
-                value={filters.to}
-                onChange={(e) => setFilters((current) => ({ ...current, to: e.target.value }))}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">City</span>
-              <select
-                value={filters.city}
-                onChange={(e) => setFilters((current) => ({ ...current, city: e.target.value }))}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              >
-                <option value="">All cities</option>
-                {filteredCityOptions.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={citySearch}
-                onChange={(e) => setCitySearch(e.target.value)}
-                placeholder="Search city"
-                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">User Name</span>
-              <select
-                value={filters.userId}
-                onChange={(e) => setFilters((current) => ({ ...current, userId: e.target.value }))}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              >
-                <option value="">All users</option>
-                {filteredUserOptions.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.label}{user.email ? ` · ${user.email}` : ""}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Search user"
-                className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-              />
-            </label>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => loadReport(filters)}
-              className="rounded-md bg-[#2d6a4f] px-4 py-2 text-sm font-medium text-white hover:bg-[#24543f]"
-            >
-              Review Activity
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCitySearch("");
-                setUserSearch("");
-                loadReport({
-                  from: "",
-                  to: "",
-                  city: "",
-                  userId: "",
-                });
-              }}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Reset
-            </button>
+      <div className="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
+        <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-[var(--gl-ink)]">Daily Recycling Totals</h2>
+          <div className="space-y-2">
+            {dailyTrend.length === 0 ? (
+              <p className="text-sm text-[var(--gl-ink-muted)]">No daily recycling activity for this filter.</p>
+            ) : (
+              dailyTrend.map((day) => (
+                <div key={day.date} className="flex items-center justify-between rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
+                  <span className="font-medium text-[var(--gl-ink)]">{day.date}</span>
+                  <span className="text-[var(--gl-ink-soft)]">{Number(day.units || 0)} units</span>
+                </div>
+              ))
+            )}
           </div>
         </section>
 
-        <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Units Recycled" value={String(report?.totals?.totalUnits ?? 0)} />
-          <MetricCard label="Recycling Events" value={String(report?.totals?.totalEvents ?? 0)} />
-          <MetricCard label="Unique Users" value={String(report?.totals?.uniqueConsumers ?? 0)} />
-          <MetricCard label="EcoPoints Issued" value={String(report?.totals?.ecoPointsIssued ?? 0)} />
-        </section>
-
-        <div className="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Daily Recycling Totals</h2>
-            <div className="space-y-2">
-              {dailyTrend.length === 0 ? (
-                <p className="text-sm text-gray-500">No daily recycling activity for this filter.</p>
-              ) : (
-                dailyTrend.map((day) => (
-                  <div key={day.date} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 text-sm">
-                    <span className="font-medium text-gray-900">{day.date}</span>
-                    <span className="text-gray-700">{Number(day.units || 0)} units</span>
+        <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-[var(--gl-ink)]">Top Locations</h2>
+          <div className="space-y-2">
+            {topCities.length === 0 ? (
+              <p className="text-sm text-[var(--gl-ink-muted)]">No location data for this filter.</p>
+            ) : (
+              topCities.map((location, index) => (
+                <div key={`${location.city}-${index}`} className="flex items-center justify-between rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink)]">{location.city || "Unknown city"}</p>
+                    <p className="text-xs text-[var(--gl-ink-muted)]">{Number(location.consumers || 0)} users</p>
                   </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Top Locations</h2>
-            <div className="space-y-2">
-              {topCities.length === 0 ? (
-                <p className="text-sm text-gray-500">No location data for this filter.</p>
-              ) : (
-                topCities.map((location, index) => (
-                  <div key={`${location.city}-${index}`} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 text-sm">
-                    <div>
-                      <p className="font-medium text-gray-900">{location.city || "Unknown city"}</p>
-                      <p className="text-xs text-gray-500">{Number(location.consumers || 0)} users</p>
-                    </div>
-                    <span className="text-gray-700">{Number(location.units || 0)} units</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-
-        <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Recycling Events</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-[1100px] w-full border-collapse text-left">
-              <thead className="bg-gray-50">
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Date</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">User</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Location</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Product</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Barcode</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Units</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">EcoPoints</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
-                      No recycling events found for the current filter.
-                    </td>
-                  </tr>
-                ) : (
-                  events.map((event, index) => (
-                    <tr key={`${event.event_id}-${index}`} className="border-b border-gray-100">
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(event.created_at)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div>
-                          <p className="font-medium text-gray-900">{event.display_name || "Unknown user"}</p>
-                          <p className="text-xs text-gray-500">{event.email || event.user_id || "—"}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{event.city || "Unknown city"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{event.product_name || "Unknown product"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{event.barcode || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{Number(event.units || 0)}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-emerald-700">{Number(event.points_issued || 0)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  <span className="text-[var(--gl-ink-soft)]">{Number(location.units || 0)} units</span>
+                </div>
+              ))
+            )}
           </div>
         </section>
       </div>
-    </main>
+
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Recycling Events</h2>
+          <button
+            type="button"
+            onClick={exportSelectedActivityCsv}
+            disabled={events.length === 0}
+            className="inline-flex rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export to CSV
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[1100px] w-full border-collapse text-left">
+            <thead className="bg-[var(--gl-card-cream)]">
+              <tr className="border-b border-[var(--gl-hairline)]">
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Date</th>
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">User</th>
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Location</th>
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Product</th>
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Barcode</th>
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Units</th>
+                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">EcoPoints</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-[var(--gl-ink-muted)]">
+                    No recycling events found for the current filter.
+                  </td>
+                </tr>
+              ) : (
+                events.map((event, index) => (
+                  <tr key={`${event.event_id}-${index}`} className="border-b border-[var(--gl-hairline)]">
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{formatDateTime(event.created_at)}</td>
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">
+                      <div>
+                        <p className="font-medium text-[var(--gl-ink)]">{event.display_name || "Unknown user"}</p>
+                        <p className="text-xs text-[var(--gl-ink-muted)]">{event.email || event.user_id || "—"}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.city || "Unknown city"}</td>
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.product_name || "Unknown product"}</td>
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.barcode || "—"}</td>
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{Number(event.units || 0)}</td>
+                    <td className="px-4 py-2.5 text-sm font-medium text-emerald-700">{Number(event.points_issued || 0)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-3xl font-semibold text-gray-900">{value}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 text-3xl font-semibold text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }

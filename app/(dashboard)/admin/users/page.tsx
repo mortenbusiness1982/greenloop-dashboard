@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { clearToken, getToken } from "@/lib/auth";
+import { getToken } from "@/lib/auth";
 
 type AdminUser = {
   id: string;
@@ -26,6 +26,18 @@ type AdminUser = {
 
 type UserActivityResponse = {
   user: AdminUser;
+  active_challenges?: {
+    user_challenge_id: string;
+    id: string;
+    title: string;
+    challenge_type: string;
+    required_count: number;
+    bonus_points: number;
+    progress_count: number;
+    accepted_at: string;
+    starts_at?: string | null;
+    ends_at?: string | null;
+  }[];
   scan_events: {
     id: string;
     barcode: string;
@@ -90,6 +102,12 @@ export default function AdminUsersPage() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [addingEcoPoints, setAddingEcoPoints] = useState(false);
+  const [ecoPointsToAdd, setEcoPointsToAdd] = useState("");
+  const [removingEcoPoints, setRemovingEcoPoints] = useState(false);
+  const [ecoPointsToRemove, setEcoPointsToRemove] = useState("");
+  const [resettingAvatarUserId, setResettingAvatarUserId] = useState<string | null>(null);
+  const [removingChallengeId, setRemovingChallengeId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditUserFormState>({
     display_name: "",
     role: "user",
@@ -132,8 +150,8 @@ export default function AdminUsersPage() {
     try {
       setError(null);
       const [usersResult, brandsResult] = await Promise.all([
-        apiFetch("/admin/users", { token }),
-        apiFetch("/admin/brands", { token }),
+        apiFetch<{ users?: AdminUser[] }>("/admin/users", { token }),
+        apiFetch<{ brands?: Brand[] }>("/admin/brands", { token }),
       ]);
       setUsers(Array.isArray(usersResult?.users) ? usersResult.users : []);
       setBrands(Array.isArray(brandsResult?.brands) ? brandsResult.brands : []);
@@ -182,11 +200,137 @@ export default function AdminUsersPage() {
         role: result.user.role || "user",
         brand_id: result.user.brand_id || "",
       });
+      setEcoPointsToAdd("");
+      setEcoPointsToRemove("");
       setActivityFilters(nextFilters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load user activity");
     } finally {
       setActivityLoading(false);
+    }
+  }
+
+  async function addEcoPoints() {
+    if (!selectedUser) return;
+
+    const points = Number(ecoPointsToAdd);
+    if (!Number.isInteger(points) || points <= 0) {
+      setError("EcoPoints amount must be a positive whole number.");
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      setAddingEcoPoints(true);
+      setError(null);
+      await apiFetch(`/admin/users/${selectedUser.user.id}/ecopoints`, {
+        token,
+        method: "POST",
+        body: { points, action: "add" },
+      });
+      setEcoPointsToAdd("");
+      await loadUsers();
+      await loadUserActivity(selectedUser.user.id, activityFilters);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add EcoPoints");
+    } finally {
+      setAddingEcoPoints(false);
+    }
+  }
+
+  async function removeEcoPoints() {
+    if (!selectedUser) return;
+
+    const points = Number(ecoPointsToRemove);
+    if (!Number.isInteger(points) || points <= 0) {
+      setError("EcoPoints amount to remove must be a positive whole number.");
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      setRemovingEcoPoints(true);
+      setError(null);
+      await apiFetch(`/admin/users/${selectedUser.user.id}/ecopoints`, {
+        token,
+        method: "POST",
+        body: { points, action: "remove" },
+      });
+      setEcoPointsToRemove("");
+      await loadUsers();
+      await loadUserActivity(selectedUser.user.id, activityFilters);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to remove EcoPoints");
+    } finally {
+      setRemovingEcoPoints(false);
+    }
+  }
+
+  async function resetAvatarProgress(user: AdminUser) {
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Reset avatar progress for ${user.display_name || user.email} back to the turtle at 0 points?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setResettingAvatarUserId(user.id);
+      setError(null);
+      await apiFetch(`/admin/users/${user.id}/companion/reset`, {
+        token,
+        method: "POST",
+      });
+      if (selectedUser?.user.id === user.id) {
+        await loadUserActivity(user.id, activityFilters);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to reset avatar progress");
+    } finally {
+      setResettingAvatarUserId(null);
+    }
+  }
+
+  async function removeUserFromChallenge(challengeId: string, challengeTitle: string) {
+    if (!selectedUser) return;
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${selectedUser.user.display_name || selectedUser.user.email} from "${challengeTitle}"? Their progress for this challenge will be deleted.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setRemovingChallengeId(challengeId);
+      setError(null);
+      await apiFetch(`/admin/users/${selectedUser.user.id}/challenges/${challengeId}`, {
+        token,
+        method: "DELETE",
+      });
+      await loadUserActivity(selectedUser.user.id, activityFilters);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to remove challenge");
+    } finally {
+      setRemovingChallengeId(null);
     }
   }
 
@@ -290,11 +434,6 @@ export default function AdminUsersPage() {
     URL.revokeObjectURL(url);
   }
 
-  function onLogout() {
-    clearToken();
-    router.replace("/login");
-  }
-
   function applyActivityFilters() {
     if (!selectedUser) return;
     void loadUserActivity(selectedUser.user.id, activityFilters);
@@ -308,438 +447,618 @@ export default function AdminUsersPage() {
   }
 
   if (loading) {
-    return <main className="min-h-screen p-6 text-gray-700">Loading users...</main>;
+    return (
+      <div className="space-y-5">
+        <p className="text-sm text-[var(--gl-ink-muted)]">Loading users...</p>
+      </div>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-8 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900">Users</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Search, export, and inspect registered user activity.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href="/admin"
-                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Back to Admin
-              </Link>
-              <Link
-                href="/admin/activity"
-                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Review Total Activity
-              </Link>
-              <button
-                onClick={exportVisibleUsers}
-                className="inline-flex rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Export CSV
-              </button>
-            </div>
-          </div>
-          <button onClick={onLogout} className="rounded bg-gray-900 px-4 py-2 text-white">
-            Logout
+    <div className="space-y-5">
+      <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
+            Admin · Network
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
+            Users
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
+            Search, export, and inspect registered user activity.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/activity"
+            className="inline-flex items-center rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
+          >
+            Review Total Activity
+          </Link>
+          <Link
+            href="/admin/activity"
+            className="inline-flex items-center rounded-md border border-transparent bg-[var(--gl-green-soft)] px-3 py-2 text-sm font-medium text-[var(--gl-green-deep)] transition hover:opacity-90"
+          >
+            Overall Filters
+          </Link>
+          <button
+            onClick={exportVisibleUsers}
+            className="inline-flex items-center rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
+          >
+            Export CSV
           </button>
         </div>
+      </header>
 
-        {error ? (
-          <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-red-700">{error}</div>
-        ) : null}
-
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">Search users</span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by display name, email, or role"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-            />
-          </label>
+      {error ? (
+        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">
+          {error}
         </div>
+      ) : null}
 
-        <div className="grid gap-8 lg:grid-cols-[1.5fr_1fr]">
-          <section className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-[980px] w-full border-collapse text-left">
-              <thead className="bg-gray-50">
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Name</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Email</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Role</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Wallet</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Rewards</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Recycling Events</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Units</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Last Activity</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Status</th>
-                  <th className="px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
+      <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2.5 shadow-sm">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Search users</span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by display name, email, or role"
+            className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+          />
+        </label>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+        <section className="overflow-x-auto rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
+          <table className="min-w-[980px] w-full border-collapse text-left">
+            <thead className="bg-[var(--gl-card-cream)]">
+              <tr className="border-b border-[var(--gl-hairline)]">
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Name</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Email</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Role</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Wallet</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Rewards</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Recycling Events</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Units</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Last Activity</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Status</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[var(--gl-ink-muted)]">
+                    No users found.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-4 py-6 text-center text-sm text-gray-500">
-                      No users found.
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    onClick={() => loadUserActivity(user.id)}
+                    className={`border-b border-[var(--gl-hairline)] align-top transition ${
+                      selectedUser?.user.id === user.id ? "bg-[var(--gl-green-soft)]/40" : "hover:bg-[var(--gl-card-cream)]"
+                    }`}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink)]">{user.display_name}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.email}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.role}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.wallet_points}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.redeemed_rewards_count ?? 0}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.recycling_events_count}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.recycled_units_count}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{formatDateTime(user.last_activity_at)}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          user.deactivated_at
+                            ? "bg-gray-200 text-gray-700"
+                            : "bg-green-100 text-green-800"
+                        }`}
+                      >
+                        {user.deactivated_at ? "Deactivated" : "Active"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/admin/users/${user.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
+                        >
+                          View Detail
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            loadUserActivity(user.id);
+                          }}
+                          className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
+                        >
+                          {selectedUser?.user.id === user.id ? "Viewing Activity" : "Review Activity"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            loadUserActivity(user.id);
+                          }}
+                          className="rounded-md border border-transparent bg-[var(--gl-green-soft)] px-3 py-1.5 font-medium text-[var(--gl-green-deep)] transition hover:opacity-90"
+                        >
+                          Add EcoPoints
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            resetAvatarProgress(user);
+                          }}
+                          disabled={resettingAvatarUserId === user.id}
+                          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {resettingAvatarUserId === user.id ? "Resetting..." : "Reset Avatar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleDeactivate(user.id);
+                          }}
+                          disabled={activeAction === user.id}
+                          className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {user.deactivated_at ? "Reactivate" : "Deactivate"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr
-                      key={user.id}
-                      onClick={() => loadUserActivity(user.id)}
-                      className={`border-b border-gray-100 align-top transition ${
-                        selectedUser?.user.id === user.id ? "bg-emerald-50/50" : "hover:bg-gray-50"
-                      }`}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.display_name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.email}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.role}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.wallet_points}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.redeemed_rewards_count ?? 0}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.recycling_events_count}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{user.recycled_units_count}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(user.last_activity_at)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            user.deactivated_at
-                              ? "bg-gray-200 text-gray-700"
-                              : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {user.deactivated_at ? "Deactivated" : "Active"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              loadUserActivity(user.id);
-                            }}
-                            className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 transition hover:bg-gray-50"
-                          >
-                            {selectedUser?.user.id === user.id ? "Viewing Activity" : "Review Activity"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleDeactivate(user.id);
-                            }}
-                            disabled={activeAction === user.id}
-                            className="rounded-md bg-[#2d6a4f] px-3 py-1.5 text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {user.deactivated_at ? "Reactivate" : "Deactivate"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </section>
+                ))
+              )}
+            </tbody>
+          </table>
+        </section>
 
-          <aside className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">User Activity</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Recent scans and recycling activity for the selected user.
-              </p>
-            </div>
+        <aside className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">User Activity</h2>
+            <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+              Recent scans and recycling activity for the selected user.
+            </p>
+          </div>
 
-            {activityLoading ? (
-              <p className="text-sm text-gray-500">Loading user activity...</p>
-            ) : !selectedUser ? (
-              <p className="text-sm text-gray-500">Select a user to inspect recent activity.</p>
-            ) : (
-              <div className="space-y-5">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-semibold text-gray-900">{selectedUser.user.display_name}</p>
-                      <p className="text-sm text-gray-600">{selectedUser.user.email}</p>
-                    </div>
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        selectedUser.user.deactivated_at
-                          ? "bg-gray-200 text-gray-700"
-                          : "bg-green-100 text-green-800"
-                      }`}
-                    >
-                      {selectedUser.user.deactivated_at ? "Deactivated" : "Active"}
-                    </span>
+          {activityLoading ? (
+            <p className="text-sm text-[var(--gl-ink-muted)]">Loading user activity...</p>
+          ) : !selectedUser ? (
+            <p className="text-sm text-[var(--gl-ink-muted)]">Select a user to inspect recent activity.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-[var(--gl-ink)]">{selectedUser.user.display_name}</p>
+                    <p className="text-sm text-[var(--gl-ink-muted)]">{selectedUser.user.email}</p>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-gray-700">
-                    <div>
-                      <p className="font-medium text-gray-500">Role</p>
-                      <p>{selectedUser.user.role}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-500">Wallet</p>
-                      <p>{selectedUser.user.wallet_points} EcoPoints</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-500">Rewards Redeemed</p>
-                      <p>{selectedUser.user.redeemed_rewards_count ?? 0}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-500">Joined</p>
-                      <p>{formatDateTime(selectedUser.user.created_at)}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-500">Last Activity</p>
-                      <p>{formatDateTime(selectedUser.user.last_activity_at)}</p>
-                    </div>
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      selectedUser.user.deactivated_at
+                        ? "bg-gray-200 text-gray-700"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {selectedUser.user.deactivated_at ? "Deactivated" : "Active"}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-[var(--gl-ink-soft)]">
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink-muted)]">Role</p>
+                    <p>{selectedUser.user.role}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink-muted)]">Wallet</p>
+                    <p>{selectedUser.user.wallet_points} EcoPoints</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink-muted)]">Rewards Redeemed</p>
+                    <p>{selectedUser.user.redeemed_rewards_count ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink-muted)]">Joined</p>
+                    <p>{formatDateTime(selectedUser.user.created_at)}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink-muted)]">Last Activity</p>
+                    <p>{formatDateTime(selectedUser.user.last_activity_at)}</p>
                   </div>
                 </div>
+              </div>
 
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                      Edit User
+              <div className="rounded-lg border border-[var(--gl-hairline)] p-3.5">
+                <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-faint)]">
+                  Manage Balance & Avatar
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3.5">
+                  <div className="mb-2.5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-800">
+                      Add EcoPoints
                     </h3>
+                    <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+                      Add exactly the EcoPoints amount entered below.
+                    </p>
                   </div>
                   <div className="space-y-3">
                     <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-gray-700">Display Name</span>
+                      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">EcoPoints amount</span>
                       <input
-                        value={editForm.display_name}
-                        onChange={(e) =>
-                          setEditForm((current) => ({ ...current, display_name: e.target.value }))
-                        }
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={ecoPointsToAdd}
+                        onChange={(e) => setEcoPointsToAdd(e.target.value)}
+                        placeholder="e.g. 50"
+                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
                       />
                     </label>
-
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-gray-700">Role</span>
-                      <select
-                        value={editForm.role}
-                        onChange={(e) =>
-                          setEditForm((current) => ({ ...current, role: e.target.value }))
-                        }
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-                      >
-                        <option value="user">user</option>
-                        <option value="partner">partner</option>
-                        <option value="brand_admin">brand_admin</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-gray-700">Brand</span>
-                      <select
-                        value={editForm.brand_id}
-                        onChange={(e) =>
-                          setEditForm((current) => ({ ...current, brand_id: e.target.value }))
-                        }
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-                      >
-                        <option value="">No brand</option>
-                        {brands.map((brand) => (
-                          <option key={brand.id} value={brand.id}>
-                            {brand.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
                     <button
-                      onClick={saveUserEdits}
-                      disabled={savingEdit}
-                      className="w-full rounded-md bg-[#2d6a4f] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
+                      type="button"
+                      onClick={addEcoPoints}
+                      disabled={addingEcoPoints || !ecoPointsToAdd}
+                      className="w-full rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {savingEdit ? "Saving..." : "Save Changes"}
+                      {addingEcoPoints ? "Adding..." : "Add Requested Points"}
                     </button>
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                    Recycle History
-                  </h3>
-                  <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          From
-                        </span>
-                        <input
-                          type="date"
-                          value={activityFilters.from}
-                          onChange={(e) =>
-                            setActivityFilters((current) => ({ ...current, from: e.target.value }))
-                          }
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          To
-                        </span>
-                        <input
-                          type="date"
-                          value={activityFilters.to}
-                          onChange={(e) =>
-                            setActivityFilters((current) => ({ ...current, to: e.target.value }))
-                          }
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
-                        />
-                      </label>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={applyActivityFilters}
-                        disabled={!selectedUser || activityLoading}
-                        className="rounded-md bg-[#2d6a4f] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#24543f] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {activityLoading ? "Loading..." : "Apply Date Filter"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={resetActivityFilters}
-                        disabled={!selectedUser || activityLoading}
-                        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Reset
-                      </button>
-                    </div>
+                <div className="rounded-lg border border-red-200 bg-red-50/70 p-3.5">
+                  <div className="mb-2.5">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-red-800">
+                      Remove EcoPoints
+                    </h3>
+                    <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+                      Remove exactly the EcoPoints amount entered below.
+                    </p>
                   </div>
-                  {selectedUser.recycling_events.length > 0 ? (
-                    <div className="mb-3 grid grid-cols-3 gap-2">
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-                        <p className="font-medium text-gray-500">Events</p>
-                        <p className="mt-1 text-base font-semibold text-gray-900">
-                          {recycleHistorySummary.totalEvents}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-                        <p className="font-medium text-gray-500">Units</p>
-                        <p className="mt-1 text-base font-semibold text-gray-900">
-                          {recycleHistorySummary.totalUnits}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-                        <p className="font-medium text-gray-500">EcoPoints</p>
-                        <p className="mt-1 text-base font-semibold text-gray-900">
-                          {recycleHistorySummary.totalPoints}
-                        </p>
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="space-y-2">
-                    {selectedUser.recycling_events.length === 0 ? (
-                      <p className="text-sm text-gray-500">No recycling events yet.</p>
-                    ) : (
-                      selectedUser.recycling_events.map((event) => (
-                        <div key={event.id} className="rounded-lg border border-gray-200 p-3 text-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {event.units} units
-                                {event.city || event.province
-                                  ? ` · ${[event.city, event.province].filter(Boolean).join(", ")}`
-                                  : ""}
-                              </p>
-                              <p className="mt-1 text-xs text-gray-500">
-                                Event ID: {event.id}
-                              </p>
-                              <p className="mt-1 text-xs text-gray-500">
-                                User: {selectedUser.user.display_name}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">{formatDateTime(event.created_at)}</p>
-                              <p className="mt-1 text-xs text-gray-500">
-                                Day: {new Date(event.created_at).toLocaleDateString()}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold text-emerald-700">
-                                {event.points_issued} EcoPoints
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                event.verification_status === "approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : event.verification_status === "rejected"
-                                    ? "bg-red-100 text-red-700"
-                                    : "bg-amber-100 text-amber-800"
-                              }`}
-                            >
-                              {event.verification_status}
-                            </span>
-                          </div>
-                          {event.items.length > 0 ? (
-                            <div className="mt-3 rounded-md bg-gray-50 p-3">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Recycled Products
-                              </p>
-                              <div className="space-y-1.5">
-                                {event.items.map((item, index) => (
-                                  <div
-                                    key={`${event.id}-${item.barcode}-${index}`}
-                                    className="flex items-start justify-between gap-3 text-xs"
-                                  >
-                                    <p className="font-medium text-gray-800">{item.product_name}</p>
-                                    <p className="text-gray-500">{item.barcode || "—"}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                          {(event.lat !== null && event.lng !== null) ? (
-                            <p className="mt-1 text-xs text-gray-500">
-                              {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">EcoPoints amount</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={ecoPointsToRemove}
+                        onChange={(e) => setEcoPointsToRemove(e.target.value)}
+                        placeholder="e.g. 50"
+                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={removeEcoPoints}
+                      disabled={removingEcoPoints || !ecoPointsToRemove}
+                      className="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {removingEcoPoints ? "Removing..." : "Remove Requested Points"}
+                    </button>
                   </div>
+                </div>
                 </div>
 
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                    Recent Scan Events
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3.5">
+                <div className="mb-2.5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-800">
+                    Reset Avatar Progress
                   </h3>
-                  <div className="space-y-2">
-                    {selectedUser.scan_events.length === 0 ? (
-                      <p className="text-sm text-gray-500">No scan events yet.</p>
-                    ) : (
-                      selectedUser.scan_events.map((event) => (
-                        <div key={event.id} className="rounded-lg border border-gray-200 p-3 text-sm">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium text-gray-900">{event.barcode}</p>
-                            <p className="text-xs text-gray-500">{formatDateTime(event.created_at)}</p>
-                          </div>
-                          <p className="mt-1 text-xs text-gray-500">{event.trust_tier}</p>
-                          {(event.lat !== null && event.lng !== null) ? (
-                            <p className="mt-1 text-xs text-gray-500">
-                              {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
-                  </div>
+                  <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+                    Return this user to the turtle at 0 avatar progress for testing from scratch.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => resetAvatarProgress(selectedUser.user)}
+                  disabled={resettingAvatarUserId === selectedUser.user.id}
+                  className="w-full rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {resettingAvatarUserId === selectedUser.user.id ? "Resetting..." : "Reset to Turtle"}
+                </button>
                 </div>
               </div>
-            )}
-          </aside>
-        </div>
+
+              <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-3.5">
+                <div className="mb-2.5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-sky-800">
+                    Active Challenges
+                  </h3>
+                  <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+                    Joined challenges currently active for this user.
+                  </p>
+                </div>
+                {!selectedUser.active_challenges?.length ? (
+                  <p className="text-sm text-[var(--gl-ink-muted)]">No active joined challenges.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedUser.active_challenges.map((challenge) => {
+                      const progress =
+                        challenge.required_count > 0
+                          ? Math.min(100, Math.round((challenge.progress_count / challenge.required_count) * 100))
+                          : 0;
+                      return (
+                        <div key={challenge.user_challenge_id} className="rounded-md border border-sky-100 bg-[var(--gl-paper)] p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium text-[var(--gl-ink)]">{challenge.title}</p>
+                              <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                                {challenge.challenge_type} · joined {formatDateTime(challenge.accepted_at)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeUserFromChallenge(challenge.id, challenge.title)}
+                              disabled={removingChallengeId === challenge.id}
+                              className="shrink-0 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {removingChallengeId === challenge.id ? "Removing..." : "Remove"}
+                            </button>
+                          </div>
+                          <div className="mt-3">
+                            <div className="mb-1 flex justify-between text-xs text-[var(--gl-ink-muted)]">
+                              <span>Progress</span>
+                              <span>
+                                {challenge.progress_count}/{challenge.required_count || 1}
+                              </span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-sky-100">
+                              <div className="h-full rounded-full bg-sky-600" style={{ width: `${progress}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-[var(--gl-hairline)] p-3.5">
+                <div className="mb-2.5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                    Edit User
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Display Name</span>
+                    <input
+                      value={editForm.display_name}
+                      onChange={(e) =>
+                        setEditForm((current) => ({ ...current, display_name: e.target.value }))
+                      }
+                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Role</span>
+                    <select
+                      value={editForm.role}
+                      onChange={(e) =>
+                        setEditForm((current) => ({ ...current, role: e.target.value }))
+                      }
+                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+                    >
+                      <option value="user">user</option>
+                      <option value="partner">partner</option>
+                      <option value="brand_admin">brand_admin</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Brand</span>
+                    <select
+                      value={editForm.brand_id}
+                      onChange={(e) =>
+                        setEditForm((current) => ({ ...current, brand_id: e.target.value }))
+                      }
+                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+                    >
+                      <option value="">No brand</option>
+                      {brands.map((brand) => (
+                        <option key={brand.id} value={brand.id}>
+                          {brand.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    onClick={saveUserEdits}
+                    disabled={savingEdit}
+                    className="w-full rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingEdit ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                  Recycle History
+                </h3>
+                <div className="mb-3 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                        From
+                      </span>
+                      <input
+                        type="date"
+                        value={activityFilters.from}
+                        onChange={(e) =>
+                          setActivityFilters((current) => ({ ...current, from: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                        To
+                      </span>
+                      <input
+                        type="date"
+                        value={activityFilters.to}
+                        onChange={(e) =>
+                          setActivityFilters((current) => ({ ...current, to: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={applyActivityFilters}
+                      disabled={!selectedUser || activityLoading}
+                      className="rounded-md bg-[var(--gl-green)] px-3 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {activityLoading ? "Loading..." : "Apply Date Filter"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetActivityFilters}
+                      disabled={!selectedUser || activityLoading}
+                      className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                {selectedUser.recycling_events.length > 0 ? (
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm">
+                      <p className="font-medium text-[var(--gl-ink-muted)]">Events</p>
+                      <p className="mt-1 text-base font-semibold text-[var(--gl-ink)]">
+                        {recycleHistorySummary.totalEvents}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm">
+                      <p className="font-medium text-[var(--gl-ink-muted)]">Units</p>
+                      <p className="mt-1 text-base font-semibold text-[var(--gl-ink)]">
+                        {recycleHistorySummary.totalUnits}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm">
+                      <p className="font-medium text-[var(--gl-ink-muted)]">EcoPoints</p>
+                      <p className="mt-1 text-base font-semibold text-[var(--gl-ink)]">
+                        {recycleHistorySummary.totalPoints}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  {selectedUser.recycling_events.length === 0 ? (
+                    <p className="text-sm text-[var(--gl-ink-muted)]">No recycling events yet.</p>
+                  ) : (
+                    selectedUser.recycling_events.map((event) => (
+                      <div key={event.id} className="rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-[var(--gl-ink)]">
+                              {event.units} units
+                              {event.city || event.province
+                                ? ` · ${[event.city, event.province].filter(Boolean).join(", ")}`
+                                : ""}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                              Event ID: {event.id}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                              User: {selectedUser.user.display_name}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(event.created_at)}</p>
+                            <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                              Day: {new Date(event.created_at).toLocaleDateString()}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-emerald-700">
+                              {event.points_issued} EcoPoints
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              event.verification_status === "approved"
+                                ? "bg-green-100 text-green-800"
+                                : event.verification_status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {event.verification_status}
+                          </span>
+                        </div>
+                        {event.items.length > 0 ? (
+                          <div className="mt-3 rounded-md bg-[var(--gl-card-cream)] p-3">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                              Recycled Products
+                            </p>
+                            <div className="space-y-1.5">
+                              {event.items.map((item, index) => (
+                                <div
+                                  key={`${event.id}-${item.barcode}-${index}`}
+                                  className="flex items-start justify-between gap-3 text-xs"
+                                >
+                                  <p className="font-medium text-[var(--gl-ink-soft)]">{item.product_name}</p>
+                                  <p className="text-[var(--gl-ink-muted)]">{item.barcode || "—"}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {(event.lat !== null && event.lng !== null) ? (
+                          <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                            {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                  Recent Scan Events
+                </h3>
+                <div className="space-y-2">
+                  {selectedUser.scan_events.length === 0 ? (
+                    <p className="text-sm text-[var(--gl-ink-muted)]">No scan events yet.</p>
+                  ) : (
+                    selectedUser.scan_events.map((event) => (
+                      <div key={event.id} className="rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium text-[var(--gl-ink)]">{event.barcode}</p>
+                          <p className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(event.created_at)}</p>
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">{event.trust_tier}</p>
+                        {(event.lat !== null && event.lng !== null) ? (
+                          <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                            {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
-    </main>
+    </div>
   );
 }

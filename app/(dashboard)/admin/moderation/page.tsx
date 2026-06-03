@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
-
-const MODERATION_API_BASE = "https://greenloop-api.onrender.com";
 
 type EventRow = {
   id: string | number;
@@ -73,13 +72,6 @@ function getRiskLabel(tier: RiskTier) {
   return "Unknown";
 }
 
-function getRiskWeight(tier: RiskTier) {
-  if (tier === "high") return 0;
-  if (tier === "review") return 1;
-  if (tier === "unknown") return 2;
-  return 3;
-}
-
 function getRiskClasses(tier: RiskTier) {
   if (tier === "high") {
     return {
@@ -123,10 +115,8 @@ function getCreatedAtTime(value: string | null) {
   return Number.isNaN(time) ? 0 : time;
 }
 
-function sortPendingEventsByPriority(events: ModerationEvent[]) {
+function sortEventsByMostRecent(events: ModerationEvent[]) {
   return [...events].sort((a, b) => {
-    const tierDiff = getRiskWeight(getRiskTier(a)) - getRiskWeight(getRiskTier(b));
-    if (tierDiff !== 0) return tierDiff;
     return getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt);
   });
 }
@@ -218,7 +208,7 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
 }
 
 async function moderationFetch(path: string, token: string, method = "GET") {
-  return apiFetch(`${MODERATION_API_BASE}${path}`, { token, method });
+  return apiFetch(path, { token, method });
 }
 
 function ImageSlot({
@@ -239,7 +229,14 @@ function ImageSlot({
       </div>
       <div className="flex h-40 items-center justify-center p-2">
         {imageUrl && !isLegacyImage ? (
-          <img src={imageUrl} alt={alt} className="h-full w-full rounded-md border border-gray-200 object-cover" />
+          <Image
+            src={imageUrl}
+            alt={alt}
+            width={320}
+            height={160}
+            unoptimized
+            className="h-full w-full rounded-md border border-gray-200 object-cover"
+          />
         ) : isLegacyImage ? (
           <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-amber-300 bg-amber-50 text-sm text-amber-700">
             Legacy image (not available)
@@ -306,7 +303,7 @@ export default function ModerationPage() {
       const hasValidUploadedImage = isHttpsUrl(event.bagImageUrl) || isHttpsUrl(event.containerImageUrl);
       return status === activeFilter && hasValidUploadedImage;
     });
-    return activeFilter === "pending" ? sortPendingEventsByPriority(visibleEvents) : visibleEvents;
+    return sortEventsByMostRecent(visibleEvents);
   }, [activeFilter, events]);
 
   const pendingRiskSummary = useMemo(() => {
@@ -338,7 +335,7 @@ export default function ModerationPage() {
     );
   }, [filteredEvents]);
 
-  async function handleModerationAction(eventId: string, action: "approve" | "reject") {
+  const handleModerationAction = useCallback(async (eventId: string, action: "approve" | "reject") => {
     const token = getToken();
     if (!token) {
       router.replace("/login");
@@ -361,7 +358,7 @@ export default function ModerationPage() {
     } finally {
       setActiveEventId(null);
     }
-  }
+  }, [router]);
 
   async function handleBulkModeration(ids: string[], action: "approve" | "reject") {
     for (const id of ids) {
@@ -407,242 +404,238 @@ export default function ModerationPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeEventId, activeFilter, filteredEvents]);
+  }, [activeEventId, activeFilter, filteredEvents, handleModerationAction]);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50">
-        <div className="mx-auto max-w-3xl px-6 py-8">
-          <div className="mb-6">
-            <div className="h-10 w-56 rounded bg-gray-200" />
-            <div className="mt-3 flex gap-2">
-              <div className="h-9 w-24 rounded-full bg-gray-200" />
-              <div className="h-9 w-24 rounded-full bg-gray-200" />
-              <div className="h-9 w-24 rounded-full bg-gray-200" />
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {[0, 1, 2].map((item) => (
-              <div key={item} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="h-40 rounded-lg bg-gray-200" />
-                  <div className="h-40 rounded-lg bg-gray-200" />
-                </div>
-                <div className="mt-3 h-4 w-40 rounded bg-gray-200" />
-                <div className="mt-3 flex gap-3">
-                  <div className="h-10 w-28 rounded bg-gray-200" />
-                  <div className="h-10 w-28 rounded bg-gray-200" />
-                </div>
-              </div>
-            ))}
+      <div className="mx-auto max-w-3xl space-y-5">
+        <div>
+          <div className="h-10 w-56 rounded bg-gray-200" />
+          <div className="mt-3 flex gap-2">
+            <div className="h-9 w-24 rounded-full bg-gray-200" />
+            <div className="h-9 w-24 rounded-full bg-gray-200" />
+            <div className="h-9 w-24 rounded-full bg-gray-200" />
           </div>
         </div>
-      </main>
+
+        <div className="space-y-4">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="h-40 rounded-lg bg-gray-200" />
+                <div className="h-40 rounded-lg bg-gray-200" />
+              </div>
+              <div className="mt-3 h-4 w-40 rounded bg-gray-200" />
+              <div className="mt-3 flex gap-3">
+                <div className="h-10 w-28 rounded bg-gray-200" />
+                <div className="h-10 w-28 rounded bg-gray-200" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-3xl px-6 py-8">
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={() => router.push("/admin")}
-            className="mb-3 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-          >
-            ← Back to Admin
-          </button>
-          <h1 className="text-4xl font-bold text-gray-900">Moderation Queue</h1>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(["pending", "approved", "rejected"] as FilterKey[]).map((filter) => {
-              const isActive = activeFilter === filter;
+    <div className="mx-auto max-w-3xl space-y-5">
+      <header>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
+          Admin · Operations
+        </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
+          Moderation queue
+        </h1>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(["pending", "approved", "rejected"] as FilterKey[]).map((filter) => {
+            const isActive = activeFilter === filter;
 
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setActiveFilter(filter)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium capitalize ${
-                    isActive ? "bg-gray-900 text-white" : "bg-white text-gray-700 border border-gray-300"
-                  }`}
-                >
-                  {filter}
-                </button>
-              );
-            })}
+            return (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setActiveFilter(filter)}
+                className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition ${
+                  isActive
+                    ? "bg-[var(--gl-green-deep)] text-white"
+                    : "border border-[var(--gl-hairline)] bg-[var(--gl-paper)] text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]"
+                }`}
+              >
+                {filter}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {error ? (
+        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">{error}</div>
+      ) : null}
+
+      {actionError ? (
+        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">{actionError}</div>
+      ) : null}
+
+      {activeFilter === "pending" ? (
+        <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2.5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-[var(--gl-ink-muted)]">
+              {selectedEventIds.length > 0
+                ? `${selectedEventIds.length} selected`
+                : `${pendingVisibleEventIds.length} pending in view`}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleApproveSelected(selectedEventIds)}
+                disabled={selectedEventIds.length === 0 || !!activeEventId}
+                className="rounded bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Approve Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRejectSelected(selectedEventIds)}
+                disabled={selectedEventIds.length === 0 || !!activeEventId}
+                className="rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reject Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleApproveSelected(pendingVisibleEventIds)}
+                disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
+                className="rounded bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Approve All
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRejectSelected(pendingVisibleEventIds)}
+                disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
+                className="rounded bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reject All
+              </button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--gl-ink-muted)]">
+            {autoApprovableEventIds.length > 0
+              ? `${autoApprovableEventIds.length} events are marked for true auto-approval`
+              : "Bulk moderation stays available while you work through the pending queue."}
+          </p>
+        </div>
+      ) : null}
+
+      {activeFilter === "pending" ? (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            High risk: {pendingRiskSummary.high}
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Review: {pendingRiskSummary.review}
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            Low risk: {pendingRiskSummary.low}
+          </div>
+          <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2 text-sm text-[var(--gl-ink-soft)]">
+            Unknown: {pendingRiskSummary.unknown}
           </div>
         </div>
+      ) : null}
 
-        {error ? (
-          <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
-        ) : null}
+      {!hasEvents ? (
+        <div className="rounded-xl border border-dashed border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] p-10 text-center text-sm text-[var(--gl-ink-muted)]">
+          No {activeFilter} events.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredEvents.map((event) => {
+            const isSubmitting = activeEventId === event.id;
+            const isSelected = selectedEventIds.includes(event.id);
+            const showSelection = activeFilter === "pending";
+            const riskTier = getRiskTier(event);
+            const riskClasses = getRiskClasses(riskTier);
 
-        {actionError ? (
-          <div className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{actionError}</div>
-        ) : null}
-
-        {activeFilter === "pending" ? (
-          <div className="mb-4 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-gray-600">
-                {selectedEventIds.length > 0
-                  ? `${selectedEventIds.length} selected`
-                  : `${pendingVisibleEventIds.length} pending in view`}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleApproveSelected(selectedEventIds)}
-                  disabled={selectedEventIds.length === 0 || !!activeEventId}
-                  className="rounded bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Approve Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleRejectSelected(selectedEventIds)}
-                  disabled={selectedEventIds.length === 0 || !!activeEventId}
-                  className="rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Reject Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleApproveSelected(pendingVisibleEventIds)}
-                  disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
-                  className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Approve All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleRejectSelected(pendingVisibleEventIds)}
-                  disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
-                  className="rounded bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Reject All
-                </button>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              {autoApprovableEventIds.length > 0
-                ? `${autoApprovableEventIds.length} events are marked for true auto-approval`
-                : "Bulk moderation stays available while you work through the pending queue."}
-            </p>
-          </div>
-        ) : null}
-
-        {activeFilter === "pending" ? (
-          <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              High risk: {pendingRiskSummary.high}
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Review: {pendingRiskSummary.review}
-            </div>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              Low risk: {pendingRiskSummary.low}
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-              Unknown: {pendingRiskSummary.unknown}
-            </div>
-          </div>
-        ) : null}
-
-        {!hasEvents ? (
-          <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-            No {activeFilter} events.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredEvents.map((event) => {
-              const isSubmitting = activeEventId === event.id;
-              const isSelected = selectedEventIds.includes(event.id);
-              const showSelection = activeFilter === "pending";
-              const riskTier = getRiskTier(event);
-              const riskClasses = getRiskClasses(riskTier);
-
-              return (
-                <section
-                  key={event.id}
-                  className={`relative rounded-xl border bg-white p-3 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md ${riskClasses.card} ${
-                    isSelected ? "border-green-300 ring-2 ring-green-100" : "border-gray-200"
-                  }`}
-                >
-                  {showSelection ? (
-                    <label className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelectedEvent(event.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
-                      />
-                      Select
-                    </label>
-                  ) : null}
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <ImageSlot label="Bag" imageUrl={event.bagImageUrl} alt={`Bag evidence for event ${event.id}`} />
-                    <ImageSlot
-                      label="Container"
-                      imageUrl={event.containerImageUrl}
-                      alt={`Container evidence for event ${event.id}`}
+            return (
+              <section
+                key={event.id}
+                className={`relative rounded-xl border bg-[var(--gl-paper)] p-3 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md ${riskClasses.card} ${
+                  isSelected ? "border-[var(--gl-green)] ring-2 ring-[var(--gl-green-soft)]" : "border-[var(--gl-hairline)]"
+                }`}
+              >
+                {showSelection ? (
+                  <label className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-[var(--gl-paper)]/90 px-2 py-1 text-xs font-medium text-[var(--gl-ink-soft)] shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectedEvent(event.id)}
+                      className="h-4 w-4 rounded border-[var(--gl-hairline)] text-[var(--gl-green)] focus:ring-[var(--gl-green-ring)]"
                     />
-                  </div>
+                    Select
+                  </label>
+                ) : null}
 
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                      <span>Event: {shortenEventId(event.id)}</span>
-                      <span className="capitalize">Status: {event.verificationStatus}</span>
-                      <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
-                        AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
-                      </span>
-                      <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
-                      {isAutoApprovable(event) ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
-                      ) : null}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <ImageSlot label="Bag" imageUrl={event.bagImageUrl} alt={`Bag evidence for event ${event.id}`} />
+                  <ImageSlot
+                    label="Container"
+                    imageUrl={event.containerImageUrl}
+                    alt={`Container evidence for event ${event.id}`}
+                  />
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--gl-ink-muted)]">
+                    <span>Event: {shortenEventId(event.id)}</span>
+                    <span className="capitalize">Status: {event.verificationStatus}</span>
+                    <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
+                      AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
+                    </span>
+                    <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
+                    {isAutoApprovable(event) ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
+                    ) : null}
+                  </div>
+                  {isSubmitting ? <p className="text-xs text-[var(--gl-ink-muted)]">Submitting...</p> : null}
+                </div>
+
+                {event.validationFlags.length > 0 ? (
+                  <div className="mt-2">
+                    <p className="mb-1 text-xs font-semibold text-[var(--gl-ink-soft)]">Flags</p>
+                    <div className="flex flex-wrap gap-2">
+                      {event.validationFlags.map((flag) => (
+                        <span key={`${event.id}-${flag}`} className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClasses.flag}`}>
+                          {flag}
+                        </span>
+                      ))}
                     </div>
-                    {isSubmitting ? <p className="text-xs text-gray-500">Submitting...</p> : null}
                   </div>
+                ) : null}
 
-                  {event.validationFlags.length > 0 ? (
-                    <div className="mt-2">
-                      <p className="mb-1 text-xs font-semibold text-gray-700">Flags</p>
-                      <div className="flex flex-wrap gap-2">
-                        {event.validationFlags.map((flag) => (
-                          <span key={`${event.id}-${flag}`} className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClasses.flag}`}>
-                            {flag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleModerationAction(event.id, "approve")}
-                      disabled={isSubmitting}
-                      className="rounded bg-green-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleModerationAction(event.id, "reject")}
-                      disabled={isSubmitting}
-                      className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </section>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </main>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleModerationAction(event.id, "approve")}
+                    disabled={isSubmitting}
+                    className="rounded bg-[var(--gl-green)] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModerationAction(event.id, "reject")}
+                    disabled={isSubmitting}
+                    className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

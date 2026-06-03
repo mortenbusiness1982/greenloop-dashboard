@@ -26,7 +26,7 @@ export default function RecyclingMap({ events }: { events: RecyclingEvent[] }) {
   const center: [number, number] = [36.7213, -4.4214];
 
   return (
-    <div className="w-full h-[520px] rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+    <div className="w-full h-[460px] overflow-hidden rounded-[24px] border shadow-[0_18px_60px_rgba(0,0,0,0.12)]" style={{ borderColor: "rgba(15, 110, 86, 0.12)" }}>
       <MapContainer
         center={center}
         zoom={11}

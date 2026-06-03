@@ -3,7 +3,7 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUpload } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
 type Reward = {
@@ -392,7 +392,7 @@ export function AdminRewardsWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">Reward Engine</p>
@@ -441,14 +441,14 @@ export function AdminRewardsWorkspace() {
             <table className="min-w-[980px] w-full text-left text-sm">
               <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
                 <tr>
-                  <th className="px-4 py-3">Reward</th>
-                  <th className="px-4 py-3">Partner</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Cost</th>
-                  <th className="px-4 py-3">Delivery</th>
-                  <th className="px-4 py-3">Inventory</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-2.5">Reward</th>
+                  <th className="px-4 py-2.5">Partner</th>
+                  <th className="px-4 py-2.5">Type</th>
+                  <th className="px-4 py-2.5">Cost</th>
+                  <th className="px-4 py-2.5">Delivery</th>
+                  <th className="px-4 py-2.5">Inventory</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -459,19 +459,19 @@ export function AdminRewardsWorkspace() {
                 ) : (
                   filteredRewards.map((reward) => (
                     <tr key={reward.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <div className="font-semibold text-[var(--gl-ink)]">{reward.title}</div>
                         <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{reward.description || "No description"}</div>
                       </td>
-                      <td className="px-4 py-3 text-[var(--gl-ink-soft)]">{reward.partner_name || "—"}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.partner_name || "—"}</td>
+                      <td className="px-4 py-2.5">
                         <Badge>{reward.acquisition_mode === "challenge_completion" ? "Challenge reward" : "Catalog unlock"}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-[var(--gl-ink-soft)]">{reward.acquisition_mode === "challenge_completion" ? "—" : reward.cost_points}</td>
-                      <td className="px-4 py-3 text-[var(--gl-ink-soft)]">{reward.redemption_type || reward.fulfillment_type}</td>
-                      <td className="px-4 py-3 text-[var(--gl-ink-soft)]">{inventoryLabel(reward)}</td>
-                      <td className="px-4 py-3"><Badge tone={reward.active ? "green" : "neutral"}>{reward.status || (reward.active ? "active" : "inactive")}</Badge></td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.acquisition_mode === "challenge_completion" ? "—" : reward.cost_points}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.redemption_type || reward.fulfillment_type}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{inventoryLabel(reward)}</td>
+                      <td className="px-4 py-2.5"><Badge tone={reward.active ? "green" : "neutral"}>{reward.status || (reward.active ? "active" : "inactive")}</Badge></td>
+                      <td className="px-4 py-2.5">
                         <div className="flex flex-wrap justify-end gap-2">
                           <Link href={`/admin/rewards/${reward.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
                           <button onClick={() => startEdit(reward)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
@@ -498,6 +498,7 @@ export function AdminRewardsWorkspace() {
             setForm(emptyForm);
           }}
           onSubmit={handleSubmit}
+          onRewardUpdated={loadRewards}
         />
       </div>
     </div>
@@ -512,6 +513,7 @@ function RewardFormPanel({
   saving,
   onCancel,
   onSubmit,
+  onRewardUpdated,
 }: {
   form: RewardForm;
   setForm: (updater: (current: RewardForm) => RewardForm) => void;
@@ -520,9 +522,12 @@ function RewardFormPanel({
   saving: boolean;
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onRewardUpdated: () => Promise<void>;
 }) {
   const isChallengeReward = form.acquisition_mode === "challenge_completion";
   const isPromo = form.redemption_type === "link_with_code";
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const handleUnlockTypeChange = (value: string) => {
     const redemptionType = value as RewardForm["redemption_type"];
     setForm((current) => ({
@@ -535,10 +540,72 @@ function RewardFormPanel({
       pooled_codes: redemptionType === "link_with_code" ? current.pooled_codes : "",
     }));
   };
+  const handleBannerImageUpload = async (file: File | undefined) => {
+    if (!file) return;
+    const token = getToken();
+    if (!token) {
+      setImageUploadError("Please log in again before uploading.");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setImageUploadError("Please choose an image file.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setImageUploadError(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const result = await apiUpload<{ url?: string }>("/uploads/photo", { token, body });
+      if (!result.url) {
+        throw new Error("Upload did not return an image URL.");
+      }
+      setForm((current) => ({ ...current, banner_image_url: result.url || "" }));
+      if (editingId) {
+        await apiFetch(`/admin/rewards/${editingId}`, {
+          token,
+          method: "PATCH",
+          body: { banner_image_url: result.url },
+        });
+        await onRewardUpdated();
+      }
+    } catch (err) {
+      setImageUploadError(err instanceof Error ? err.message : "Image upload failed.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleBannerImageClear = async () => {
+    setImageUploadError(null);
+    setForm((current) => ({ ...current, banner_image_url: "" }));
+    if (!editingId) return;
+
+    const token = getToken();
+    if (!token) {
+      setImageUploadError("Please log in again before updating.");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      await apiFetch(`/admin/rewards/${editingId}`, {
+        token,
+        method: "PATCH",
+        body: { banner_image_url: null },
+      });
+      await onRewardUpdated();
+    } catch (err) {
+      setImageUploadError(err instanceof Error ? err.message : "Unable to remove image.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={onSubmit} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+    <div className="space-y-5">
+      <form onSubmit={onSubmit} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{editingId ? "Edit reward" : "Create reward"}</h2>
@@ -546,14 +613,21 @@ function RewardFormPanel({
         </div>
         {editingId ? <button type="button" onClick={onCancel} className="text-sm font-semibold text-[var(--gl-ink-soft)] hover:text-[var(--gl-ink)]">Cancel</button> : null}
       </div>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <FormSection title="Basic Info">
           <Field label="Title" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} required />
           <Textarea label="Short description" value={form.short_description} onChange={(value) => setForm((current) => ({ ...current, short_description: value, description: current.description || value }))} required />
           <Textarea label="Full description" value={form.full_description} onChange={(value) => setForm((current) => ({ ...current, full_description: value, description: current.description || value }))} />
           <Field label="Partner name" value={form.partner_name} onChange={(value) => setForm((current) => ({ ...current, partner_name: value }))} required />
           <Field label="Brand ID" value={form.brand_id} onChange={(value) => setForm((current) => ({ ...current, brand_id: value }))} />
-          <Field label="Banner image URL" value={form.banner_image_url} onChange={(value) => setForm((current) => ({ ...current, banner_image_url: value }))} placeholder="https://..." />
+          <ImageUploadField
+            label="Banner image"
+            imageUrl={form.banner_image_url}
+            uploading={uploadingImage}
+            error={imageUploadError}
+            onUpload={handleBannerImageUpload}
+            onClear={handleBannerImageClear}
+          />
           {categories.length ? (
             <Select label="Category" value={form.category_id} onChange={(value) => setForm((current) => ({ ...current, category_id: value }))}>
               <option value="">No category</option>
@@ -672,9 +746,9 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
   const title = form.title.trim() || "Reward title";
   const imageUrl = form.banner_image_url.trim();
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">What users will see after unlock</p>
-      <div className="mt-4 rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-5 text-center">
+      <div className="mt-4 rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4 text-center">
         {imageUrl ? (
           <div className="mx-auto mb-4 flex h-24 max-w-[220px] items-center justify-center overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -684,7 +758,7 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
         <p className="text-lg font-bold text-[var(--gl-ink)]">{isPromo ? "Code Revealed 🎉" : "Reward Unlocked 🎉"}</p>
         <p className="mt-1 text-sm font-semibold text-[var(--gl-ink-soft)]">{title}</p>
         {isPromo ? (
-          <div className="mx-auto mt-4 max-w-[240px] rounded-xl border border-[var(--gl-green-soft)] bg-[var(--gl-paper)] px-4 py-3 shadow-sm">
+          <div className="mx-auto mt-4 max-w-[240px] rounded-xl border border-[var(--gl-green-soft)] bg-[var(--gl-paper)] px-4 py-2.5 shadow-sm">
             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--gl-ink-muted)]">Promo code</p>
             <p className="mt-1 text-lg font-extrabold tracking-[0.2em] text-[var(--gl-ink)]">{code}</p>
           </div>
@@ -732,7 +806,7 @@ function FormSection({ title, children, defaultOpen = true }: { title: string; c
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</p>
       <p className="mt-2 text-3xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
     </div>
@@ -755,6 +829,64 @@ function Field({ label, value, onChange, ...props }: Omit<React.InputHTMLAttribu
       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
       <input {...props} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
     </label>
+  );
+}
+
+function ImageUploadField({
+  label,
+  imageUrl,
+  uploading,
+  error,
+  onUpload,
+  onClear,
+}: {
+  label: string;
+  imageUrl: string;
+  uploading: boolean;
+  error: string | null;
+  onUpload: (file: File | undefined) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="block">
+      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
+      <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3">
+        {imageUrl ? (
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--gl-hairline)] bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="" className="h-full w-full object-contain" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[var(--gl-ink)]">Image uploaded</p>
+              <p className="truncate text-xs text-[var(--gl-ink-muted)]">{imageUrl}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClear}
+              className="rounded-lg border border-[var(--gl-hairline-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:border-[var(--gl-green)] hover:text-[var(--gl-green-deep)]"
+            >
+              Remove
+            </button>
+          </div>
+        ) : null}
+        <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-[var(--gl-hairline-strong)] bg-white px-3 py-4 text-center text-sm font-semibold text-[var(--gl-green-deep)] transition hover:border-[var(--gl-green)] hover:bg-[var(--gl-green-soft)]">
+          {uploading ? "Uploading image..." : imageUrl ? "Change image" : "Choose image from computer"}
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            className="sr-only"
+            onChange={(event) => {
+              onUpload(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        {error ? <p className="mt-2 text-xs font-semibold text-red-600">{error}</p> : null}
+        <p className="mt-2 text-xs text-[var(--gl-ink-muted)]">Upload a product or reward image. GreenLoop stores it and uses it in the app reward card.</p>
+      </div>
+    </div>
   );
 }
 

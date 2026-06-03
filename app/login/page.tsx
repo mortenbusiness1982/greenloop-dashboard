@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await apiFetch("/auth/login", {
+      const data = await apiFetch<{ token?: string; user?: { role?: string } }>("/auth/login", {
         method: "POST",
         body: { email, password },
       });
@@ -32,11 +32,11 @@ export default function LoginPage() {
       setToken(String(token));
 
       if (role === "admin") {
-        router.push("/admin");
+        router.push("/admin/overview");
       } else if (role === "partner") {
-        router.push("/partner");
+        router.push("/partner/overview");
       } else if (role === "brand_admin") {
-        router.push("/brand");
+        router.push("/brand/overview");
       } else {
         router.push("/");
       }

@@ -23,8 +23,10 @@ function FitBounds({ events }: { events: Array<{ lat: number; lng: number }> }) 
 
 export default function AdminRecyclingHeatmap({
   events,
+  className = "h-[520px]",
 }: {
   events: PlatformReportEvent[];
+  className?: string;
 }) {
   const center: [number, number] = [36.7213, -4.4214];
   const validEvents = events
@@ -49,7 +51,7 @@ export default function AdminRecyclingHeatmap({
   const dots = Array.from(dotMap.values());
 
   return (
-    <div className="h-[520px] w-full overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+    <div className={`${className} w-full overflow-hidden rounded-xl border border-gray-200 shadow-sm`}>
       <MapContainer center={center} zoom={8} style={{ height: "100%", width: "100%" }}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

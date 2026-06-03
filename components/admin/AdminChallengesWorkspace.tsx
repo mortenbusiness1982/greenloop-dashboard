@@ -849,7 +849,7 @@ export function AdminChallengesWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-medium text-emerald-700">Superadmin CRM</p>
@@ -870,7 +870,7 @@ export function AdminChallengesWorkspace() {
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-5">
+        <div className="border-b border-slate-200 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-sm font-medium text-amber-700">Community Challenge Requests</p>
@@ -913,7 +913,7 @@ export function AdminChallengesWorkspace() {
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredChallengeRequests.map((request) => (
-              <article key={request.id} className="p-5">
+              <article key={request.id} className="p-4">
                 <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
                   <div className="min-w-0 space-y-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1027,7 +1027,7 @@ export function AdminChallengesWorkspace() {
       </section>
 
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-        <div className="border-b border-[var(--gl-hairline)] p-5">
+        <div className="border-b border-[var(--gl-hairline)] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-sm font-medium text-[var(--gl-green)]">Community Challenges</p>
@@ -1061,7 +1061,7 @@ export function AdminChallengesWorkspace() {
               const status = getCertificateStatus(challenge);
 
               return (
-                <article key={challenge.id} className="p-5">
+                <article key={challenge.id} className="p-4">
                   <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
                     <div className="min-w-0 space-y-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1258,16 +1258,16 @@ export function AdminChallengesWorkspace() {
             <table className="min-w-[1080px] w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Challenge</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Target</th>
-                  <th className="px-4 py-3">Required</th>
-                  <th className="px-4 py-3">Progress</th>
-                  <th className="px-4 py-3">Bonus</th>
-                  <th className="px-4 py-3">Reward</th>
-                  <th className="px-4 py-3">Dates</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-2.5">Challenge</th>
+                  <th className="px-4 py-2.5">Type</th>
+                  <th className="px-4 py-2.5">Target</th>
+                  <th className="px-4 py-2.5">Required</th>
+                  <th className="px-4 py-2.5">Progress</th>
+                  <th className="px-4 py-2.5">Bonus</th>
+                  <th className="px-4 py-2.5">Reward</th>
+                  <th className="px-4 py-2.5">Dates</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1278,24 +1278,24 @@ export function AdminChallengesWorkspace() {
                 ) : (
                   filteredChallenges.map((challenge) => (
                     <tr key={challenge.id} className="border-t border-slate-100 align-top hover:bg-slate-50/70">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-950">{challenge.title}</div>
                         <div className="mt-1 max-w-xs truncate text-xs text-slate-500">{challenge.description || "No description"}</div>
                       </td>
-                      <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span></td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span></td>
+                      <td className="px-4 py-2.5">
                         <div className="capitalize text-slate-500">{challenge.targetKind || "brand"}</div>
                         <div className="font-medium text-slate-800">{getTargetValue(challenge) || "-"}</div>
                       </td>
-                      <td className="px-4 py-3 text-slate-700">{challenge.required_count}</td>
-                      <td className="px-4 py-3 text-slate-700">{challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"}</td>
-                      <td className="px-4 py-3 text-slate-700">{challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points}</td>
-                      <td className="px-4 py-3 text-slate-700">{challenge.completionRewardTitle || "-"}</td>
-                      <td className="px-4 py-3 text-slate-700">
+                      <td className="px-4 py-2.5 text-slate-700">{challenge.required_count}</td>
+                      <td className="px-4 py-2.5 text-slate-700">{challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"}</td>
+                      <td className="px-4 py-2.5 text-slate-700">{challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points}</td>
+                      <td className="px-4 py-2.5 text-slate-700">{challenge.completionRewardTitle || "-"}</td>
+                      <td className="px-4 py-2.5 text-slate-700">
                         <div>{formatDateTime(challenge.starts_at)}</div>
                         <div className="text-xs text-slate-500">{formatDateTime(challenge.ends_at)}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         {(() => {
                           const visibility = getVisibilityStatus(challenge);
                           return (
@@ -1308,7 +1308,7 @@ export function AdminChallengesWorkspace() {
                           );
                         })()}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <div className="flex flex-wrap gap-2">
                           <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">View</Link>
                           <button onClick={() => startEdit(challenge)} className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">Edit</button>
@@ -1324,7 +1324,7 @@ export function AdminChallengesWorkspace() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-950">{editingId ? "Edit challenge" : "Create challenge"}</h2>
@@ -1334,7 +1334,7 @@ export function AdminChallengesWorkspace() {
           </div>
           <div className="space-y-4">
             {editingId ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-5 text-amber-900">
                 You are editing an existing challenge. Changing the type here converts this challenge and keeps its current title, description, target, dates, and reward. Use New challenge to start with an empty form.
               </div>
             ) : null}
@@ -1353,7 +1353,7 @@ export function AdminChallengesWorkspace() {
               <option value="global">Global</option>
               <option value="community">Community</option>
             </Select>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">{challengeSummary(form.challengeType)}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs leading-5 text-slate-600">{challengeSummary(form.challengeType)}</div>
             <Select label="Target type" value={form.targetKind} onChange={(value) => setForm((current) => ({ ...current, targetKind: value as TargetKind }))}>
               <option value="any">Any recycled item</option>
               <option value="brand">Brand</option>
@@ -1407,7 +1407,7 @@ export function AdminChallengesWorkspace() {
               <Field label={form.challengeType === "community" ? "EcoPoints per joined user" : "Bonus EcoPoints"} type="number" min="0" value={form.bonus_points} onChange={(value) => setForm((current) => ({ ...current, bonus_points: value }))} required={!form.completionRewardId} />
             </div>
             {form.challengeType === "community" ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs leading-5 text-slate-600">
                 Put the shared goal here. For a 25,000 item university challenge, enter 25000 in Shared item target. The app shows community progress as recycled items / shared item target.
               </div>
             ) : null}
@@ -1434,7 +1434,7 @@ function getTargetValue(challenge: Challenge) {
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{label}</p>
       <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
     </div>
