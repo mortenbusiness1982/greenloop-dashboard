@@ -27,7 +27,7 @@ type Reward = {
   promo_code?: string | null;
   redemption_instructions?: string | null;
   cta_text?: string | null;
-  status?: "draft" | "active" | "paused" | "expired";
+  status?: "draft" | "active" | "paused" | "expired" | "archived";
   starts_at?: string | null;
   ends_at?: string | null;
   featured?: boolean;
@@ -37,6 +37,7 @@ type Reward = {
   max_claims_per_user?: number | null;
   remaining_claims_visible?: boolean;
   unlock_duration_hours?: number | null;
+  archived_at?: string | null;
   active: boolean;
   fulfillment_type?: "qr_token" | "promo_code";
   code_mode?: "shared" | "pooled" | null;
@@ -78,7 +79,7 @@ type RewardForm = {
   pooled_codes: string;
   instructions: string;
   cta_text: string;
-  status: NonNullable<Reward["status"]>;
+  status: "draft" | "active" | "paused" | "expired";
   placement_type: NonNullable<Reward["placement_type"]>;
   featured: boolean;
   priority: string;
@@ -159,7 +160,7 @@ function normalizeReward(raw: Reward): Reward {
     reward_type: raw.reward_type ?? (raw.acquisition_mode === "challenge_completion" ? "challenge_reward" : "catalog_reward"),
     unlock_method: raw.unlock_method ?? (raw.acquisition_mode === "challenge_completion" ? "challenge" : "points"),
     redemption_type: raw.redemption_type ?? "manual_claim",
-    status: raw.status ?? (raw.active === false ? "paused" : "active"),
+    status: raw.archived_at ? "archived" : raw.status ?? (raw.active === false ? "paused" : "active"),
     placement_type: raw.placement_type ?? "standard",
     fulfillment_type: raw.fulfillment_type ?? "qr_token",
     code_mode: raw.code_mode ?? null,
@@ -226,7 +227,7 @@ export function AdminRewardsWorkspace() {
         !needle ||
         reward.title.toLowerCase().includes(needle) ||
         String(reward.partner_name || "").toLowerCase().includes(needle);
-      const matchesStatus = status === "all" || reward.status === status;
+      const matchesStatus = status === "all" || reward.status === status || (status === "archived" && Boolean(reward.archived_at));
       return matchesQuery && matchesStatus;
     });
   }, [query, rewards, status]);
@@ -235,6 +236,7 @@ export function AdminRewardsWorkspace() {
     () => ({
       total: rewards.length,
       active: rewards.filter((reward) => reward.active).length,
+      archived: rewards.filter((reward) => reward.archived_at || reward.status === "archived").length,
       challenge: rewards.filter((reward) => reward.acquisition_mode === "challenge_completion").length,
       pooled: rewards.filter((reward) => reward.fulfillment_type === "promo_code" && reward.code_mode === "pooled").length,
     }),
@@ -266,7 +268,7 @@ export function AdminRewardsWorkspace() {
       pooled_codes: "",
       instructions: reward.instructions || reward.redemption_instructions || "",
       cta_text: reward.cta_text || "Unlock Reward",
-      status: reward.status || "active",
+      status: reward.status === "archived" ? "paused" : reward.status || "active",
       placement_type: reward.placement_type || "standard",
       featured: Boolean(reward.featured),
       priority: String(reward.priority ?? 0),
@@ -391,6 +393,21 @@ export function AdminRewardsWorkspace() {
     }
   }
 
+  async function restoreReward(id: string | number) {
+    if (!window.confirm("Restore this archived reward? It will become active and can appear in the mobile app if wallet catalog visibility is enabled.")) return;
+    const token = getToken();
+    if (!token) return router.replace("/login");
+    setActionId(`restore-${id}`);
+    try {
+      await apiFetch(`/admin/rewards/${id}/restore`, { token, method: "PATCH" });
+      await loadRewards();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to restore reward");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -415,8 +432,8 @@ export function AdminRewardsWorkspace() {
       <div className="grid gap-4 md:grid-cols-4">
         <Kpi label="Total rewards" value={kpis.total} />
         <Kpi label="Active" value={kpis.active} />
+        <Kpi label="Archived" value={kpis.archived} />
         <Kpi label="Challenge rewards" value={kpis.challenge} />
-        <Kpi label="Pooled code rewards" value={kpis.pooled} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -434,6 +451,7 @@ export function AdminRewardsWorkspace() {
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
                 <option value="expired">Expired</option>
+                <option value="archived">Archived</option>
               </select>
             </div>
           </div>
@@ -470,13 +488,19 @@ export function AdminRewardsWorkspace() {
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.acquisition_mode === "challenge_completion" ? "—" : reward.cost_points}</td>
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.redemption_type || reward.fulfillment_type}</td>
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{inventoryLabel(reward)}</td>
-                      <td className="px-4 py-2.5"><Badge tone={reward.active ? "green" : "neutral"}>{reward.status || (reward.active ? "active" : "inactive")}</Badge></td>
+                      <td className="px-4 py-2.5"><Badge tone={reward.status === "archived" ? "neutral" : reward.active ? "green" : "neutral"}>{reward.status || (reward.active ? "active" : "inactive")}</Badge></td>
                       <td className="px-4 py-2.5">
                         <div className="flex flex-wrap justify-end gap-2">
                           <Link href={`/admin/rewards/${reward.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
                           <button onClick={() => startEdit(reward)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
-                          <button onClick={() => toggleReward(reward.id)} disabled={actionId === `toggle-${reward.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">{reward.active ? "Pause" : "Activate"}</button>
-                          <button onClick={() => archiveReward(reward.id)} disabled={actionId === `archive-${reward.id}`} className="rounded-md border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-coral-ink)] hover:opacity-90 disabled:opacity-60">Archive</button>
+                          {reward.status === "archived" || reward.archived_at ? (
+                            <button onClick={() => restoreReward(reward.id)} disabled={actionId === `restore-${reward.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">Restore</button>
+                          ) : (
+                            <>
+                              <button onClick={() => toggleReward(reward.id)} disabled={actionId === `toggle-${reward.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">{reward.active ? "Pause" : "Activate"}</button>
+                              <button onClick={() => archiveReward(reward.id)} disabled={actionId === `archive-${reward.id}`} className="rounded-md border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-coral-ink)] hover:opacity-90 disabled:opacity-60">Archive</button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
