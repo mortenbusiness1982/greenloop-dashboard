@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Download, Plus, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type BrandProduct = {
   id: string;
@@ -29,6 +30,125 @@ type BrandProductImportSummary = {
 };
 
 const CSV_NULL = String.fromCharCode(0);
+
+const brandProductsCopy = {
+  en: {
+    errors: {
+      xlsx: "Please export the spreadsheet as a CSV file before uploading",
+      missingBarcode: "CSV must include a barcode column",
+      noValidRows: "No valid product rows were found in the uploaded CSV",
+      load: "Unable to load brand products",
+      import: "Unable to import products",
+      save: "Unable to save product",
+      update: "Unable to update product",
+      remove: "Unable to remove product",
+    },
+    loading: "Loading brand products...",
+    intro: "These products define what counts toward your brand dashboard. Add missing barcodes here to keep reporting accurate.",
+    actions: {
+      downloadCatalog: "Download catalog",
+      uploadCsv: "Upload CSV",
+      addProduct: "Add Product",
+      edit: "Edit",
+      markVerified: "Mark verified",
+      delete: "Delete",
+      uploading: "Uploading...",
+      close: "Close",
+      cancel: "Cancel",
+      saving: "Saving...",
+      saveChanges: "Save Changes",
+      saveProduct: "Save Product",
+    },
+    metrics: { products: "Products", verified: "Verified", needReview: "Need review" },
+    table: {
+      product: "Product",
+      barcode: "Barcode",
+      status: "Status",
+      actions: "Actions",
+      empty: "No products added yet. Add your first barcode to start controlling what counts for this brand.",
+      showingFirst: (visible: number) => `Showing the first ${visible} products for now.`,
+    },
+    status: { verified: "Verified", needsReview: "Needs review" },
+    confirmRemove: (name: string) => `Remove ${name} from your brand product catalog?`,
+    importModal: {
+      title: "Upload Products CSV",
+      descriptionStart: "Upload a simple CSV with",
+      descriptionEnd: "so we can assign products to your brand in bulk.",
+      expectedFormat: "Expected format",
+      importComplete: "Import complete",
+      added: "Added",
+      updated: "Updated",
+      needReview: "Need review",
+      skipped: "Skipped",
+    },
+    productModal: {
+      editTitle: "Edit Product",
+      addTitle: "Add Product",
+      description: "Add a barcode and product name to assign it to your brand.",
+      barcode: "Barcode",
+      productName: "Product name",
+    },
+  },
+  es: {
+    errors: {
+      xlsx: "Exporta la hoja de cálculo como archivo CSV antes de subirla",
+      missingBarcode: "El CSV debe incluir una columna de código de barras",
+      noValidRows: "No se encontraron filas de producto válidas en el CSV subido",
+      load: "No se pudieron cargar los productos de la marca",
+      import: "No se pudieron importar los productos",
+      save: "No se pudo guardar el producto",
+      update: "No se pudo actualizar el producto",
+      remove: "No se pudo eliminar el producto",
+    },
+    loading: "Cargando productos de marca...",
+    intro: "Estos productos definen qué cuenta en tu panel de marca. Añade códigos de barras faltantes para mantener los informes precisos.",
+    actions: {
+      downloadCatalog: "Descargar catálogo",
+      uploadCsv: "Subir CSV",
+      addProduct: "Añadir producto",
+      edit: "Editar",
+      markVerified: "Marcar verificado",
+      delete: "Eliminar",
+      uploading: "Subiendo...",
+      close: "Cerrar",
+      cancel: "Cancelar",
+      saving: "Guardando...",
+      saveChanges: "Guardar cambios",
+      saveProduct: "Guardar producto",
+    },
+    metrics: { products: "Productos", verified: "Verificados", needReview: "Por revisar" },
+    table: {
+      product: "Producto",
+      barcode: "Código de barras",
+      status: "Estado",
+      actions: "Acciones",
+      empty: "Aún no hay productos añadidos. Añade el primer código de barras para controlar qué cuenta para esta marca.",
+      showingFirst: (visible: number) => `Mostrando los primeros ${visible} productos por ahora.`,
+    },
+    status: { verified: "Verificado", needsReview: "Por revisar" },
+    confirmRemove: (name: string) => `¿Eliminar ${name} del catálogo de productos de tu marca?`,
+    importModal: {
+      title: "Subir CSV de productos",
+      descriptionStart: "Sube un CSV sencillo con",
+      descriptionEnd: "para asignar productos a tu marca en bloque.",
+      expectedFormat: "Formato esperado",
+      importComplete: "Importación completada",
+      added: "Añadidos",
+      updated: "Actualizados",
+      needReview: "Por revisar",
+      skipped: "Omitidos",
+    },
+    productModal: {
+      editTitle: "Editar producto",
+      addTitle: "Añadir producto",
+      description: "Añade un código de barras y el nombre del producto para asignarlo a tu marca.",
+      barcode: "Código de barras",
+      productName: "Nombre del producto",
+    },
+  },
+} as const;
+
+type BrandProductsCopy = (typeof brandProductsCopy)[DashboardLanguage];
 
 function normalizeCsvText(value: string) {
   const withoutBom = value.charCodeAt(0) === 0xfeff ? value.slice(1) : value;
@@ -101,10 +221,10 @@ function findCsvHeaderIndex(lines: string[]) {
   });
 }
 
-async function readCsvFile(file: File) {
+async function readCsvFile(file: File, copy: BrandProductsCopy) {
   const fileName = file.name.toLowerCase();
   if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-    throw new Error("Please export the spreadsheet as a CSV file before uploading");
+    throw new Error(copy.errors.xlsx);
   }
 
   const buffer = await file.arrayBuffer();
@@ -135,7 +255,7 @@ async function readCsvFile(file: File) {
 
   const headerIndex = findCsvHeaderIndex(rawLines);
   if (headerIndex === -1) {
-    throw new Error("CSV must include a barcode column");
+    throw new Error(copy.errors.missingBarcode);
   }
 
   const delimiter = detectCsvDelimiter(rawLines[headerIndex]);
@@ -147,7 +267,7 @@ async function readCsvFile(file: File) {
   const nameIndex = headerColumns.indexOf("name");
 
   if (barcodeIndex === -1) {
-    throw new Error("CSV must include a barcode column");
+    throw new Error(copy.errors.missingBarcode);
   }
 
   const cleanedRows = rawLines
@@ -160,7 +280,7 @@ async function readCsvFile(file: File) {
     .filter((item) => item.barcode);
 
   if (!cleanedRows.length) {
-    throw new Error("No valid product rows were found in the uploaded CSV");
+    throw new Error(copy.errors.noValidRows);
   }
 
   return ["barcode,name", ...cleanedRows.map((item) => `${item.barcode},${item.name}`)].join("\n");
@@ -168,6 +288,8 @@ async function readCsvFile(file: File) {
 
 export function BrandProductsWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = brandProductsCopy[language];
   const [products, setProducts] = useState<BrandProduct[]>([]);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -194,12 +316,12 @@ export function BrandProductsWorkspace() {
         const productsResult = await apiFetch("/brand/products", { token });
         setProducts(((productsResult as BrandProductsResponse)?.products ?? []) as BrandProduct[]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load brand products");
+        setError(err instanceof Error ? err.message : copy.errors.load);
       } finally {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [copy.errors.load, router]);
 
   function upsertProduct(product: BrandProduct) {
     setProducts((current) =>
@@ -241,7 +363,7 @@ export function BrandProductsWorkspace() {
       setImportingProducts(true);
       setImportError(null);
       setImportSummary(null);
-      const csv = await readCsvFile(file);
+      const csv = await readCsvFile(file, copy);
       const result = await apiFetch("/brand/products/import", {
         token,
         method: "POST",
@@ -256,7 +378,7 @@ export function BrandProductsWorkspace() {
       const refreshed = await apiFetch("/brand/products", { token });
       setProducts(((refreshed as BrandProductsResponse)?.products ?? []) as BrandProduct[]);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Unable to import products");
+      setImportError(err instanceof Error ? err.message : copy.errors.import);
     } finally {
       setImportingProducts(false);
       if (event.target) event.target.value = "";
@@ -289,7 +411,7 @@ export function BrandProductsWorkspace() {
       setEditingProduct(null);
       setShowProductModal(false);
     } catch (err) {
-      setProductError(err instanceof Error ? err.message : "Unable to save product");
+      setProductError(err instanceof Error ? err.message : copy.errors.save);
     } finally {
       setProductSaving(false);
     }
@@ -311,7 +433,7 @@ export function BrandProductsWorkspace() {
       const saved = (result as { product?: BrandProduct })?.product;
       if (saved) upsertProduct(saved);
     } catch (err) {
-      setProductError(err instanceof Error ? err.message : "Unable to update product");
+      setProductError(err instanceof Error ? err.message : copy.errors.update);
     }
   }
 
@@ -322,7 +444,7 @@ export function BrandProductsWorkspace() {
       return;
     }
 
-    const confirmed = window.confirm(`Remove ${product.name} from your brand product catalog?`);
+    const confirmed = window.confirm(copy.confirmRemove(product.name));
     if (!confirmed) return;
 
     try {
@@ -333,7 +455,7 @@ export function BrandProductsWorkspace() {
       });
       setProducts((current) => current.filter((item) => item.id !== product.id));
     } catch (err) {
-      setProductError(err instanceof Error ? err.message : "Unable to remove product");
+      setProductError(err instanceof Error ? err.message : copy.errors.remove);
     }
   }
 
@@ -351,7 +473,7 @@ export function BrandProductsWorkspace() {
       ...products.map((product) => [
         product.barcode,
         product.name,
-        product.verificationStatus === "verified" ? "Verified" : "Needs review",
+        product.verificationStatus === "verified" ? copy.status.verified : copy.status.needsReview,
         product.source,
       ]),
     ];
@@ -372,7 +494,7 @@ export function BrandProductsWorkspace() {
   const needsReviewProductCount = products.filter((product) => product.verificationStatus !== "verified").length;
 
   if (loading) {
-    return <EmptyCopy>Loading brand products...</EmptyCopy>;
+    return <EmptyCopy>{copy.loading}</EmptyCopy>;
   }
 
   if (error) {
@@ -388,42 +510,42 @@ export function BrandProductsWorkspace() {
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <p className="max-w-2xl text-sm leading-6 text-[var(--gl-ink-muted)]">
-            These products define what counts toward your brand dashboard. Add missing barcodes here to keep reporting accurate.
+            {copy.intro}
           </p>
           <div className="flex flex-wrap gap-2">
-            <ActionButton onClick={handleDownloadProductCatalog} icon={<Download size={15} />}>Download catalog</ActionButton>
-            <ActionButton onClick={openImportModal} icon={<Upload size={15} />}>Upload CSV</ActionButton>
+            <ActionButton onClick={handleDownloadProductCatalog} icon={<Download size={15} />}>{copy.actions.downloadCatalog}</ActionButton>
+            <ActionButton onClick={openImportModal} icon={<Upload size={15} />}>{copy.actions.uploadCsv}</ActionButton>
             <button
               onClick={openCreateProductModal}
               className="inline-flex items-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--gl-green-deep)]"
             >
               <Plus size={15} />
-              Add Product
+              {copy.actions.addProduct}
             </button>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <MiniMetric label="Products" value={String(products.length)} />
-          <MiniMetric label="Verified" value={String(verifiedProductCount)} />
-          <MiniMetric label="Need review" value={String(needsReviewProductCount)} />
+          <MiniMetric label={copy.metrics.products} value={String(products.length)} />
+          <MiniMetric label={copy.metrics.verified} value={String(verifiedProductCount)} />
+          <MiniMetric label={copy.metrics.needReview} value={String(needsReviewProductCount)} />
         </div>
 
         <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--gl-hairline)]">
           <table className="min-w-[680px] w-full text-left text-sm">
             <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr className="border-b border-[var(--gl-hairline)]">
-                <th className="px-4 py-2.5 font-medium">Product</th>
-                <th className="px-4 py-2.5 font-medium">Barcode</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+                <th className="px-4 py-2.5 font-medium">{copy.table.product}</th>
+                <th className="px-4 py-2.5 font-medium">{copy.table.barcode}</th>
+                <th className="px-4 py-2.5 font-medium">{copy.table.status}</th>
+                <th className="px-4 py-2.5 text-right font-medium">{copy.table.actions}</th>
               </tr>
             </thead>
             <tbody>
               {visibleProducts.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-10 text-center text-sm text-[var(--gl-ink-muted)]">
-                    No products added yet. Add your first barcode to start controlling what counts for this brand.
+                    {copy.table.empty}
                   </td>
                 </tr>
               ) : (
@@ -432,15 +554,15 @@ export function BrandProductsWorkspace() {
                     <td className="px-4 py-2.5 font-medium text-[var(--gl-ink)]">{product.name}</td>
                     <td className="px-4 py-2.5 text-[var(--gl-ink-muted)]">{product.barcode}</td>
                     <td className="px-4 py-2.5">
-                      <StatusBadge status={product.verificationStatus} />
+                      <StatusBadge status={product.verificationStatus} copy={copy} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
-                        <SmallButton onClick={() => openEditProductModal(product)}>Edit</SmallButton>
+                        <SmallButton onClick={() => openEditProductModal(product)}>{copy.actions.edit}</SmallButton>
                         {product.verificationStatus !== "verified" ? (
-                          <SmallButton onClick={() => handleMarkVerified(product)} kind="success">Mark verified</SmallButton>
+                          <SmallButton onClick={() => handleMarkVerified(product)} kind="success">{copy.actions.markVerified}</SmallButton>
                         ) : null}
-                        <SmallButton onClick={() => handleDeleteProduct(product)} kind="danger">Delete</SmallButton>
+                        <SmallButton onClick={() => handleDeleteProduct(product)} kind="danger">{copy.actions.delete}</SmallButton>
                       </div>
                     </td>
                   </tr>
@@ -452,20 +574,20 @@ export function BrandProductsWorkspace() {
 
         {products.length > visibleProducts.length ? (
           <p className="mt-3 text-xs text-[var(--gl-ink-faint)]">
-            Showing the first {visibleProducts.length} products for now.
+            {copy.table.showingFirst(visibleProducts.length)}
           </p>
         ) : null}
       </section>
 
       {showImportModal ? (
         <ModalShell>
-          <h3 className="text-xl font-semibold text-[var(--gl-ink)]">Upload Products CSV</h3>
+          <h3 className="text-xl font-semibold text-[var(--gl-ink)]">{copy.importModal.title}</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">
-            Upload a simple CSV with <span className="font-semibold text-[var(--gl-ink)]">barcode,name</span> so we can assign products to your brand in bulk.
+            {copy.importModal.descriptionStart} <span className="font-semibold text-[var(--gl-ink)]">barcode,name</span> {copy.importModal.descriptionEnd}
           </p>
 
           <div className="mt-5 rounded-xl border border-dashed border-[var(--gl-hairline-strong)] bg-[var(--gl-card-cream)] p-4">
-            <p className="text-sm font-semibold text-[var(--gl-ink)]">Expected format</p>
+            <p className="text-sm font-semibold text-[var(--gl-ink)]">{copy.importModal.expectedFormat}</p>
             <pre className="mt-3 overflow-x-auto rounded-lg bg-[var(--gl-paper)] p-3 text-xs text-[var(--gl-ink-muted)]">barcode,name{"\n"}5449000000996,Coca-Cola Zero 330ml{"\n"}5449000131805,Fanta Orange 330ml</pre>
             <input
               ref={csvInputRef}
@@ -484,12 +606,12 @@ export function BrandProductsWorkspace() {
 
           {importSummary ? (
             <div className="mt-4 rounded-xl border border-[var(--gl-green-soft)] bg-[var(--gl-green-soft)] p-4">
-              <p className="text-base font-semibold text-[var(--gl-green-deep)]">Import complete</p>
+              <p className="text-base font-semibold text-[var(--gl-green-deep)]">{copy.importModal.importComplete}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <MiniMetric label="Added" value={String(importSummary.added)} />
-                <MiniMetric label="Updated" value={String(importSummary.updated)} />
-                <MiniMetric label="Need review" value={String(importSummary.needsReview)} />
-                <MiniMetric label="Skipped" value={String(importSummary.skipped)} />
+                <MiniMetric label={copy.importModal.added} value={String(importSummary.added)} />
+                <MiniMetric label={copy.importModal.updated} value={String(importSummary.updated)} />
+                <MiniMetric label={copy.importModal.needReview} value={String(importSummary.needsReview)} />
+                <MiniMetric label={copy.importModal.skipped} value={String(importSummary.skipped)} />
               </div>
             </div>
           ) : null}
@@ -503,7 +625,7 @@ export function BrandProductsWorkspace() {
               }}
               className="rounded-lg border border-[var(--gl-hairline)] px-5 py-2.5 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
             >
-              {importingProducts ? "Uploading..." : importSummary ? "Close" : "Cancel"}
+              {importingProducts ? copy.actions.uploading : importSummary ? copy.actions.close : copy.actions.cancel}
             </button>
           </div>
         </ModalShell>
@@ -511,14 +633,14 @@ export function BrandProductsWorkspace() {
 
       {showProductModal ? (
         <ModalShell>
-          <h3 className="text-xl font-semibold text-[var(--gl-ink)]">{editingProduct ? "Edit Product" : "Add Product"}</h3>
+          <h3 className="text-xl font-semibold text-[var(--gl-ink)]">{editingProduct ? copy.productModal.editTitle : copy.productModal.addTitle}</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">
-            Add a barcode and product name to assign it to your brand.
+            {copy.productModal.description}
           </p>
 
           <div className="mt-5 space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-[var(--gl-ink-soft)]">Barcode</span>
+              <span className="mb-1.5 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.productModal.barcode}</span>
               <input
                 value={productForm.barcode}
                 onChange={(event) => setProductForm((current) => ({ ...current, barcode: event.target.value }))}
@@ -529,7 +651,7 @@ export function BrandProductsWorkspace() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-[var(--gl-ink-soft)]">Product name</span>
+              <span className="mb-1.5 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.productModal.productName}</span>
               <input
                 value={productForm.name}
                 onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))}
@@ -551,7 +673,7 @@ export function BrandProductsWorkspace() {
               disabled={productSaving}
               className="flex-1 rounded-lg bg-[var(--gl-green)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {productSaving ? "Saving..." : editingProduct ? "Save Changes" : "Save Product"}
+              {productSaving ? copy.actions.saving : editingProduct ? copy.actions.saveChanges : copy.actions.saveProduct}
             </button>
             <button
               onClick={() => {
@@ -560,7 +682,7 @@ export function BrandProductsWorkspace() {
               }}
               className="rounded-lg border border-[var(--gl-hairline)] px-5 py-2.5 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
             >
-              Cancel
+              {copy.actions.cancel}
             </button>
           </div>
         </ModalShell>
@@ -590,7 +712,7 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, copy }: { status: string; copy: BrandProductsCopy }) {
   const verified = status === "verified";
   return (
     <span
@@ -600,7 +722,7 @@ function StatusBadge({ status }: { status: string }) {
           : "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"
       }`}
     >
-      {verified ? "Verified" : "Needs review"}
+      {verified ? copy.status.verified : copy.status.needsReview}
     </span>
   );
 }

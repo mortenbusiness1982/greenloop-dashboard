@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type Brand = {
   id: string;
@@ -43,10 +44,135 @@ type Partner = {
   status?: string;
 };
 
-function formatDate(value: string | null | undefined) {
+const networkCopy = {
+  en: {
+    eyebrow: "Catalog & Network",
+    common: {
+      detail: "Detail",
+      products: "Products",
+      reports: "Reports",
+      links: "Links",
+      created: "Created",
+      status: "Status",
+      active: "active",
+      inactive: "inactive",
+      unknown: "unknown",
+    },
+    brands: {
+      loadError: "Unable to load brands",
+      title: "Brands",
+      description: "Manage brand customers, assigned products, brand admins, brand rewards, and brand-level operational visibility.",
+      reportsButton: "Brand reports",
+      kpis: ["Brands", "Assigned products", "Brand admins", "Brand rewards"],
+      tableTitle: "Brand list",
+      tableDescription: "Counts are calculated from existing products, users, rewards, and ledger data.",
+      search: "Search brand",
+      loading: "Loading brands...",
+      empty: "No brands match the current search.",
+      headers: ["Brand", "Products", "Admins", "Rewards", "EcoPoints issued", "Created", "Links"],
+    },
+    products: {
+      loadError: "Unable to load products",
+      title: "Products",
+      description: "Inspect barcode catalog health, brand assignment, verification status, placeholder products, and recycling usage.",
+      kpis: ["Loaded products", "Placeholder names", "Verified", "Recycled units"],
+      tableTitle: "Product catalog",
+      tableDescription: "Limited to 500 recent/filtered rows from the admin API.",
+      search: "Search name, barcode, brand",
+      allBrands: "All brands",
+      allStatuses: "All statuses",
+      verified: "Verified",
+      imported: "Imported",
+      pending: "Pending",
+      loading: "Loading products...",
+      empty: "No products match the current filters.",
+      unknownProduct: "Unknown product",
+      placeholderName: "Placeholder name",
+      headers: ["Product", "Brand", "Status", "Source", "Scans", "Units", "Updated"],
+    },
+    partners: {
+      loadError: "Unable to load partners",
+      title: "Partners",
+      description: "Inspect partner accounts, fulfillment activity, status, and partner-specific operational history.",
+      unlocksButton: "Reward unlocks",
+      kpis: ["Partners", "Active", "Fulfilled unlocks", "Inactive"],
+      tableTitle: "Partner accounts",
+      tableDescription: "Partners are currently derived from users with the partner role.",
+      search: "Search partner",
+      loading: "Loading partners...",
+      empty: "No partners match the current search.",
+      unnamed: "Unnamed partner",
+      unlockHistory: "Unlock history",
+      headers: ["Partner", "Status", "Fulfilled unlocks", "Last fulfillment", "Created", "Links"],
+    },
+  },
+  es: {
+    eyebrow: "Catálogo y red",
+    common: {
+      detail: "Detalle",
+      products: "Productos",
+      reports: "Informes",
+      links: "Enlaces",
+      created: "Creado",
+      status: "Estado",
+      active: "activo",
+      inactive: "inactivo",
+      unknown: "desconocido",
+    },
+    brands: {
+      loadError: "No se pudieron cargar las marcas",
+      title: "Marcas",
+      description: "Gestiona clientes de marca, productos asignados, admins de marca, recompensas de marca y visibilidad operativa.",
+      reportsButton: "Informes de marca",
+      kpis: ["Marcas", "Productos asignados", "Admins de marca", "Recompensas de marca"],
+      tableTitle: "Lista de marcas",
+      tableDescription: "Los recuentos se calculan desde productos, usuarios, recompensas y datos de ledger existentes.",
+      search: "Buscar marca",
+      loading: "Cargando marcas...",
+      empty: "Ninguna marca coincide con la búsqueda actual.",
+      headers: ["Marca", "Productos", "Admins", "Recompensas", "EcoPoints emitidos", "Creado", "Enlaces"],
+    },
+    products: {
+      loadError: "No se pudieron cargar los productos",
+      title: "Productos",
+      description: "Inspecciona la salud del catálogo de códigos de barras, asignación de marca, verificación, productos placeholder y uso de reciclaje.",
+      kpis: ["Productos cargados", "Nombres placeholder", "Verificados", "Unidades recicladas"],
+      tableTitle: "Catálogo de productos",
+      tableDescription: "Limitado a 500 filas recientes/filtradas desde la API admin.",
+      search: "Buscar nombre, código de barras, marca",
+      allBrands: "Todas las marcas",
+      allStatuses: "Todos los estados",
+      verified: "Verificado",
+      imported: "Importado",
+      pending: "Pendiente",
+      loading: "Cargando productos...",
+      empty: "Ningún producto coincide con los filtros actuales.",
+      unknownProduct: "Producto desconocido",
+      placeholderName: "Nombre placeholder",
+      headers: ["Producto", "Marca", "Estado", "Fuente", "Escaneos", "Unidades", "Actualizado"],
+    },
+    partners: {
+      loadError: "No se pudieron cargar los partners",
+      title: "Partners",
+      description: "Inspecciona cuentas partner, actividad de cumplimiento, estado e historial operativo específico de partners.",
+      unlocksButton: "Desbloqueos",
+      kpis: ["Partners", "Activos", "Desbloqueos cumplidos", "Inactivos"],
+      tableTitle: "Cuentas partner",
+      tableDescription: "Los partners se derivan actualmente de usuarios con rol partner.",
+      search: "Buscar partner",
+      loading: "Cargando partners...",
+      empty: "Ningún partner coincide con la búsqueda actual.",
+      unnamed: "Partner sin nombre",
+      unlockHistory: "Historial de desbloqueos",
+      headers: ["Partner", "Estado", "Desbloqueos cumplidos", "Último cumplimiento", "Creado", "Enlaces"],
+    },
+  },
+} as const;
+
+function formatDate(value: string | null | undefined, language: DashboardLanguage = "en") {
   if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language === "es" ? "es-ES" : "en-US");
 }
 
 function normalizeList<T>(value: unknown, key: string): T[] {
@@ -60,6 +186,8 @@ function normalizeList<T>(value: unknown, key: string): T[] {
 
 export function AdminBrandsWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = networkCopy[language];
   const [brands, setBrands] = useState<Brand[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -74,11 +202,11 @@ export function AdminBrandsWorkspace() {
       const result = await apiFetch("/admin/brands", { token });
       setBrands(normalizeList<Brand>(result, "brands"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load brands");
+      setError(err instanceof Error ? err.message : copy.brands.loadError);
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [copy.brands.loadError, router]);
 
   useEffect(() => {
     void loadBrands();
@@ -101,40 +229,34 @@ export function AdminBrandsWorkspace() {
 
   return (
     <WorkspaceFrame
-      eyebrow="Catalog & Network"
-      title="Brands"
-      description="Manage brand customers, assigned products, brand admins, brand rewards, and brand-level operational visibility."
+      eyebrow={copy.eyebrow}
+      title={copy.brands.title}
+      description={copy.brands.description}
       error={error}
-      actions={<LinkButton href="/admin/reports/brands">Brand reports</LinkButton>}
+      actions={<LinkButton href="/admin/reports/brands">{copy.brands.reportsButton}</LinkButton>}
     >
       <KpiGrid>
-        <Kpi label="Brands" value={totals.brands} />
-        <Kpi label="Assigned products" value={totals.products} />
-        <Kpi label="Brand admins" value={totals.admins} />
-        <Kpi label="Brand rewards" value={totals.rewards} />
+        <Kpi label={copy.brands.kpis[0]} value={totals.brands} />
+        <Kpi label={copy.brands.kpis[1]} value={totals.products} />
+        <Kpi label={copy.brands.kpis[2]} value={totals.admins} />
+        <Kpi label={copy.brands.kpis[3]} value={totals.rewards} />
       </KpiGrid>
       <TableCard
-        title="Brand list"
-        description="Counts are calculated from existing products, users, rewards, and ledger data."
-        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search brand" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />}
+        title={copy.brands.tableTitle}
+        description={copy.brands.tableDescription}
+        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.brands.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />}
       >
         <table className="min-w-[850px] w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-2.5">Brand</th>
-              <th className="px-4 py-2.5">Products</th>
-              <th className="px-4 py-2.5">Admins</th>
-              <th className="px-4 py-2.5">Rewards</th>
-              <th className="px-4 py-2.5">EcoPoints issued</th>
-              <th className="px-4 py-2.5">Created</th>
-              <th className="px-4 py-2.5">Links</th>
+              {copy.brands.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={7} text="Loading brands..." />
+              <EmptyRow colSpan={7} text={copy.brands.loading} />
             ) : filtered.length === 0 ? (
-              <EmptyRow colSpan={7} text="No brands match the current search." />
+              <EmptyRow colSpan={7} text={copy.brands.empty} />
             ) : (
               filtered.map((brand) => (
                 <tr key={brand.id} className="border-t border-slate-100 hover:bg-slate-50/70">
@@ -146,12 +268,12 @@ export function AdminBrandsWorkspace() {
                   <td className="px-4 py-2.5">{brand.admin_count || 0}</td>
                   <td className="px-4 py-2.5">{brand.reward_count || 0}</td>
                   <td className="px-4 py-2.5">{brand.eco_points_issued || 0}</td>
-                  <td className="px-4 py-2.5">{formatDate(brand.created_at)}</td>
+                  <td className="px-4 py-2.5">{formatDate(brand.created_at, language)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-2">
-                      <Link href={`/admin/brands/${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Detail</Link>
-                      <Link href={`/admin/products?brandId=${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Products</Link>
-                      <Link href={`/admin/reports/brands?brandId=${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Reports</Link>
+                      <Link href={`/admin/brands/${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.detail}</Link>
+                      <Link href={`/admin/products?brandId=${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.products}</Link>
+                      <Link href={`/admin/reports/brands?brandId=${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.reports}</Link>
                     </div>
                   </td>
                 </tr>
@@ -166,6 +288,8 @@ export function AdminBrandsWorkspace() {
 
 export function AdminProductsWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = networkCopy[language];
   const [products, setProducts] = useState<Product[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [query, setQuery] = useState("");
@@ -191,11 +315,11 @@ export function AdminProductsWorkspace() {
       setProducts(normalizeList<Product>(productsResult, "products"));
       setBrands(normalizeList<Brand>(brandsResult, "brands"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load products");
+      setError(err instanceof Error ? err.message : copy.products.loadError);
     } finally {
       setLoading(false);
     }
-  }, [brandId, query, router, verificationStatus]);
+  }, [brandId, copy.products.loadError, query, router, verificationStatus]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadProducts(), 250);
@@ -214,32 +338,32 @@ export function AdminProductsWorkspace() {
 
   return (
     <WorkspaceFrame
-      eyebrow="Catalog & Network"
-      title="Products"
-      description="Inspect barcode catalog health, brand assignment, verification status, placeholder products, and recycling usage."
+      eyebrow={copy.eyebrow}
+      title={copy.products.title}
+      description={copy.products.description}
       error={error}
     >
       <KpiGrid>
-        <Kpi label="Loaded products" value={totals.products} />
-        <Kpi label="Placeholder names" value={totals.placeholders} />
-        <Kpi label="Verified" value={totals.verified} />
-        <Kpi label="Recycled units" value={totals.units} />
+        <Kpi label={copy.products.kpis[0]} value={totals.products} />
+        <Kpi label={copy.products.kpis[1]} value={totals.placeholders} />
+        <Kpi label={copy.products.kpis[2]} value={totals.verified} />
+        <Kpi label={copy.products.kpis[3]} value={totals.units} />
       </KpiGrid>
       <TableCard
-        title="Product catalog"
-        description="Limited to 500 recent/filtered rows from the admin API."
+        title={copy.products.tableTitle}
+        description={copy.products.tableDescription}
         controls={
           <div className="flex flex-col gap-2 lg:flex-row">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, barcode, brand" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.products.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <select value={brandId} onChange={(event) => setBrandId(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="">All brands</option>
+              <option value="">{copy.products.allBrands}</option>
               {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
             </select>
             <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="">All statuses</option>
-              <option value="verified">Verified</option>
-              <option value="imported">Imported</option>
-              <option value="pending">Pending</option>
+              <option value="">{copy.products.allStatuses}</option>
+              <option value="verified">{copy.products.verified}</option>
+              <option value="imported">{copy.products.imported}</option>
+              <option value="pending">{copy.products.pending}</option>
             </select>
           </div>
         }
@@ -247,34 +371,28 @@ export function AdminProductsWorkspace() {
         <table className="min-w-[1050px] w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-2.5">Product</th>
-              <th className="px-4 py-2.5">Brand</th>
-              <th className="px-4 py-2.5">Status</th>
-              <th className="px-4 py-2.5">Source</th>
-              <th className="px-4 py-2.5">Scans</th>
-              <th className="px-4 py-2.5">Units</th>
-              <th className="px-4 py-2.5">Updated</th>
+              {copy.products.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={7} text="Loading products..." />
+              <EmptyRow colSpan={7} text={copy.products.loading} />
             ) : products.length === 0 ? (
-              <EmptyRow colSpan={7} text="No products match the current filters." />
+              <EmptyRow colSpan={7} text={copy.products.empty} />
             ) : (
               products.map((product) => (
                 <tr key={product.id} className="border-t border-slate-100 hover:bg-slate-50/70">
                   <td className="px-4 py-2.5">
-                    <div className="font-semibold text-slate-950">{product.name || product.ean || "Unknown product"}</div>
+                    <div className="font-semibold text-slate-950">{product.name || product.ean || copy.products.unknownProduct}</div>
                     <div className="text-xs text-slate-500">{product.ean || product.barcode || "-"}</div>
-                    {product.is_placeholder_name ? <Badge tone="amber">Placeholder name</Badge> : null}
+                    {product.is_placeholder_name ? <Badge tone="amber">{copy.products.placeholderName}</Badge> : null}
                   </td>
                   <td className="px-4 py-2.5">{product.brand_name || "-"}</td>
-                  <td className="px-4 py-2.5"><Badge tone={product.verification_status === "verified" ? "green" : "slate"}>{product.verification_status || "unknown"}</Badge></td>
+                  <td className="px-4 py-2.5"><Badge tone={product.verification_status === "verified" ? "green" : "slate"}>{product.verification_status || copy.common.unknown}</Badge></td>
                   <td className="px-4 py-2.5">{product.source || "-"}</td>
                   <td className="px-4 py-2.5">{product.scan_count || 0}</td>
                   <td className="px-4 py-2.5">{product.recycled_units_count || 0}</td>
-                  <td className="px-4 py-2.5">{formatDate(product.updated_at)}</td>
+                  <td className="px-4 py-2.5">{formatDate(product.updated_at, language)}</td>
                 </tr>
               ))
             )}
@@ -287,6 +405,8 @@ export function AdminProductsWorkspace() {
 
 export function AdminPartnersWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = networkCopy[language];
   const [partners, setPartners] = useState<Partner[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -301,11 +421,11 @@ export function AdminPartnersWorkspace() {
       const result = await apiFetch("/admin/partners", { token });
       setPartners(normalizeList<Partner>(result, "partners"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load partners");
+      setError(err instanceof Error ? err.message : copy.partners.loadError);
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [copy.partners.loadError, router]);
 
   useEffect(() => {
     void loadPartners();
@@ -331,55 +451,50 @@ export function AdminPartnersWorkspace() {
 
   return (
     <WorkspaceFrame
-      eyebrow="Catalog & Network"
-      title="Partners"
-      description="Inspect partner accounts, fulfillment activity, status, and partner-specific operational history."
+      eyebrow={copy.eyebrow}
+      title={copy.partners.title}
+      description={copy.partners.description}
       error={error}
-      actions={<LinkButton href="/admin/rewards/unlocks">Reward unlocks</LinkButton>}
+      actions={<LinkButton href="/admin/rewards/unlocks">{copy.partners.unlocksButton}</LinkButton>}
     >
       <KpiGrid>
-        <Kpi label="Partners" value={totals.partners} />
-        <Kpi label="Active" value={totals.active} />
-        <Kpi label="Fulfilled unlocks" value={totals.fulfilled} />
-        <Kpi label="Inactive" value={totals.inactive} />
+        <Kpi label={copy.partners.kpis[0]} value={totals.partners} />
+        <Kpi label={copy.partners.kpis[1]} value={totals.active} />
+        <Kpi label={copy.partners.kpis[2]} value={totals.fulfilled} />
+        <Kpi label={copy.partners.kpis[3]} value={totals.inactive} />
       </KpiGrid>
       <TableCard
-        title="Partner accounts"
-        description="Partners are currently derived from users with the partner role."
-        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search partner" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />}
+        title={copy.partners.tableTitle}
+        description={copy.partners.tableDescription}
+        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.partners.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />}
       >
         <table className="min-w-[850px] w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-2.5">Partner</th>
-              <th className="px-4 py-2.5">Status</th>
-              <th className="px-4 py-2.5">Fulfilled unlocks</th>
-              <th className="px-4 py-2.5">Last fulfillment</th>
-              <th className="px-4 py-2.5">Created</th>
-              <th className="px-4 py-2.5">Links</th>
+              {copy.partners.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={6} text="Loading partners..." />
+              <EmptyRow colSpan={6} text={copy.partners.loading} />
             ) : filtered.length === 0 ? (
-              <EmptyRow colSpan={6} text="No partners match the current search." />
+              <EmptyRow colSpan={6} text={copy.partners.empty} />
             ) : (
               filtered.map((partner) => (
                 <tr key={partner.id} className="border-t border-slate-100 hover:bg-slate-50/70">
                   <td className="px-4 py-2.5">
-                    <div className="font-semibold text-slate-950">{partner.display_name || partner.email || "Unnamed partner"}</div>
+                    <div className="font-semibold text-slate-950">{partner.display_name || partner.email || copy.partners.unnamed}</div>
                     <div className="text-xs text-slate-500">{partner.email || partner.id}</div>
                   </td>
-                  <td className="px-4 py-2.5"><Badge tone={partner.deactivated_at ? "slate" : "green"}>{partner.deactivated_at ? "inactive" : "active"}</Badge></td>
+                  <td className="px-4 py-2.5"><Badge tone={partner.deactivated_at ? "slate" : "green"}>{partner.deactivated_at ? copy.common.inactive : copy.common.active}</Badge></td>
                   <td className="px-4 py-2.5">{partner.fulfilled_unlocks_count || 0}</td>
-                  <td className="px-4 py-2.5">{formatDate(partner.last_fulfillment_at)}</td>
-                  <td className="px-4 py-2.5">{formatDate(partner.created_at)}</td>
+                  <td className="px-4 py-2.5">{formatDate(partner.last_fulfillment_at, language)}</td>
+                  <td className="px-4 py-2.5">{formatDate(partner.created_at, language)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-2">
-                      <Link href={`/admin/partners/${partner.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Detail</Link>
+                      <Link href={`/admin/partners/${partner.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.detail}</Link>
                       <Link href={`/admin/rewards/unlocks?partnerId=${partner.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">
-                        Unlock history
+                        {copy.partners.unlockHistory}
                       </Link>
                     </div>
                   </td>

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type PlatformReport = {
   totals?: {
@@ -99,13 +100,142 @@ const emptyState: OverviewState = {
 };
 
 const moduleLinks = [
-  { title: "Users", href: "/admin/users", icon: Users, description: "Support users, roles, avatar resets, and recycling history." },
-  { title: "Activity", href: "/admin/activity", icon: Activity, description: "Inspect scans and recycling events with date, city, and user filters." },
-  { title: "Rewards", href: "/admin/rewards", icon: Gift, description: "Manage reward engine inventory, placement, status, and archive flow." },
-  { title: "Challenges", href: "/admin/challenges", icon: Flag, description: "Create and monitor global, community, and personal challenges." },
-  { title: "Moderation", href: "/admin/moderation", icon: ShieldCheck, description: "Review evidence, risk, validation status, and fraud signals." },
-  { title: "Reports", href: "/admin/reports", icon: BarChart3, description: "Open platform, brand, user, geo, and export reporting workspaces." },
-];
+  { key: "users", href: "/admin/users", icon: Users },
+  { key: "activity", href: "/admin/activity", icon: Activity },
+  { key: "rewards", href: "/admin/rewards", icon: Gift },
+  { key: "challenges", href: "/admin/challenges", icon: Flag },
+  { key: "moderation", href: "/admin/moderation", icon: ShieldCheck },
+  { key: "reports", href: "/admin/reports", icon: BarChart3 },
+] as const;
+
+const adminOverviewCopy = {
+  en: {
+    loadError: "Unable to load admin overview",
+    hero: {
+      badge: "Superadmin CRM",
+      title: "Overview",
+      description: "Command center for platform health, user support volume, recycling activity, rewards, challenges, and operational shortcuts.",
+      reviewActivity: "Review Activity",
+      exportCenter: "Export Center",
+    },
+    summary: {
+      platformVolume: "Platform Volume",
+      network: "Network",
+      rewardMotion: "Reward Motion",
+      unitsAcross: (events: string) => `units across ${events} events`,
+      brandsAndPartners: "brands and active partners",
+      ecoPointsToDate: "EcoPoints issued to date",
+    },
+    kpis: [
+      { label: "Total Users", helper: "Registered accounts" },
+      { label: "New Users 30d", helper: "Recent signup volume" },
+      { label: "Recycled Units", helper: "Validated platform units" },
+      { label: "Recycling Events", helper: "Total event records" },
+      { label: "EcoPoints Issued", helper: "Reward currency issued" },
+      { label: "Active Rewards", helper: "Live reward offers" },
+      { label: "Active Unlocks", helper: "Open redemptions" },
+      { label: "Active Challenges", helper: "Running challenges" },
+      { label: "Brands", helper: "Brand accounts" },
+      { label: "Partners", helper: "Active partner locations" },
+    ],
+    activity: {
+      title: "Recent platform activity",
+      subtitle: "Latest recycling events pulled from platform reporting.",
+      open: "Open full activity",
+      when: "When",
+      user: "User",
+      product: "Product",
+      units: "Units",
+      city: "City",
+      points: "Points",
+      status: "Status",
+      loading: "Loading overview...",
+      empty: "No recent activity available.",
+      unknownUser: "Unknown user",
+      unknownProduct: "Unknown product",
+    },
+    cities: {
+      title: "Top cities",
+      subtitle: "By recycled units",
+      loading: "Loading city activity...",
+      empty: "No city data available.",
+      unknown: "Unknown city",
+      units: "units",
+    },
+    modulesTitle: "Operational modules",
+    modules: {
+      users: ["Users", "Support users, roles, avatar resets, and recycling history."],
+      activity: ["Activity", "Inspect scans and recycling events with date, city, and user filters."],
+      rewards: ["Rewards", "Manage reward engine inventory, placement, status, and archive flow."],
+      challenges: ["Challenges", "Create and monitor global, community, and personal challenges."],
+      moderation: ["Moderation", "Review evidence, risk, validation status, and fraud signals."],
+      reports: ["Reports", "Open platform, brand, user, geo, and export reporting workspaces."],
+    },
+  },
+  es: {
+    loadError: "No se pudo cargar el resumen de admin",
+    hero: {
+      badge: "CRM Superadmin",
+      title: "Resumen",
+      description: "Centro de control para salud de plataforma, volumen de soporte, actividad de reciclaje, recompensas, retos y accesos operativos.",
+      reviewActivity: "Revisar actividad",
+      exportCenter: "Centro de exportación",
+    },
+    summary: {
+      platformVolume: "Volumen de plataforma",
+      network: "Red",
+      rewardMotion: "Movimiento de recompensas",
+      unitsAcross: (events: string) => `unidades en ${events} eventos`,
+      brandsAndPartners: "marcas y partners activos",
+      ecoPointsToDate: "EcoPoints emitidos hasta la fecha",
+    },
+    kpis: [
+      { label: "Usuarios totales", helper: "Cuentas registradas" },
+      { label: "Usuarios nuevos 30d", helper: "Volumen reciente de altas" },
+      { label: "Unidades recicladas", helper: "Unidades validadas de plataforma" },
+      { label: "Eventos de reciclaje", helper: "Registros totales de eventos" },
+      { label: "EcoPoints emitidos", helper: "Moneda de recompensas emitida" },
+      { label: "Recompensas activas", helper: "Ofertas de recompensa activas" },
+      { label: "Desbloqueos activos", helper: "Canjes abiertos" },
+      { label: "Retos activos", helper: "Retos en curso" },
+      { label: "Marcas", helper: "Cuentas de marca" },
+      { label: "Partners", helper: "Ubicaciones partner activas" },
+    ],
+    activity: {
+      title: "Actividad reciente de plataforma",
+      subtitle: "Últimos eventos de reciclaje desde los informes de plataforma.",
+      open: "Abrir actividad completa",
+      when: "Cuándo",
+      user: "Usuario",
+      product: "Producto",
+      units: "Unidades",
+      city: "Ciudad",
+      points: "Puntos",
+      status: "Estado",
+      loading: "Cargando resumen...",
+      empty: "No hay actividad reciente disponible.",
+      unknownUser: "Usuario desconocido",
+      unknownProduct: "Producto desconocido",
+    },
+    cities: {
+      title: "Ciudades principales",
+      subtitle: "Por unidades recicladas",
+      loading: "Cargando actividad por ciudad...",
+      empty: "No hay datos de ciudad disponibles.",
+      unknown: "Ciudad desconocida",
+      units: "unidades",
+    },
+    modulesTitle: "Módulos operativos",
+    modules: {
+      users: ["Usuarios", "Soporte de usuarios, roles, reinicio de avatar e historial de reciclaje."],
+      activity: ["Actividad", "Inspecciona escaneos y eventos con filtros por fecha, ciudad y usuario."],
+      rewards: ["Recompensas", "Gestiona inventario, ubicación, estado y archivo del motor de recompensas."],
+      challenges: ["Retos", "Crea y monitoriza retos globales, comunitarios y personales."],
+      moderation: ["Moderación", "Revisa evidencia, riesgo, estado de validación y señales de fraude."],
+      reports: ["Informes", "Abre espacios de informes de plataforma, marca, usuario, geo y exportación."],
+    },
+  },
+} as const;
 
 function normalizeList<T>(value: unknown, key: string): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -116,20 +246,20 @@ function normalizeList<T>(value: unknown, key: string): T[] {
   return [];
 }
 
-function formatNumber(value: number | undefined) {
-  return Number(value || 0).toLocaleString();
+function formatNumber(value: number | undefined, language: DashboardLanguage = "en") {
+  return Number(value || 0).toLocaleString(language === "es" ? "es-ES" : "en-US");
 }
 
-function formatShortDate(value?: string | null) {
+function formatShortDate(value?: string | null, language: DashboardLanguage = "en") {
   if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language === "es" ? "es-ES" : "en-US");
 }
 
-function formatTime(value?: string | null) {
+function formatTime(value?: string | null, language: DashboardLanguage = "en") {
   if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleTimeString(language === "es" ? "es-ES" : "en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
 function isActiveReward(reward: Reward) {
@@ -138,6 +268,8 @@ function isActiveReward(reward: Reward) {
 
 export function AdminOverviewWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = adminOverviewCopy[language];
   const [data, setData] = useState<OverviewState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,11 +305,11 @@ export function AdminOverviewWorkspace() {
         partners: normalizeList<Partner>(partners, "partners"),
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load admin overview");
+      setError(err instanceof Error ? err.message : copy.loadError);
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [copy.loadError, router]);
 
   useEffect(() => {
     void loadOverview();
@@ -214,16 +346,16 @@ export function AdminOverviewWorkspace() {
   const maxCityUnits = Math.max(...topCities.map((city) => Number(city.units || 0)), 1);
 
   const kpiCards = [
-    { label: "Total Users", value: kpis.totalUsers, icon: Users, accent: "#059669", helper: "Registered accounts" },
-    { label: "New Users 30d", value: kpis.newUsers, icon: Users, accent: "#0f766e", helper: "Recent signup volume" },
-    { label: "Recycled Units", value: kpis.totalUnits, icon: Activity, accent: "#2563eb", helper: "Validated platform units" },
-    { label: "Recycling Events", value: kpis.totalEvents, icon: CheckCircle2, accent: "#7c3aed", helper: "Total event records" },
-    { label: "EcoPoints Issued", value: kpis.ecoPoints, icon: Coins, accent: "#d97706", helper: "Reward currency issued" },
-    { label: "Active Rewards", value: kpis.activeRewards, icon: Gift, accent: "#db2777", helper: "Live reward offers" },
-    { label: "Active Unlocks", value: kpis.activeUnlocks, icon: TicketCheck, accent: "#16a34a", helper: "Open redemptions" },
-    { label: "Active Challenges", value: kpis.activeChallenges, icon: Flag, accent: "#ea580c", helper: "Running challenges" },
-    { label: "Brands", value: kpis.brands, icon: Store, accent: "#0891b2", helper: "Brand accounts" },
-    { label: "Partners", value: kpis.partners, icon: Building2, accent: "#475569", helper: "Active partner locations" },
+    { ...copy.kpis[0], value: kpis.totalUsers, icon: Users, accent: "#059669" },
+    { ...copy.kpis[1], value: kpis.newUsers, icon: Users, accent: "#0f766e" },
+    { ...copy.kpis[2], value: kpis.totalUnits, icon: Activity, accent: "#2563eb" },
+    { ...copy.kpis[3], value: kpis.totalEvents, icon: CheckCircle2, accent: "#7c3aed" },
+    { ...copy.kpis[4], value: kpis.ecoPoints, icon: Coins, accent: "#d97706" },
+    { ...copy.kpis[5], value: kpis.activeRewards, icon: Gift, accent: "#db2777" },
+    { ...copy.kpis[6], value: kpis.activeUnlocks, icon: TicketCheck, accent: "#16a34a" },
+    { ...copy.kpis[7], value: kpis.activeChallenges, icon: Flag, accent: "#ea580c" },
+    { ...copy.kpis[8], value: kpis.brands, icon: Store, accent: "#0891b2" },
+    { ...copy.kpis[9], value: kpis.partners, icon: Building2, accent: "#475569" },
   ];
 
   return (
@@ -233,20 +365,20 @@ export function AdminOverviewWorkspace() {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 shadow-sm">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Superadmin CRM
+              {copy.hero.badge}
             </div>
-            <h1 className="mt-4 text-4xl font-bold tracking-normal text-slate-950 md:text-5xl">Overview</h1>
+            <h1 className="mt-4 text-4xl font-bold tracking-normal text-slate-950 md:text-5xl">{copy.hero.title}</h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-              Command center for platform health, user support volume, recycling activity, rewards, challenges, and operational shortcuts.
+              {copy.hero.description}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/admin/activity" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-              Review Activity
+              {copy.hero.reviewActivity}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
             <Link href="/admin/reports/exports" className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-              Export Center
+              {copy.hero.exportCenter}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -254,19 +386,19 @@ export function AdminOverviewWorkspace() {
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
           <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Platform Volume</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(kpis.totalUnits)}</p>
-            <p className="mt-1 text-sm text-slate-600">units across {loading ? "-" : formatNumber(kpis.totalEvents)} events</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.summary.platformVolume}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(kpis.totalUnits, language)}</p>
+            <p className="mt-1 text-sm text-slate-600">{copy.summary.unitsAcross(loading ? "-" : formatNumber(kpis.totalEvents, language))}</p>
           </div>
           <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Network</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(kpis.brands + kpis.partners)}</p>
-            <p className="mt-1 text-sm text-slate-600">brands and active partners</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.summary.network}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(kpis.brands + kpis.partners, language)}</p>
+            <p className="mt-1 text-sm text-slate-600">{copy.summary.brandsAndPartners}</p>
           </div>
           <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reward Motion</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(kpis.ecoPoints)}</p>
-            <p className="mt-1 text-sm text-slate-600">EcoPoints issued to date</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.summary.rewardMotion}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(kpis.ecoPoints, language)}</p>
+            <p className="mt-1 text-sm text-slate-600">{copy.summary.ecoPointsToDate}</p>
           </div>
         </div>
       </section>
@@ -275,7 +407,7 @@ export function AdminOverviewWorkspace() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {kpiCards.map((card) => (
-          <Kpi key={card.label} {...card} loading={loading} />
+          <Kpi key={card.label} {...card} loading={loading} language={language} />
         ))}
       </div>
 
@@ -283,11 +415,11 @@ export function AdminOverviewWorkspace() {
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">Recent platform activity</h2>
-              <p className="text-sm text-slate-500">Latest recycling events pulled from platform reporting.</p>
+              <h2 className="text-lg font-semibold text-slate-950">{copy.activity.title}</h2>
+              <p className="text-sm text-slate-500">{copy.activity.subtitle}</p>
             </div>
             <Link href="/admin/activity" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-              Open full activity
+              {copy.activity.open}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -295,33 +427,33 @@ export function AdminOverviewWorkspace() {
             <table className="min-w-[780px] w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-2.5">When</th>
-                  <th className="px-4 py-2.5">User</th>
-                  <th className="px-4 py-2.5">Product</th>
-                  <th className="px-4 py-2.5">Units</th>
-                  <th className="px-4 py-2.5">City</th>
-                  <th className="px-4 py-2.5">Points</th>
-                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">{copy.activity.when}</th>
+                  <th className="px-4 py-2.5">{copy.activity.user}</th>
+                  <th className="px-4 py-2.5">{copy.activity.product}</th>
+                  <th className="px-4 py-2.5">{copy.activity.units}</th>
+                  <th className="px-4 py-2.5">{copy.activity.city}</th>
+                  <th className="px-4 py-2.5">{copy.activity.points}</th>
+                  <th className="px-4 py-2.5">{copy.activity.status}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Loading overview...</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{copy.activity.loading}</td></tr>
                 ) : recentEvents.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No recent activity available.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{copy.activity.empty}</td></tr>
                 ) : (
                   recentEvents.map((event, index) => (
                     <tr key={`${event.created_at || "event"}-${index}`} className="border-t border-slate-100 hover:bg-slate-50/70">
                       <td className="px-4 py-3 text-slate-700">
-                        <div className="font-medium text-slate-900">{formatShortDate(event.created_at)}</div>
-                        <div className="text-xs text-slate-500">{formatTime(event.created_at)}</div>
+                        <div className="font-medium text-slate-900">{formatShortDate(event.created_at, language)}</div>
+                        <div className="text-xs text-slate-500">{formatTime(event.created_at, language)}</div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-900">{event.display_name || "Unknown user"}</div>
+                        <div className="font-medium text-slate-900">{event.display_name || copy.activity.unknownUser}</div>
                         <div className="text-xs text-slate-500">{event.email || "-"}</div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-900">{event.product_name || "Unknown product"}</div>
+                        <div className="font-medium text-slate-900">{event.product_name || copy.activity.unknownProduct}</div>
                         <div className="text-xs text-slate-500">{event.barcode || "-"}</div>
                       </td>
                       <td className="px-4 py-2.5 text-slate-700">{event.units || 0}</td>
@@ -345,21 +477,21 @@ export function AdminOverviewWorkspace() {
                 <MapPin className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-950">Top cities</h2>
-                <p className="text-sm text-slate-500">By recycled units</p>
+                <h2 className="text-lg font-semibold text-slate-950">{copy.cities.title}</h2>
+                <p className="text-sm text-slate-500">{copy.cities.subtitle}</p>
               </div>
             </div>
             <div className="mt-4 space-y-3">
               {loading ? (
-                <p className="text-sm text-slate-500">Loading city activity...</p>
+                <p className="text-sm text-slate-500">{copy.cities.loading}</p>
               ) : topCities.length === 0 ? (
-                <p className="text-sm text-slate-500">No city data available.</p>
+                <p className="text-sm text-slate-500">{copy.cities.empty}</p>
               ) : (
                 topCities.map((city) => (
                   <div key={city.city || "unknown"} className="rounded-xl bg-slate-50 px-3 py-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium text-slate-800">{city.city || "Unknown city"}</span>
-                      <span className="shrink-0 text-slate-600">{formatNumber(city.units)} units</span>
+                      <span className="font-medium text-slate-800">{city.city || copy.cities.unknown}</span>
+                      <span className="shrink-0 text-slate-600">{formatNumber(city.units, language)} {copy.cities.units}</span>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                       <div
@@ -374,7 +506,7 @@ export function AdminOverviewWorkspace() {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-950">Operational modules</h2>
+            <h2 className="text-lg font-semibold text-slate-950">{copy.modulesTitle}</h2>
             <div className="mt-4 space-y-3">
               {moduleLinks.map((module) => (
                 <Link key={module.href} href={module.href} className="group flex gap-3 rounded-xl border border-slate-200 p-3 hover:border-emerald-300 hover:bg-emerald-50/50">
@@ -383,10 +515,10 @@ export function AdminOverviewWorkspace() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-900">{module.title}</span>
+                      <span className="font-semibold text-slate-900">{copy.modules[module.key][0]}</span>
                       <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-emerald-700" />
                     </div>
-                    <div className="mt-1 text-xs leading-5 text-slate-500">{module.description}</div>
+                    <div className="mt-1 text-xs leading-5 text-slate-500">{copy.modules[module.key][1]}</div>
                   </div>
                 </Link>
               ))}
@@ -422,6 +554,7 @@ function Kpi({
   icon: Icon,
   accent,
   helper,
+  language,
 }: {
   label: string;
   value: number;
@@ -429,13 +562,14 @@ function Kpi({
   icon: LucideIcon;
   accent: string;
   helper: string;
+  language: DashboardLanguage;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" style={{ borderTopColor: accent, borderTopWidth: 4 }}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-          <div className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(value)}</div>
+          <div className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : formatNumber(value, language)}</div>
         </div>
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50" style={{ color: accent }}>
           <Icon className="h-5 w-5" />

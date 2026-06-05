@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type Bin = {
   id: string;
@@ -36,10 +37,133 @@ function normalizeList<T>(value: unknown, key: string): T[] {
   return [];
 }
 
-function formatDate(value?: string | null) {
+const systemCopy = {
+  en: {
+    bins: {
+      loadError: "Unable to load bins",
+      eyebrow: "Bins / Locations",
+      title: "Recycling Infrastructure",
+      description: "Inspect user-reported recycling locations, coordinates, city metadata, source, verification signal, and recycling usage.",
+      openMaps: "Open maps",
+      exportBins: "Export bins",
+      kpis: ["Bins", "Active bins", "Recycled units", "Cities"],
+      tableTitle: "Bin list",
+      tableDescription: "Current schema supports coordinates, photo reference, creator, and usage-derived status.",
+      search: "Search id, city, user",
+      headers: ["Location", "Coordinates", "Status", "Usage", "Reporter", "Dates", "Links"],
+      loading: "Loading bins...",
+      empty: "No bins match the current search.",
+      unknownCity: "Unknown city",
+      unknown: "unknown",
+      bin: "bin",
+      events: "events",
+      units: "units",
+      created: "Created",
+      lastUsed: "Last used",
+      openMap: "Open map",
+    },
+    settings: {
+      eyebrow: "System",
+      title: "Settings",
+      description: "Operational configuration inventory for support, legal links, points defaults, app text/config, and feature flags.",
+      auditLog: "Audit log",
+      noteTitle: "Next implementation note",
+      noteBody: "This page is now a real CRM workspace. To make settings editable, the next backend step is an `admin_settings` table and audited update endpoint.",
+      cards: [
+        ["Support", [["Support email", "Configured in app/API env"], ["Help routing", "Future editable setting"]]],
+        ["Legal links", [["Terms", "App-side legal route/config"], ["Privacy", "App-side legal route/config"]]],
+        ["EcoPoints", [["Default recycle points", "Backend checkout logic"], ["Manual adjustment", "Admin Users module"]]],
+        ["Feature flags", [["Dashboard modules", "Role-based navigation enabled"], ["Future flags", "Needs backend config store"]]],
+        ["Localization", [["Reward/challenge translation", "API translation service"], ["User language", "App locale setting"]]],
+        ["Security", [["Role access", "API middleware + CRM shell"], ["User dashboard access", "Blocked for role user"]]],
+      ],
+    },
+    audit: {
+      eyebrow: "System",
+      title: "Audit Log",
+      description: "Audit coverage workspace for tracking who changed what, when, and which entity was affected.",
+      settings: "Settings",
+      planTitle: "Audit coverage plan",
+      planDescription: "Backend audit persistence is not present yet, so this page documents the required capture points.",
+      headers: ["Area", "Events to capture", "Status"],
+      backendNeeded: "Backend needed",
+      schemaTitle: "Recommended audit schema",
+      schemaBody: "`admin_audit_log`: id, actor_user_id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at.",
+      rows: [
+        ["Reward changes", "Create/edit/archive/toggle rewards"],
+        ["Challenge changes", "Create/edit/delete/toggle challenges"],
+        ["User support actions", "Manual EcoPoints, avatar reset, role changes"],
+        ["Moderation actions", "Approve/reject/bulk review decisions"],
+        ["System settings", "Future editable configuration changes"],
+      ],
+    },
+  },
+  es: {
+    bins: {
+      loadError: "No se pudieron cargar los puntos de reciclaje",
+      eyebrow: "Contenedores / ubicaciones",
+      title: "Infraestructura de reciclaje",
+      description: "Inspecciona ubicaciones reportadas por usuarios, coordenadas, ciudad, fuente, señal de verificación y uso de reciclaje.",
+      openMaps: "Abrir mapas",
+      exportBins: "Exportar ubicaciones",
+      kpis: ["Ubicaciones", "Ubicaciones activas", "Unidades recicladas", "Ciudades"],
+      tableTitle: "Lista de ubicaciones",
+      tableDescription: "El esquema actual soporta coordenadas, referencia de foto, creador y estado derivado del uso.",
+      search: "Buscar id, ciudad, usuario",
+      headers: ["Ubicación", "Coordenadas", "Estado", "Uso", "Reportado por", "Fechas", "Enlaces"],
+      loading: "Cargando ubicaciones...",
+      empty: "Ninguna ubicación coincide con la búsqueda actual.",
+      unknownCity: "Ciudad desconocida",
+      unknown: "desconocido",
+      bin: "contenedor",
+      events: "eventos",
+      units: "unidades",
+      created: "Creado",
+      lastUsed: "Último uso",
+      openMap: "Abrir mapa",
+    },
+    settings: {
+      eyebrow: "Sistema",
+      title: "Ajustes",
+      description: "Inventario de configuración operativa para soporte, enlaces legales, puntos por defecto, textos/configuración de app y feature flags.",
+      auditLog: "Registro de auditoría",
+      noteTitle: "Nota de próxima implementación",
+      noteBody: "Esta página ya es un espacio CRM real. Para que los ajustes sean editables, el siguiente paso backend es una tabla `admin_settings` y un endpoint de actualización auditado.",
+      cards: [
+        ["Soporte", [["Email de soporte", "Configurado en env de app/API"], ["Ruta de ayuda", "Ajuste editable futuro"]]],
+        ["Enlaces legales", [["Términos", "Ruta/config legal en la app"], ["Privacidad", "Ruta/config legal en la app"]]],
+        ["EcoPoints", [["Puntos por reciclaje por defecto", "Lógica backend de checkout"], ["Ajuste manual", "Módulo Admin Usuarios"]]],
+        ["Feature flags", [["Módulos del dashboard", "Navegación por roles habilitada"], ["Flags futuras", "Necesita almacén de configuración backend"]]],
+        ["Localización", [["Traducción de recompensas/retos", "Servicio de traducción API"], ["Idioma de usuario", "Ajuste locale de app"]]],
+        ["Seguridad", [["Acceso por roles", "Middleware API + shell CRM"], ["Acceso de usuario al dashboard", "Bloqueado para rol user"]]],
+      ],
+    },
+    audit: {
+      eyebrow: "Sistema",
+      title: "Registro de auditoría",
+      description: "Espacio de cobertura de auditoría para rastrear quién cambió qué, cuándo y qué entidad fue afectada.",
+      settings: "Ajustes",
+      planTitle: "Plan de cobertura de auditoría",
+      planDescription: "La persistencia backend de auditoría aún no existe, así que esta página documenta los puntos de captura requeridos.",
+      headers: ["Área", "Eventos a capturar", "Estado"],
+      backendNeeded: "Backend necesario",
+      schemaTitle: "Esquema de auditoría recomendado",
+      schemaBody: "`admin_audit_log`: id, actor_user_id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at.",
+      rows: [
+        ["Cambios de recompensas", "Crear/editar/archivar/activar o pausar recompensas"],
+        ["Cambios de retos", "Crear/editar/eliminar/activar o pausar retos"],
+        ["Acciones de soporte de usuario", "EcoPoints manuales, reinicio de avatar, cambios de rol"],
+        ["Acciones de moderación", "Decisiones de aprobar/rechazar/revisión masiva"],
+        ["Ajustes del sistema", "Cambios futuros de configuración editable"],
+      ],
+    },
+  },
+} as const;
+
+function formatDate(value?: string | null, language: DashboardLanguage = "en") {
   if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(language === "es" ? "es-ES" : "en-US");
 }
 
 function csvCell(value: unknown) {
@@ -49,6 +173,8 @@ function csvCell(value: unknown) {
 
 export function AdminBinsWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = systemCopy[language];
   const [bins, setBins] = useState<Bin[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -68,11 +194,11 @@ export function AdminBinsWorkspace() {
       const result = await apiFetch(`/admin/bins${params.toString() ? `?${params}` : ""}`, { token });
       setBins(normalizeList<Bin>(result, "bins"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load bins");
+      setError(err instanceof Error ? err.message : copy.bins.loadError);
     } finally {
       setLoading(false);
     }
-  }, [router, search]);
+  }, [copy.bins.loadError, router, search]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadBins(), 250);
@@ -117,77 +243,71 @@ export function AdminBinsWorkspace() {
 
   return (
     <Frame
-      eyebrow="Bins / Locations"
-      title="Recycling Infrastructure"
-      description="Inspect user-reported recycling locations, coordinates, city metadata, source, verification signal, and recycling usage."
+      eyebrow={copy.bins.eyebrow}
+      title={copy.bins.title}
+      description={copy.bins.description}
       error={error}
       actions={
         <>
-          <LinkButton href="/admin/maps">Open maps</LinkButton>
-          <button onClick={exportBins} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export bins</button>
+          <LinkButton href="/admin/maps">{copy.bins.openMaps}</LinkButton>
+          <button onClick={exportBins} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">{copy.bins.exportBins}</button>
         </>
       }
     >
       <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Bins" value={totals.bins} />
-        <Kpi label="Active bins" value={totals.active} />
-        <Kpi label="Recycled units" value={totals.units} />
-        <Kpi label="Cities" value={totals.cities} />
+        <Kpi label={copy.bins.kpis[0]} value={totals.bins} language={language} />
+        <Kpi label={copy.bins.kpis[1]} value={totals.active} language={language} />
+        <Kpi label={copy.bins.kpis[2]} value={totals.units} language={language} />
+        <Kpi label={copy.bins.kpis[3]} value={totals.cities} language={language} />
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">Bin list</h2>
-            <p className="text-sm text-slate-500">Current schema supports coordinates, photo reference, creator, and usage-derived status.</p>
+            <h2 className="text-lg font-semibold text-slate-950">{copy.bins.tableTitle}</h2>
+            <p className="text-sm text-slate-500">{copy.bins.tableDescription}</p>
           </div>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search id, city, user" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.bins.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[1100px] w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-2.5">Location</th>
-                <th className="px-4 py-2.5">Coordinates</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Usage</th>
-                <th className="px-4 py-2.5">Reporter</th>
-                <th className="px-4 py-2.5">Dates</th>
-                <th className="px-4 py-2.5">Links</th>
+                {copy.bins.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <EmptyRow colSpan={7} text="Loading bins..." />
+                <EmptyRow colSpan={7} text={copy.bins.loading} />
               ) : bins.length === 0 ? (
-                <EmptyRow colSpan={7} text="No bins match the current search." />
+                <EmptyRow colSpan={7} text={copy.bins.empty} />
               ) : (
                 bins.map((bin) => (
                   <tr key={bin.id} className="border-t border-slate-100 align-top hover:bg-slate-50/70">
                     <td className="px-4 py-2.5">
-                      <div className="font-semibold text-slate-950">{bin.city || "Unknown city"}</div>
+                      <div className="font-semibold text-slate-950">{bin.city || copy.bins.unknownCity}</div>
                       <div className="text-xs text-slate-500">{[bin.province, bin.region, bin.country].filter(Boolean).join(", ") || bin.id}</div>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs">{bin.lat}, {bin.lng}</td>
                     <td className="px-4 py-2.5">
-                      <Badge tone={bin.verification_status === "active" ? "green" : "amber"}>{bin.verification_status || "unknown"}</Badge>
-                      <div className="mt-1 text-xs text-slate-500">{bin.bin_type || "bin"} · {bin.source || "unknown"}</div>
+                      <Badge tone={bin.verification_status === "active" ? "green" : "amber"}>{bin.verification_status || copy.bins.unknown}</Badge>
+                      <div className="mt-1 text-xs text-slate-500">{bin.bin_type || copy.bins.bin} · {bin.source || copy.bins.unknown}</div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <div>{bin.recycling_events_count || 0} events</div>
-                      <div className="text-xs text-slate-500">{bin.recycled_units_count || 0} units</div>
+                      <div>{bin.recycling_events_count || 0} {copy.bins.events}</div>
+                      <div className="text-xs text-slate-500">{bin.recycled_units_count || 0} {copy.bins.units}</div>
                     </td>
                     <td className="px-4 py-2.5">{bin.user_email || bin.user_display_name || bin.user_id || "-"}</td>
                     <td className="px-4 py-2.5">
-                      <div className="text-xs text-slate-500">Created</div>
-                      <div>{formatDate(bin.created_at)}</div>
-                      <div className="mt-2 text-xs text-slate-500">Last used</div>
-                      <div>{formatDate(bin.last_recycling_at)}</div>
+                      <div className="text-xs text-slate-500">{copy.bins.created}</div>
+                      <div>{formatDate(bin.created_at, language)}</div>
+                      <div className="mt-2 text-xs text-slate-500">{copy.bins.lastUsed}</div>
+                      <div>{formatDate(bin.last_recycling_at, language)}</div>
                     </td>
                     <td className="px-4 py-2.5">
                       {bin.lat != null && bin.lng != null ? (
                         <a href={`https://www.google.com/maps?q=${bin.lat},${bin.lng}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">
-                          Open map
+                          {copy.bins.openMap}
                         </a>
                       ) : "-"}
                     </td>
@@ -203,25 +323,22 @@ export function AdminBinsWorkspace() {
 }
 
 export function AdminSettingsWorkspace() {
+  const { language } = useDashboardLanguage();
+  const copy = systemCopy[language];
   return (
     <Frame
-      eyebrow="System"
-      title="Settings"
-      description="Operational configuration inventory for support, legal links, points defaults, app text/config, and feature flags."
-      actions={<LinkButton href="/admin/audit">Audit log</LinkButton>}
+      eyebrow={copy.settings.eyebrow}
+      title={copy.settings.title}
+      description={copy.settings.description}
+      actions={<LinkButton href="/admin/audit">{copy.settings.auditLog}</LinkButton>}
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <ConfigCard title="Support" rows={[["Support email", "Configured in app/API env"], ["Help routing", "Future editable setting"]]} />
-        <ConfigCard title="Legal links" rows={[["Terms", "App-side legal route/config"], ["Privacy", "App-side legal route/config"]]} />
-        <ConfigCard title="EcoPoints" rows={[["Default recycle points", "Backend checkout logic"], ["Manual adjustment", "Admin Users module"]]} />
-        <ConfigCard title="Feature flags" rows={[["Dashboard modules", "Role-based navigation enabled"], ["Future flags", "Needs backend config store"]]} />
-        <ConfigCard title="Localization" rows={[["Reward/challenge translation", "API translation service"], ["User language", "App locale setting"]]} />
-        <ConfigCard title="Security" rows={[["Role access", "API middleware + CRM shell"], ["User dashboard access", "Blocked for role user"]]} />
+        {copy.settings.cards.map(([title, rows]) => <ConfigCard key={title} title={title} rows={rows} />)}
       </div>
       <section className="rounded-xl border border-dashed border-slate-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-950">Next implementation note</h2>
+        <h2 className="text-lg font-semibold text-slate-950">{copy.settings.noteTitle}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          This page is now a real CRM workspace. To make settings editable, the next backend step is an `admin_settings` table and audited update endpoint.
+          {copy.settings.noteBody}
         </p>
       </section>
     </Frame>
@@ -229,41 +346,34 @@ export function AdminSettingsWorkspace() {
 }
 
 export function AdminAuditWorkspace() {
-  const plannedRows = [
-    ["Reward changes", "Create/edit/archive/toggle rewards"],
-    ["Challenge changes", "Create/edit/delete/toggle challenges"],
-    ["User support actions", "Manual EcoPoints, avatar reset, role changes"],
-    ["Moderation actions", "Approve/reject/bulk review decisions"],
-    ["System settings", "Future editable configuration changes"],
-  ];
+  const { language } = useDashboardLanguage();
+  const copy = systemCopy[language];
 
   return (
     <Frame
-      eyebrow="System"
-      title="Audit Log"
-      description="Audit coverage workspace for tracking who changed what, when, and which entity was affected."
-      actions={<LinkButton href="/admin/settings">Settings</LinkButton>}
+      eyebrow={copy.audit.eyebrow}
+      title={copy.audit.title}
+      description={copy.audit.description}
+      actions={<LinkButton href="/admin/settings">{copy.audit.settings}</LinkButton>}
     >
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-4">
-          <h2 className="text-lg font-semibold text-slate-950">Audit coverage plan</h2>
-          <p className="text-sm text-slate-500">Backend audit persistence is not present yet, so this page documents the required capture points.</p>
+          <h2 className="text-lg font-semibold text-slate-950">{copy.audit.planTitle}</h2>
+          <p className="text-sm text-slate-500">{copy.audit.planDescription}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[760px] w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-2.5">Area</th>
-                <th className="px-4 py-2.5">Events to capture</th>
-                <th className="px-4 py-2.5">Status</th>
+                {copy.audit.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
               </tr>
             </thead>
             <tbody>
-              {plannedRows.map(([area, events]) => (
+              {copy.audit.rows.map(([area, events]) => (
                 <tr key={area} className="border-t border-slate-100">
                   <td className="px-4 py-2.5 font-semibold text-slate-950">{area}</td>
                   <td className="px-4 py-2.5">{events}</td>
-                  <td className="px-4 py-2.5"><Badge tone="amber">Backend needed</Badge></td>
+                  <td className="px-4 py-2.5"><Badge tone="amber">{copy.audit.backendNeeded}</Badge></td>
                 </tr>
               ))}
             </tbody>
@@ -271,9 +381,9 @@ export function AdminAuditWorkspace() {
         </div>
       </section>
       <section className="rounded-xl border border-dashed border-slate-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-950">Recommended audit schema</h2>
+        <h2 className="text-lg font-semibold text-slate-950">{copy.audit.schemaTitle}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          `admin_audit_log`: id, actor_user_id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at.
+          {copy.audit.schemaBody}
         </p>
       </section>
     </Frame>
@@ -311,11 +421,11 @@ function Frame({
   );
 }
 
-function Kpi({ label, value }: { label: string; value: number }) {
+function Kpi({ label, value, language = "en" }: { label: string; value: number; language?: DashboardLanguage }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value.toLocaleString()}</p>
+      <p className="mt-2 text-3xl font-semibold text-slate-950">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
     </div>
   );
 }
@@ -344,7 +454,7 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   );
 }
 
-function ConfigCard({ title, rows }: { title: string; rows: [string, string][] }) {
+function ConfigCard({ title, rows }: { title: string; rows: readonly (readonly [string, string])[] }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-950">{title}</h2>

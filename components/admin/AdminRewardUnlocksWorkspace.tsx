@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type UnlockStatus = "active" | "expired" | "used" | "cancelled";
 
@@ -45,16 +46,104 @@ type RewardUnlock = {
 };
 
 type UnlockAction = {
-  next: UnlockStatus;
-  label: string;
+  next: Exclude<UnlockStatus, "expired">;
   tone: "primary" | "neutral" | "danger";
 };
 
 const UNLOCK_ACTIONS: UnlockAction[] = [
-  { next: "used", label: "Mark used", tone: "primary" },
-  { next: "active", label: "Reactivate", tone: "neutral" },
-  { next: "cancelled", label: "Cancel", tone: "danger" },
+  { next: "used", tone: "primary" },
+  { next: "active", tone: "neutral" },
+  { next: "cancelled", tone: "danger" },
 ];
+
+const unlocksCopy = {
+  en: {
+    loadError: "Unable to load reward unlocks",
+    updateError: "Unable to update unlock status",
+    eyebrow: "Reward Engine",
+    title: "Reward Unlocks",
+    description: "Support unlocked rewards, lost links/codes, expiration issues, partner fulfillment, and reward usage history.",
+    rewardEngine: "Reward Engine",
+    exportCsv: "Export CSV",
+    kpis: {
+      loaded: "Loaded unlocks",
+      active: "Active",
+      used: "Used",
+      expired: "Expired",
+      clicks: "Tracked clicks",
+    },
+    table: {
+      title: "All reward unlocks",
+      description: "Search by user, reward, token, or promo code. Results are limited to 1,000 rows.",
+      search: "Search unlocks",
+      allStatuses: "All statuses",
+      loading: "Loading reward unlocks...",
+      empty: "No unlocks match the current filters.",
+      headers: ["Unlock", "User", "Reward / Partner", "Delivery", "Code / Link", "Clicks", "Dates", "Fulfilled By", "Actions"],
+      unknownUser: "Unknown user",
+      unknownReward: "Unknown reward",
+      noPartner: "No partner",
+      challenge: "Challenge",
+      created: "Created",
+      expires: "Expires",
+      used: "Used",
+    },
+    statuses: {
+      active: "Active",
+      expired: "Expired",
+      used: "Used",
+      cancelled: "Cancelled",
+    },
+    actions: {
+      used: "Mark used",
+      active: "Reactivate",
+      cancelled: "Cancel",
+    },
+  },
+  es: {
+    loadError: "No se pudieron cargar los desbloqueos de recompensas",
+    updateError: "No se pudo actualizar el estado del desbloqueo",
+    eyebrow: "Motor de recompensas",
+    title: "Desbloqueos de recompensas",
+    description: "Soporte para recompensas desbloqueadas, enlaces/códigos perdidos, caducidad, cumplimiento de partners e historial de uso.",
+    rewardEngine: "Motor de recompensas",
+    exportCsv: "Exportar CSV",
+    kpis: {
+      loaded: "Desbloqueos cargados",
+      active: "Activos",
+      used: "Usados",
+      expired: "Expirados",
+      clicks: "Clics registrados",
+    },
+    table: {
+      title: "Todos los desbloqueos",
+      description: "Busca por usuario, recompensa, token o código promocional. Los resultados están limitados a 1.000 filas.",
+      search: "Buscar desbloqueos",
+      allStatuses: "Todos los estados",
+      loading: "Cargando desbloqueos...",
+      empty: "Ningún desbloqueo coincide con los filtros actuales.",
+      headers: ["Desbloqueo", "Usuario", "Recompensa / Partner", "Entrega", "Código / Enlace", "Clics", "Fechas", "Cumplido por", "Acciones"],
+      unknownUser: "Usuario desconocido",
+      unknownReward: "Recompensa desconocida",
+      noPartner: "Sin partner",
+      challenge: "Reto",
+      created: "Creado",
+      expires: "Expira",
+      used: "Usado",
+    },
+    statuses: {
+      active: "Activo",
+      expired: "Expirado",
+      used: "Usado",
+      cancelled: "Cancelado",
+    },
+    actions: {
+      used: "Marcar usado",
+      active: "Reactivar",
+      cancelled: "Cancelar",
+    },
+  },
+} as const;
 
 const actionToneClasses: Record<UnlockAction["tone"], string> = {
   primary: "bg-[var(--gl-green)] text-white hover:bg-[var(--gl-green-deep)]",
@@ -62,10 +151,10 @@ const actionToneClasses: Record<UnlockAction["tone"], string> = {
   danger: "border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] text-[var(--gl-coral-ink)] hover:opacity-90",
 };
 
-function formatDateTime(value: string | null | undefined) {
+function formatDateTime(value: string | null | undefined, language: DashboardLanguage = "en") {
   if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(language === "es" ? "es-ES" : "en-US");
 }
 
 function csvCell(value: unknown) {
@@ -82,6 +171,8 @@ function statusClasses(status: UnlockStatus) {
 
 export function AdminRewardUnlocksWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const copy = unlocksCopy[language];
   const [unlocks, setUnlocks] = useState<RewardUnlock[]>([]);
   const [status, setStatus] = useState<"" | UnlockStatus>("");
   const [search, setSearch] = useState("");
@@ -107,11 +198,11 @@ export function AdminRewardUnlocksWorkspace() {
         : [];
       setUnlocks(list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load reward unlocks");
+      setError(err instanceof Error ? err.message : copy.loadError);
     } finally {
       setLoading(false);
     }
-  }, [router, search, status]);
+  }, [copy.loadError, router, search, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadUnlocks(), 250);
@@ -145,7 +236,7 @@ export function AdminRewardUnlocksWorkspace() {
       });
       await loadUnlocks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update unlock status");
+      setError(err instanceof Error ? err.message : copy.updateError);
     } finally {
       setActionId(null);
     }
@@ -198,18 +289,18 @@ export function AdminRewardUnlocksWorkspace() {
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">Reward Engine</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">Reward Unlocks</h1>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">{copy.eyebrow}</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">{copy.title}</h1>
           <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
-            Support unlocked rewards, lost links/codes, expiration issues, partner fulfillment, and reward usage history.
+            {copy.description}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/rewards" className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
-            Reward Engine
+            {copy.rewardEngine}
           </Link>
           <button onClick={exportCsv} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)]">
-            Export CSV
+            {copy.exportCsv}
           </button>
         </div>
       </div>
@@ -221,32 +312,32 @@ export function AdminRewardUnlocksWorkspace() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-5">
-        <Kpi label="Loaded unlocks" value={totals.total} />
-        <Kpi label="Active" value={totals.active} />
-        <Kpi label="Used" value={totals.used} />
-        <Kpi label="Expired" value={totals.expired} />
-        <Kpi label="Tracked clicks" value={totals.clicks} />
+        <Kpi label={copy.kpis.loaded} value={totals.total} />
+        <Kpi label={copy.kpis.active} value={totals.active} />
+        <Kpi label={copy.kpis.used} value={totals.used} />
+        <Kpi label={copy.kpis.expired} value={totals.expired} />
+        <Kpi label={copy.kpis.clicks} value={totals.clicks} />
       </div>
 
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
         <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">All reward unlocks</h2>
-            <p className="text-sm text-[var(--gl-ink-muted)]">Search by user, reward, token, or promo code. Results are limited to 1,000 rows.</p>
+            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.table.title}</h2>
+            <p className="text-sm text-[var(--gl-ink-muted)]">{copy.table.description}</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search unlocks"
+              placeholder={copy.table.search}
               className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
             />
             <select value={status} onChange={(event) => setStatus(event.target.value as "" | UnlockStatus)} className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="expired">Expired</option>
-              <option value="used">Used</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="">{copy.table.allStatuses}</option>
+              <option value="active">{copy.statuses.active}</option>
+              <option value="expired">{copy.statuses.expired}</option>
+              <option value="used">{copy.statuses.used}</option>
+              <option value="cancelled">{copy.statuses.cancelled}</option>
             </select>
           </div>
         </div>
@@ -254,40 +345,32 @@ export function AdminRewardUnlocksWorkspace() {
           <table className="min-w-[1280px] w-full text-left text-sm">
             <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr>
-                <th className="px-4 py-2.5">Unlock</th>
-                <th className="px-4 py-2.5">User</th>
-                <th className="px-4 py-2.5">Reward / Partner</th>
-                <th className="px-4 py-2.5">Delivery</th>
-                <th className="px-4 py-2.5">Code / Link</th>
-                <th className="px-4 py-2.5">Clicks</th>
-                <th className="px-4 py-2.5">Dates</th>
-                <th className="px-4 py-2.5">Fulfilled By</th>
-                <th className="px-4 py-2.5">Actions</th>
+                {copy.table.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">Loading reward unlocks...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.table.loading}</td></tr>
               ) : unlocks.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No unlocks match the current filters.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.table.empty}</td></tr>
               ) : (
                 unlocks.map((unlock) => (
                   <tr key={unlock.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]">
                     <td className="px-4 py-2.5">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusClasses(unlock.unlock_status)}`}>
-                        {unlock.unlock_status}
+                        {copy.statuses[unlock.unlock_status]}
                       </span>
                       <div className="mt-2 font-mono text-xs text-[var(--gl-ink-muted)]">{unlock.token}</div>
                       <div className="mt-1 text-xs capitalize text-[var(--gl-ink-muted)]">{unlock.unlock_method || "-"}</div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.user.display_name || unlock.user.email || "Unknown user"}</div>
+                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.user.display_name || unlock.user.email || copy.table.unknownUser}</div>
                       <div className="text-xs text-[var(--gl-ink-muted)]">{unlock.user.email || unlock.user_id}</div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.reward.title || "Unknown reward"}</div>
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{unlock.reward.partner_name || "No partner"}</div>
-                      {unlock.challenge_title ? <div className="mt-1 text-xs text-[var(--gl-amber-ink)]">Challenge: {unlock.challenge_title}</div> : null}
+                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.reward.title || copy.table.unknownReward}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{unlock.reward.partner_name || copy.table.noPartner}</div>
+                      {unlock.challenge_title ? <div className="mt-1 text-xs text-[var(--gl-amber-ink)]">{copy.table.challenge}: {unlock.challenge_title}</div> : null}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="capitalize text-[var(--gl-ink-soft)]">{unlock.reward.redemption_type || "manual_claim"}</div>
@@ -304,14 +387,14 @@ export function AdminRewardUnlocksWorkspace() {
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="font-semibold text-[var(--gl-ink)]">{unlock.click_count || 0}</div>
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(unlock.last_clicked_at)}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(unlock.last_clicked_at, language)}</div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="text-xs text-[var(--gl-ink-muted)]">Created</div>
-                      <div className="text-[var(--gl-ink-soft)]">{formatDateTime(unlock.created_at)}</div>
-                      <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">Expires</div>
-                      <div className="text-[var(--gl-ink-soft)]">{formatDateTime(unlock.expires_at)}</div>
-                      {unlock.redeemed_at ? <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">Used {formatDateTime(unlock.redeemed_at)}</div> : null}
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{copy.table.created}</div>
+                      <div className="text-[var(--gl-ink-soft)]">{formatDateTime(unlock.created_at, language)}</div>
+                      <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">{copy.table.expires}</div>
+                      <div className="text-[var(--gl-ink-soft)]">{formatDateTime(unlock.expires_at, language)}</div>
+                      {unlock.redeemed_at ? <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">{copy.table.used} {formatDateTime(unlock.redeemed_at, language)}</div> : null}
                     </td>
                     <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{unlock.redeemed_by_partner_email || "-"}</td>
                     <td className="px-4 py-2.5">
@@ -323,7 +406,7 @@ export function AdminRewardUnlocksWorkspace() {
                             onClick={() => updateStatus(unlock.id, action.next)}
                             className={`rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${actionToneClasses[action.tone]}`}
                           >
-                            {action.label}
+                            {copy.actions[action.next]}
                           </button>
                         ))}
                       </div>
