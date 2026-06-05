@@ -86,7 +86,6 @@ type RewardForm = {
   max_total_claims: string;
   max_claims_per_user: string;
   remaining_claims_visible: boolean;
-  unlock_duration_hours: string;
   terms_text: string;
   starts_at: string;
   ends_at: string;
@@ -122,7 +121,6 @@ const emptyForm: RewardForm = {
   max_total_claims: "",
   max_claims_per_user: "",
   remaining_claims_visible: false,
-  unlock_duration_hours: "24",
   terms_text: "",
   starts_at: "",
   ends_at: "",
@@ -275,7 +273,6 @@ export function AdminRewardsWorkspace() {
       max_total_claims: reward.max_total_claims == null ? "" : String(reward.max_total_claims),
       max_claims_per_user: reward.max_claims_per_user == null ? "" : String(reward.max_claims_per_user),
       remaining_claims_visible: Boolean(reward.remaining_claims_visible),
-      unlock_duration_hours: String(reward.unlock_duration_hours ?? reward.expires_in_hours ?? 24),
       terms_text: "",
       starts_at: toDateTimeInput(reward.starts_at),
       ends_at: toDateTimeInput(reward.ends_at),
@@ -326,12 +323,10 @@ export function AdminRewardsWorkspace() {
         max_total_claims: form.max_total_claims ? Number(form.max_total_claims) : null,
         max_claims_per_user: form.max_claims_per_user ? Number(form.max_claims_per_user) : null,
         remaining_claims_visible: form.remaining_claims_visible,
-        unlock_duration_hours: form.unlock_duration_hours ? Number(form.unlock_duration_hours) : null,
         fulfillment_type: fulfillmentType,
         code_mode: hasPromoCode ? form.code_mode || "shared" : null,
         shared_code: hasPromoCode && (form.code_mode || "shared") === "shared" ? form.shared_code || form.promo_code || null : null,
         instructions: form.instructions || null,
-        expires_in_hours: form.unlock_duration_hours ? Number(form.unlock_duration_hours) : 24,
         acquisition_mode: form.acquisition_mode,
         visible_in_wallet_catalog: !isChallengeReward,
       };
@@ -697,7 +692,6 @@ function RewardFormPanel({
             <option value="link_with_code">Link + Promo Code</option>
             <option value="manual_claim">Manual Claim</option>
           </Select>
-          <Field label="Unlock duration hours" type="number" min="1" value={form.unlock_duration_hours} onChange={(value) => setForm((current) => ({ ...current, unlock_duration_hours: value }))} />
         </FormSection>
 
         {form.redemption_type !== "manual_claim" ? (
@@ -766,7 +760,6 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
   const isPromo = form.redemption_type === "link_with_code";
   const hasLink = form.redemption_type !== "manual_claim" && form.affiliate_url.trim().length > 0;
   const code = form.code_mode === "shared" && form.shared_code.trim() ? form.shared_code.trim() : "PROMO-CODE";
-  const expiry = form.unlock_duration_hours.trim() ? `Expires ${form.unlock_duration_hours.trim()}h after unlock` : null;
   const title = form.title.trim() || "Reward title";
   const imageUrl = form.banner_image_url.trim();
   return (
@@ -787,7 +780,6 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
             <p className="mt-1 text-lg font-extrabold tracking-[0.2em] text-[var(--gl-ink)]">{code}</p>
           </div>
         ) : null}
-        {expiry ? <p className="mt-3 text-xs font-semibold text-[var(--gl-ink-muted)]">{expiry}</p> : null}
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {isPromo ? <span className="rounded-full bg-[var(--gl-green-deep)] px-3 py-1.5 text-xs font-semibold text-white">Copy Code</span> : null}
           {hasLink ? <span className="rounded-full bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white">Unlock</span> : null}
