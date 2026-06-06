@@ -746,7 +746,7 @@ export function AdminChallengesWorkspace() {
     }
   }
 
-  async function downloadChallengeActionsXlsx(challenge: Challenge) {
+  async function downloadChallengeActionsXlsx(challenge: Challenge, exportLanguage: CertificatePdfLanguage) {
     const id = String(challenge.id);
     const draft = certificateDrafts[id] || getCertificateDraft(challenge);
     const recipientName = draft.recipientName || challenge.certificateRecipientName || "recipient";
@@ -756,7 +756,7 @@ export function AdminChallengesWorkspace() {
       return;
     }
 
-    setCertificateActionId(`download-actions-${id}`);
+    setCertificateActionId(`download-actions-${exportLanguage}-${id}`);
     setError(null);
     setCertificateMessages((current) => {
       const next = { ...current };
@@ -765,11 +765,11 @@ export function AdminChallengesWorkspace() {
     });
 
     try {
-      const blob = await apiFetchBlob(`/impact/challenges/${challenge.id}/recycling-actions.xlsx?lang=${language}`, { token });
+      const blob = await apiFetchBlob(`/impact/challenges/${challenge.id}/recycling-actions.xlsx?lang=${exportLanguage}`, { token });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `${safeFilename(challenge.title)}-${safeFilename(recipientName)}-acciones-reciclaje${language === "es" ? "-es" : ""}.xlsx`;
+      anchor.download = `${safeFilename(challenge.title)}-${safeFilename(recipientName)}-recycling-actions${exportLanguage === "es" ? "-es" : "-en"}.xlsx`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -779,9 +779,9 @@ export function AdminChallengesWorkspace() {
         [id]: {
           type: "success",
           text:
-            language === "es"
-              ? "Descarga XLSX de acciones de reciclaje iniciada. Solo eventos aprobados."
-              : "Challenge recycling actions XLSX download started. Approved recycling events only.",
+            exportLanguage === "es"
+              ? "Descarga XLSX ES de acciones de reciclaje iniciada. Solo eventos aprobados."
+              : "Challenge recycling actions XLSX EN download started. Approved recycling events only.",
         },
       }));
     } catch (err) {
@@ -1225,17 +1225,19 @@ export function AdminChallengesWorkspace() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => downloadChallengeActionsXlsx(challenge)}
-                            disabled={certificateActionId === `download-actions-${id}`}
+                            onClick={() => downloadChallengeActionsXlsx(challenge, "en")}
+                            disabled={certificateActionId === `download-actions-en-${id}`}
                             className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
                           >
-                            {certificateActionId === `download-actions-${id}`
-                              ? language === "es"
-                                ? "Descargando acciones..."
-                                : "Downloading actions..."
-                              : language === "es"
-                                ? "Descargar acciones de reciclaje XLSX"
-                                : "Download recycling actions XLSX"}
+                            {certificateActionId === `download-actions-en-${id}` ? "Downloading actions..." : "Download recycling actions XLSX EN"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadChallengeActionsXlsx(challenge, "es")}
+                            disabled={certificateActionId === `download-actions-es-${id}`}
+                            className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
+                          >
+                            {certificateActionId === `download-actions-es-${id}` ? "Descargando acciones..." : "Descargar acciones de reciclaje XLSX ES"}
                           </button>
                           <button
                             type="button"
