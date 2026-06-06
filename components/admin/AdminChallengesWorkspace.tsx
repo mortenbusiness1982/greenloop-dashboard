@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type ChallengeType = "personal" | "global" | "community";
 type TargetKind = "brand" | "material" | "format" | "any";
@@ -368,6 +369,7 @@ function safeFilename(value: string) {
 
 export function AdminChallengesWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeRequests, setChallengeRequests] = useState<ChallengeRequest[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -763,23 +765,37 @@ export function AdminChallengesWorkspace() {
     });
 
     try {
-      const blob = await apiFetchBlob(`/impact/challenges/${challenge.id}/recycling-actions.xlsx`, { token });
+      const blob = await apiFetchBlob(`/impact/challenges/${challenge.id}/recycling-actions.xlsx?lang=${language}`, { token });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `${safeFilename(challenge.title)}-${safeFilename(recipientName)}-recycling-actions.xlsx`;
+      anchor.download = `${safeFilename(challenge.title)}-${safeFilename(recipientName)}-acciones-reciclaje${language === "es" ? "-es" : ""}.xlsx`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
       setCertificateMessages((current) => ({
         ...current,
-        [id]: { type: "success", text: "Challenge recycling actions XLSX download started. Approved recycling events only." },
+        [id]: {
+          type: "success",
+          text:
+            language === "es"
+              ? "Descarga XLSX de acciones de reciclaje iniciada. Solo eventos aprobados."
+              : "Challenge recycling actions XLSX download started. Approved recycling events only.",
+        },
       }));
     } catch (err) {
       setCertificateMessages((current) => ({
         ...current,
-        [id]: { type: "error", text: err instanceof Error ? err.message : "Unable to download recycling actions XLSX" },
+        [id]: {
+          type: "error",
+          text:
+            err instanceof Error
+              ? err.message
+              : language === "es"
+                ? "No se pudo descargar el XLSX de acciones de reciclaje"
+                : "Unable to download recycling actions XLSX",
+        },
       }));
     } finally {
       setCertificateActionId(null);
@@ -1213,7 +1229,13 @@ export function AdminChallengesWorkspace() {
                             disabled={certificateActionId === `download-actions-${id}`}
                             className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
                           >
-                            {certificateActionId === `download-actions-${id}` ? "Downloading actions..." : "Download recycling actions XLSX"}
+                            {certificateActionId === `download-actions-${id}`
+                              ? language === "es"
+                                ? "Descargando acciones..."
+                                : "Downloading actions..."
+                              : language === "es"
+                                ? "Descargar acciones de reciclaje XLSX"
+                                : "Download recycling actions XLSX"}
                           </button>
                           <button
                             type="button"
@@ -1225,7 +1247,9 @@ export function AdminChallengesWorkspace() {
                           </button>
                         </div>
                         <p className="text-xs leading-5 text-[var(--gl-ink-muted)]">
-                          The XLSX includes what was recycled, when, where, and by whom. Only approved recycling events are included.
+                          {language === "es"
+                            ? "El XLSX incluye que se reciclo, cuando, donde y por quien. Solo se incluyen eventos aprobados. No se exportan emails de usuarios."
+                            : "The XLSX includes what was recycled, when, where, and by whom. Only approved recycling events are included. User emails are not exported."}
                         </p>
                       </div>
                     </div>
