@@ -17,6 +17,7 @@ import {
   Map,
   Menu,
   Package,
+  Send,
   Settings,
   Store,
   TicketCheck,
@@ -50,6 +51,7 @@ type NavItemKey =
   | "moderation"
   | "challenges"
   | "rewards"
+  | "outreach"
   | "products"
   | "brands"
   | "partners"
@@ -112,6 +114,7 @@ const shellCopy: Record<DashboardLanguage, {
       moderation: "Moderation",
       challenges: "Challenges",
       rewards: "Rewards",
+      outreach: "Outreach",
       products: "Products",
       brands: "Brands",
       partners: "Partners",
@@ -172,6 +175,7 @@ const shellCopy: Record<DashboardLanguage, {
       moderation: "Moderación",
       challenges: "Retos",
       rewards: "Recompensas",
+      outreach: "Prospección",
       products: "Productos",
       brands: "Marcas",
       partners: "Socios",
@@ -221,6 +225,7 @@ const navigation: Record<Exclude<DashboardRole, "user">, NavGroup[]> = {
         { key: "moderation", href: "/admin/moderation", icon: ClipboardCheck },
         { key: "challenges", href: "/admin/challenges", icon: Flag },
         { key: "rewards", href: "/admin/rewards", icon: Gift },
+        { key: "outreach", href: "/admin/outreach", icon: Send },
       ],
     },
     {
@@ -307,6 +312,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     moderation: "moderation",
     challenges: "challenges",
     rewards: "rewards",
+    outreach: "outreach",
     products: "products",
     brands: "brands",
     partners: "partners",
@@ -329,6 +335,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     moderation: "moderación",
     challenges: "retos",
     rewards: "recompensas",
+    outreach: "prospección",
     products: "productos",
     brands: "marcas",
     partners: "socios",
