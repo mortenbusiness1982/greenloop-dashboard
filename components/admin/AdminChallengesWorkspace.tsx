@@ -133,6 +133,7 @@ type ChallengeRequest = {
 };
 
 type CertificatePdfLanguage = "en" | "es";
+type ChallengeWorkspaceSection = "requests" | "community" | "all";
 
 type Reward = {
   id: string | number;
@@ -389,6 +390,7 @@ export function AdminChallengesWorkspace() {
   const [requestAdminNotes, setRequestAdminNotes] = useState<Record<string, string>>({});
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [requestMessage, setRequestMessage] = useState<CertificateStatusMessage | null>(null);
+  const [activeSection, setActiveSection] = useState<ChallengeWorkspaceSection>("requests");
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -482,6 +484,30 @@ export function AdminChallengesWorkspace() {
           return new Date(b.ends_at || b.starts_at || 0).getTime() - new Date(a.ends_at || a.starts_at || 0).getTime();
         }),
     [challenges]
+  );
+
+  const sectionTabs = useMemo(
+    () => [
+      {
+        key: "requests" as const,
+        label: "Requests",
+        description: "Review and publish requested community challenges.",
+        count: requestKpis.pending,
+      },
+      {
+        key: "community" as const,
+        label: "Community certificates",
+        description: "Manage live community challenge certificates and exports.",
+        count: communityChallenges.length,
+      },
+      {
+        key: "all" as const,
+        label: "All challenges",
+        description: "Create, edit, toggle, and delete challenge inventory.",
+        count: filteredChallenges.length,
+      },
+    ],
+    [communityChallenges.length, filteredChallenges.length, requestKpis.pending]
   );
 
   function startEdit(challenge: Challenge) {
@@ -586,12 +612,11 @@ export function AdminChallengesWorkspace() {
     }
   }
 
-  async function deleteChallenge(challenge: Challenge) {
-    const id = challenge.id;
+  async function deleteChallengeById(id: string | number, title: string) {
     const confirmed = window.confirm(
       language === "es"
-        ? `Eliminar el reto "${challenge.title}"? Esta accion no se puede deshacer.`
-        : `Delete the challenge "${challenge.title}"? This cannot be undone.`
+        ? `Eliminar el reto "${title}"? Esta accion no se puede deshacer.`
+        : `Delete the challenge "${title}"? This cannot be undone.`
     );
     if (!confirmed) return;
     const token = getToken();
@@ -605,6 +630,10 @@ export function AdminChallengesWorkspace() {
     } finally {
       setActionId(null);
     }
+  }
+
+  async function deleteChallenge(challenge: Challenge) {
+    await deleteChallengeById(challenge.id, challenge.title);
   }
 
   function updateCertificateDraft(id: string | number, patch: Partial<CertificateDraft>) {
@@ -891,6 +920,35 @@ export function AdminChallengesWorkspace() {
         <Kpi label="Community" value={kpis.community} />
       </div>
 
+      <section className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="grid gap-2 md:grid-cols-3">
+          {sectionTabs.map((tab) => {
+            const selected = activeSection === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveSection(tab.key)}
+                className={`rounded-lg border px-4 py-3 text-left transition ${
+                  selected
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-950 shadow-sm"
+                    : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold">{tab.label}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${selected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+                    {tab.count}
+                  </span>
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">{tab.description}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeSection === "requests" ? (
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1010,8 +1068,20 @@ export function AdminChallengesWorkspace() {
                         {requestActionId === `notes-${request.id}` ? "Saving notes..." : "Save admin notes"}
                       </button>
                       {request.status === "converted" ? (
-                        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
-                          Published as a Community challenge
+                        <div className="grid gap-2">
+                          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
+                            Published as a Community challenge
+                          </div>
+                          {request.approvedChallengeId ? (
+                            <button
+                              type="button"
+                              onClick={() => deleteChallengeById(request.approvedChallengeId as string, request.challengeName || "Community challenge")}
+                              disabled={requestActionId === `delete-challenge-${request.id}` || actionId === `delete-${request.approvedChallengeId}`}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                            >
+                              {actionId === `delete-${request.approvedChallengeId}` ? "Deleting challenge..." : "Delete published challenge"}
+                            </button>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
@@ -1047,7 +1117,9 @@ export function AdminChallengesWorkspace() {
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "community" ? (
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
         <div className="border-b border-[var(--gl-hairline)] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1268,7 +1340,9 @@ export function AdminChallengesWorkspace() {
           </div>
         )}
       </section>
+      ) : null}
 
+      {activeSection === "all" ? (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
@@ -1455,6 +1529,7 @@ export function AdminChallengesWorkspace() {
           </div>
         </form>
       </div>
+      ) : null}
     </div>
   );
 }
