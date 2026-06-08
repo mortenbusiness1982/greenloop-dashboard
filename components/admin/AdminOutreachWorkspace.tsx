@@ -47,6 +47,12 @@ type OutreachMutationResponse = {
   email: OutreachEmail;
 };
 
+type OutreachDeleteResponse = {
+  ok: boolean;
+  id?: string;
+  deleted?: number;
+};
+
 type OutreachForm = {
   campaign_name: string;
   lead_name: string;
@@ -62,7 +68,7 @@ type OutreachForm = {
 
 const TEST_RECIPIENT = "mortenbusiness@gmail.com";
 
-const statusOptions: OutreachStatus[] = ["drafted", "approved", "sent", "failed", "skipped"];
+const statusOptions: OutreachStatus[] = ["drafted", "approved", "failed", "skipped"];
 
 const copy: Record<DashboardLanguage, {
   eyebrow: string;
@@ -73,7 +79,11 @@ const copy: Record<DashboardLanguage, {
   actionError: string;
   saved: string;
   approved: string;
+  approveAllConfirm: (count: number) => string;
   approveAllDone: (count: number) => string;
+  deleteAllConfirm: (count: number) => string;
+  deleteAllDone: (count: number) => string;
+  deleteConfirm: string;
   draftCreated: string;
   skipped: string;
   testSent: (id?: string | null) => string;
@@ -95,7 +105,11 @@ const copy: Record<DashboardLanguage, {
   };
   list: {
     title: string;
+    activeTitle: string;
+    archiveTitle: string;
+    archiveDescription: string;
     empty: string;
+    archiveEmpty: string;
     loading: string;
     created: string;
     approved: string;
@@ -121,6 +135,7 @@ const copy: Record<DashboardLanguage, {
     researchNotes: string;
     sourceLinks: string;
     noSourceLinks: string;
+    advancedDetails: string;
     realRecipientWarning: string;
     resendId: string;
     errorMessage: string;
@@ -132,6 +147,10 @@ const copy: Record<DashboardLanguage, {
     createDraft: string;
     approve: string;
     approveAll: string;
+    deleteSelected: string;
+    deleteAll: string;
+    sentArchive: string;
+    close: string;
     quickApprove: string;
     sendTest: string;
     sendReal: string;
@@ -149,7 +168,11 @@ const copy: Record<DashboardLanguage, {
     actionError: "Outreach action failed",
     saved: "Draft saved.",
     approved: "Draft approved.",
+    approveAllConfirm: (count) => `Approve ${count} visible drafts?`,
     approveAllDone: (count) => `${count} drafts approved.`,
+    deleteAllConfirm: (count) => `Delete ${count} visible unsent outreach records? Sent emails will stay in the archive.`,
+    deleteAllDone: (count) => `${count} outreach records deleted.`,
+    deleteConfirm: "Delete this unsent outreach record? Sent emails are retained in the archive.",
     draftCreated: "Draft created.",
     skipped: "Draft marked not suitable.",
     testSent: (id) => `Test email sent to ${TEST_RECIPIENT}${id ? ` (${id})` : ""}.`,
@@ -171,7 +194,11 @@ const copy: Record<DashboardLanguage, {
     },
     list: {
       title: "Drafts",
+      activeTitle: "Active drafts",
+      archiveTitle: "Sent approvals archive",
+      archiveDescription: "Sent emails stay here as the audit trail so GreenLoop does not contact the same lead twice by accident.",
       empty: "No outreach records match these filters.",
+      archiveEmpty: "No sent outreach emails yet.",
       loading: "Loading outreach records...",
       created: "Created",
       approved: "Approved",
@@ -197,6 +224,7 @@ const copy: Record<DashboardLanguage, {
       researchNotes: "Research notes",
       sourceLinks: "Source links",
       noSourceLinks: "No source links found in metadata.",
+      advancedDetails: "Advanced details",
       realRecipientWarning: "Real sends are locked until the record is approved. Test sends create a separate approved copy and never overwrite this recipient.",
       resendId: "Resend ID",
       errorMessage: "Error message",
@@ -208,6 +236,10 @@ const copy: Record<DashboardLanguage, {
       createDraft: "Create draft",
       approve: "Approve draft",
       approveAll: "Approve all visible drafts",
+      deleteSelected: "Delete draft",
+      deleteAll: "Delete all visible unsent",
+      sentArchive: "Sent archive",
+      close: "Close",
       quickApprove: "Approve",
       sendTest: "Send test",
       sendReal: "Send approved email",
@@ -232,7 +264,11 @@ const copy: Record<DashboardLanguage, {
     actionError: "Falló la acción de outreach",
     saved: "Borrador guardado.",
     approved: "Borrador aprobado.",
+    approveAllConfirm: (count) => `¿Aprobar ${count} borradores visibles?`,
     approveAllDone: (count) => `${count} borradores aprobados.`,
+    deleteAllConfirm: (count) => `¿Eliminar ${count} registros visibles sin enviar? Los emails enviados se conservarán en el archivo.`,
+    deleteAllDone: (count) => `${count} registros eliminados.`,
+    deleteConfirm: "¿Eliminar este registro sin enviar? Los emails enviados se conservan en el archivo.",
     draftCreated: "Borrador creado.",
     skipped: "Borrador marcado como no adecuado.",
     testSent: (id) => `Email de prueba enviado a ${TEST_RECIPIENT}${id ? ` (${id})` : ""}.`,
@@ -254,7 +290,11 @@ const copy: Record<DashboardLanguage, {
     },
     list: {
       title: "Borradores",
+      activeTitle: "Borradores activos",
+      archiveTitle: "Archivo de aprobaciones enviadas",
+      archiveDescription: "Los emails enviados se guardan aquí como historial para que GreenLoop no contacte dos veces al mismo lead por accidente.",
       empty: "No hay registros que coincidan con estos filtros.",
+      archiveEmpty: "Todavía no hay emails enviados.",
       loading: "Cargando registros...",
       created: "Creado",
       approved: "Aprobado",
@@ -280,6 +320,7 @@ const copy: Record<DashboardLanguage, {
       researchNotes: "Notas de investigación",
       sourceLinks: "Enlaces fuente",
       noSourceLinks: "No hay enlaces fuente en la metadata.",
+      advancedDetails: "Detalles avanzados",
       realRecipientWarning: "El envío real está bloqueado hasta aprobar el registro. Las pruebas crean una copia aprobada y nunca sobrescriben este destinatario.",
       resendId: "ID de Resend",
       errorMessage: "Mensaje de error",
@@ -291,6 +332,10 @@ const copy: Record<DashboardLanguage, {
       createDraft: "Crear borrador",
       approve: "Aprobar borrador",
       approveAll: "Aprobar todos los borradores visibles",
+      deleteSelected: "Eliminar borrador",
+      deleteAll: "Eliminar visibles sin enviar",
+      sentArchive: "Archivo enviados",
+      close: "Cerrar",
       quickApprove: "Aprobar",
       sendTest: "Enviar prueba",
       sendReal: "Enviar email aprobado",
@@ -477,6 +522,8 @@ export function AdminOutreachWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
   const [form, setForm] = useState<OutreachForm>(() => emptyForm());
   const [isCreating, setIsCreating] = useState(false);
+  const [sentArchiveOpen, setSentArchiveOpen] = useState(false);
+  const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
 
   const selected = useMemo(
     () => emails.find((email) => email.id === selectedId) ?? null,
@@ -489,6 +536,16 @@ export function AdminOutreachWorkspace() {
       return true;
     });
   }, [audienceFilter, emails]);
+
+  const activeEmails = useMemo(
+    () => filteredEmails.filter((email) => email.status !== "sent"),
+    [filteredEmails]
+  );
+
+  const sentEmails = useMemo(
+    () => emails.filter((email) => email.status === "sent"),
+    [emails]
+  );
 
   const audienceOptions = useMemo(() => uniqueStrings(emails.map((email) => email.audience_type)), [emails]);
 
@@ -524,9 +581,10 @@ export function AdminOutreachWorkspace() {
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const data = await apiFetch<OutreachListResponse>(`/admin/outreach/emails${suffix}`, { token });
       setEmails(data.emails ?? []);
+      const firstActiveId = data.emails.find((email) => email.status !== "sent")?.id ?? null;
       setSelectedId((current) => current && data.emails.some((email) => email.id === current)
         ? current
-        : data.emails[0]?.id ?? null);
+        : firstActiveId);
     } catch (err) {
       setError(err instanceof Error ? err.message : c.loadError);
     } finally {
@@ -541,6 +599,7 @@ export function AdminOutreachWorkspace() {
   useEffect(() => {
     if (isCreating) return;
     setForm(selected ? formFromEmail(selected) : emptyForm());
+    setAdvancedDetailsOpen(false);
   }, [isCreating, selected]);
 
   const updateForm = (key: keyof OutreachForm, value: string) => {
@@ -683,8 +742,9 @@ export function AdminOutreachWorkspace() {
   const approveAllVisibleDrafts = async () => {
     const token = getToken();
     if (!token) return;
-    const drafts = filteredEmails.filter((email) => email.status === "drafted");
+    const drafts = activeEmails.filter((email) => email.status === "drafted");
     if (!drafts.length) return;
+    if (!window.confirm(c.approveAllConfirm(drafts.length))) return;
     setAction("approveAll");
     setError(null);
     setMessage(null);
@@ -702,6 +762,61 @@ export function AdminOutreachWorkspace() {
       setMessage(c.approveAllDone(approvedCount));
     } catch (err) {
       setError(err instanceof Error ? err.message : c.actionError);
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (!selected || selected.status === "sent" || selected.status === "sending") return;
+    if (!window.confirm(c.deleteConfirm)) return;
+
+    const token = getToken();
+    if (!token) return;
+    setAction("delete");
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch<OutreachDeleteResponse>(`/admin/outreach/emails/${selected.id}`, {
+        token,
+        method: "DELETE",
+      });
+      setEmails((current) => current.filter((email) => email.id !== selected.id));
+      setSelectedId((current) => (current === selected.id ? null : current));
+      setMessage(c.deleteAllDone(1));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : c.actionError);
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const deleteAllVisibleUnsent = async () => {
+    const token = getToken();
+    if (!token) return;
+    const deletable = activeEmails.filter((email) => email.status !== "sending");
+    if (!deletable.length) return;
+    if (!window.confirm(c.deleteAllConfirm(deletable.length))) return;
+
+    setAction("deleteAll");
+    setError(null);
+    setMessage(null);
+    let deletedCount = 0;
+    try {
+      for (const email of deletable) {
+        await apiFetch<OutreachDeleteResponse>(`/admin/outreach/emails/${email.id}`, {
+          token,
+          method: "DELETE",
+        });
+        deletedCount += 1;
+      }
+      const deletedIds = new Set(deletable.map((email) => email.id));
+      setEmails((current) => current.filter((email) => !deletedIds.has(email.id)));
+      setSelectedId((current) => (current && deletedIds.has(current) ? null : current));
+      setMessage(c.deleteAllDone(deletedCount));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : c.actionError);
+      await loadEmails();
     } finally {
       setAction(null);
     }
@@ -797,7 +912,7 @@ export function AdminOutreachWorkspace() {
   const disabled = Boolean(action) || (!isCreating && (!selected || ["sent", "sending"].includes(selected.status)));
 
   return (
-    <main className="min-h-screen bg-[var(--gl-bg-cream)] px-4 py-8 md:px-8">
+    <div className="space-y-5">
       <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.eyebrow}</p>
@@ -820,6 +935,13 @@ export function AdminOutreachWorkspace() {
             type="button"
           >
             {c.actions.reload}
+          </button>
+          <button
+            className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
+            onClick={() => setSentArchiveOpen(true)}
+            type="button"
+          >
+            {c.actions.sentArchive} ({sentEmails.length})
           </button>
         </div>
       </section>
@@ -873,16 +995,26 @@ export function AdminOutreachWorkspace() {
 
       <section className="mb-5 flex flex-col gap-2 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:flex-row md:items-center md:justify-between">
         <p className="text-sm text-[var(--gl-ink-muted)]">
-          {filteredEmails.filter((email) => email.status === "drafted").length} {c.kpis.drafted.toLowerCase()}
+          {activeEmails.filter((email) => email.status === "drafted").length} {c.kpis.drafted.toLowerCase()} · {sentEmails.length} {c.kpis.sent.toLowerCase()}
         </p>
-        <button
-          className="rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-          type="button"
-          onClick={approveAllVisibleDrafts}
-          disabled={Boolean(action) || !filteredEmails.some((email) => email.status === "drafted")}
-        >
-          {action === "approveAll" ? "..." : c.actions.approveAll}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            onClick={deleteAllVisibleUnsent}
+            disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending")}
+          >
+            {action === "deleteAll" ? "..." : c.actions.deleteAll}
+          </button>
+          <button
+            className="rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            onClick={approveAllVisibleDrafts}
+            disabled={Boolean(action) || !activeEmails.some((email) => email.status === "drafted")}
+          >
+            {action === "approveAll" ? "..." : c.actions.approveAll}
+          </button>
+        </div>
       </section>
 
       {error ? (
@@ -899,16 +1031,16 @@ export function AdminOutreachWorkspace() {
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.25fr)]">
         <div className="overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
           <div className="border-b border-[var(--gl-hairline)] p-4">
-            <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.title}</h2>
+            <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.activeTitle}</h2>
           </div>
           <div className="max-h-[780px] overflow-y-auto">
             {loading ? (
               <p className="p-5 text-sm text-[var(--gl-ink-muted)]">{c.list.loading}</p>
-            ) : filteredEmails.length === 0 ? (
+            ) : activeEmails.length === 0 ? (
               <p className="p-5 text-sm text-[var(--gl-ink-muted)]">{c.list.empty}</p>
             ) : (
               <div className="divide-y divide-[var(--gl-hairline)]">
-                {filteredEmails.map((email) => {
+                {activeEmails.map((email) => {
                   const selectedRow = email.id === selectedId;
                   return (
                     <div
@@ -1022,16 +1154,6 @@ export function AdminOutreachWorkspace() {
               </div>
 
               <div>
-                <Label>{c.editor.researchNotes}</Label>
-                <textarea
-                  className="min-h-[120px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm leading-5 text-[var(--gl-ink)]"
-                  value={form.researchNotes}
-                  onChange={(event) => updateForm("researchNotes", event.target.value)}
-                  disabled={disabled}
-                />
-              </div>
-
-              <div>
                 <Label>{c.editor.preview}</Label>
                 <iframe
                   title="Outreach email preview"
@@ -1041,25 +1163,48 @@ export function AdminOutreachWorkspace() {
                 />
               </div>
 
-              <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{c.editor.sourceLinks}</p>
-                {sourceLinks.length ? (
-                  <div className="mt-2 space-y-1">
-                    {sourceLinks.map((link) => (
-                      <a
-                        key={link}
-                        href={link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block truncate text-sm font-semibold text-[var(--gl-green-deep)] underline"
-                      >
-                        {link}
-                      </a>
-                    ))}
+              <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-bold text-[var(--gl-ink)]"
+                  onClick={() => setAdvancedDetailsOpen((open) => !open)}
+                >
+                  {c.editor.advancedDetails}
+                  <span>{advancedDetailsOpen ? "−" : "+"}</span>
+                </button>
+                {advancedDetailsOpen ? (
+                  <div className="space-y-4 border-t border-[var(--gl-hairline)] p-4">
+                    <div>
+                      <Label>{c.editor.researchNotes}</Label>
+                      <textarea
+                        className="min-h-[120px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm leading-5 text-[var(--gl-ink)]"
+                        value={form.researchNotes}
+                        onChange={(event) => updateForm("researchNotes", event.target.value)}
+                        disabled={disabled}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{c.editor.sourceLinks}</p>
+                      {sourceLinks.length ? (
+                        <div className="mt-2 space-y-1">
+                          {sourceLinks.map((link) => (
+                            <a
+                              key={link}
+                              href={link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block truncate text-sm font-semibold text-[var(--gl-green-deep)] underline"
+                            >
+                              {link}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-[var(--gl-ink-muted)]">{c.editor.noSourceLinks}</p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="mt-2 text-sm text-[var(--gl-ink-muted)]">{c.editor.noSourceLinks}</p>
-                )}
+                ) : null}
               </div>
 
               {selected && (selected.resend_email_id || selected.error_message) ? (
@@ -1094,6 +1239,9 @@ export function AdminOutreachWorkspace() {
                     <ActionButton onClick={skipSelected} disabled={Boolean(action) || !selected || selected.status === "sent"} loading={action === "skip"} tone="danger">
                       {c.actions.skip}
                     </ActionButton>
+                    <ActionButton onClick={deleteSelected} disabled={Boolean(action) || !selected || selected.status === "sent" || selected.status === "sending"} loading={action === "delete"} tone="danger">
+                      {c.actions.deleteSelected}
+                    </ActionButton>
                   </>
                 )}
               </div>
@@ -1101,7 +1249,57 @@ export function AdminOutreachWorkspace() {
           )}
         </div>
       </section>
-    </main>
+      {sentArchiveOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--gl-hairline)] p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.actions.sentArchive}</p>
+                <h2 className="mt-1 text-2xl font-bold text-[var(--gl-ink)]">{c.list.archiveTitle}</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{c.list.archiveDescription}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSentArchiveOpen(false)}
+                className="rounded-full border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-ink)]"
+              >
+                {c.actions.close}
+              </button>
+            </div>
+            <div className="max-h-[65vh] overflow-y-auto">
+              {sentEmails.length ? (
+                <table className="w-full min-w-[860px] text-left text-sm">
+                  <thead className="sticky top-0 bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                    <tr>
+                      <th className="px-4 py-3">Organization</th>
+                      <th className="px-4 py-3">Recipient</th>
+                      <th className="px-4 py-3">Subject</th>
+                      <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3">Sent</th>
+                      <th className="px-4 py-3">Resend</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--gl-hairline)]">
+                    {sentEmails.map((email) => (
+                      <tr key={email.id}>
+                        <td className="px-4 py-3 font-semibold text-[var(--gl-ink)]">{email.organization_name || email.lead_name || "-"}</td>
+                        <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{email.lead_email}</td>
+                        <td className="max-w-[280px] truncate px-4 py-3 text-[var(--gl-ink)]">{email.subject}</td>
+                        <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{email.campaign_name || "-"}</td>
+                        <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{formatDate(email.sent_at)}</td>
+                        <td className="max-w-[180px] truncate px-4 py-3 text-[var(--gl-ink-muted)]">{email.resend_email_id || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="p-6 text-sm text-[var(--gl-ink-muted)]">{c.list.archiveEmpty}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -292,8 +292,6 @@ const navigation: Record<Exclude<DashboardRole, "user">, NavGroup[]> = {
       key: "organization",
       items: [
         { key: "overview", href: "/organization/overview", icon: Home },
-        { key: "challenges", href: "/organization/overview", icon: Flag },
-        { key: "certificate", href: "/organization/overview", icon: BarChart3 },
       ],
     },
   ],
@@ -551,13 +549,12 @@ export function CrmShell({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-1 sm:gap-2">
             <div
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-1 shadow-[0_1px_2px_rgba(20,32,26,0.06)]"
+              className="inline-flex items-center gap-0.5 rounded-full border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-0.5 shadow-[0_1px_2px_rgba(20,32,26,0.06)]"
+              role="group"
               aria-label={copy.languageLabel}
               title={copy.languageLabel}
             >
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--gl-paper)] text-[var(--gl-green-deep)]">
-                <Globe2 className="h-3.5 w-3.5" aria-hidden />
-              </span>
+              <Globe2 className="ml-2 mr-0.5 h-3.5 w-3.5 shrink-0 text-[var(--gl-ink-muted)]" aria-hidden />
               {(["en", "es"] as DashboardLanguage[]).map((option) => {
                 const active = option === language;
                 return (
@@ -565,12 +562,11 @@ export function CrmShell({ children }: { children: ReactNode }) {
                     key={option}
                     type="button"
                     onClick={() => setLanguage(option)}
-                    className="rounded-full px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide transition"
-                    style={
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide transition-colors ${
                       active
-                        ? { background: "var(--gl-green)", color: "white", boxShadow: "0 1px 2px rgba(20, 32, 26, 0.12)" }
-                        : { color: "var(--gl-ink-muted)" }
-                    }
+                        ? "bg-[var(--gl-green)] text-white shadow-[0_1px_2px_rgba(20,32,26,0.12)]"
+                        : "text-[var(--gl-ink-muted)] hover:text-[var(--gl-ink)]"
+                    }`}
                     title={option === "en" ? copy.english : copy.spanish}
                     aria-pressed={active}
                   >
