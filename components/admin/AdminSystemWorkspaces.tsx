@@ -250,7 +250,7 @@ export function AdminBinsWorkspace() {
       actions={
         <>
           <LinkButton href="/admin/maps">{copy.bins.openMaps}</LinkButton>
-          <button onClick={exportBins} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">{copy.bins.exportBins}</button>
+          <button onClick={exportBins} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green)]">{copy.bins.exportBins}</button>
         </>
       }
     >
@@ -261,17 +261,17 @@ export function AdminBinsWorkspace() {
         <Kpi label={copy.bins.kpis[3]} value={totals.cities} language={language} />
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">{copy.bins.tableTitle}</h2>
-            <p className="text-sm text-slate-500">{copy.bins.tableDescription}</p>
+            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.bins.tableTitle}</h2>
+            <p className="text-sm text-[var(--gl-ink-muted)]">{copy.bins.tableDescription}</p>
           </div>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.bins.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.bins.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[1100px] w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr>
                 {copy.bins.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
               </tr>
@@ -283,30 +283,30 @@ export function AdminBinsWorkspace() {
                 <EmptyRow colSpan={7} text={copy.bins.empty} />
               ) : (
                 bins.map((bin) => (
-                  <tr key={bin.id} className="border-t border-slate-100 align-top hover:bg-slate-50/70">
+                  <tr key={bin.id} className="border-t border-[var(--gl-card-cream)] align-top hover:bg-[var(--gl-card-cream)]/70">
                     <td className="px-4 py-2.5">
-                      <div className="font-semibold text-slate-950">{bin.city || copy.bins.unknownCity}</div>
-                      <div className="text-xs text-slate-500">{[bin.province, bin.region, bin.country].filter(Boolean).join(", ") || bin.id}</div>
+                      <div className="font-semibold text-[var(--gl-ink)]">{bin.city || copy.bins.unknownCity}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{[bin.province, bin.region, bin.country].filter(Boolean).join(", ") || bin.id}</div>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs">{bin.lat}, {bin.lng}</td>
                     <td className="px-4 py-2.5">
                       <Badge tone={bin.verification_status === "active" ? "green" : "amber"}>{bin.verification_status || copy.bins.unknown}</Badge>
-                      <div className="mt-1 text-xs text-slate-500">{bin.bin_type || copy.bins.bin} · {bin.source || copy.bins.unknown}</div>
+                      <div className="mt-1 text-xs text-[var(--gl-ink-muted)]">{bin.bin_type || copy.bins.bin} · {bin.source || copy.bins.unknown}</div>
                     </td>
                     <td className="px-4 py-2.5">
                       <div>{bin.recycling_events_count || 0} {copy.bins.events}</div>
-                      <div className="text-xs text-slate-500">{bin.recycled_units_count || 0} {copy.bins.units}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{bin.recycled_units_count || 0} {copy.bins.units}</div>
                     </td>
                     <td className="px-4 py-2.5">{bin.user_email || bin.user_display_name || bin.user_id || "-"}</td>
                     <td className="px-4 py-2.5">
-                      <div className="text-xs text-slate-500">{copy.bins.created}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{copy.bins.created}</div>
                       <div>{formatDate(bin.created_at, language)}</div>
-                      <div className="mt-2 text-xs text-slate-500">{copy.bins.lastUsed}</div>
+                      <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">{copy.bins.lastUsed}</div>
                       <div>{formatDate(bin.last_recycling_at, language)}</div>
                     </td>
                     <td className="px-4 py-2.5">
                       {bin.lat != null && bin.lng != null ? (
-                        <a href={`https://www.google.com/maps?q=${bin.lat},${bin.lng}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">
+                        <a href={`https://www.google.com/maps?q=${bin.lat},${bin.lng}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">
                           {copy.bins.openMap}
                         </a>
                       ) : "-"}
@@ -335,9 +335,9 @@ export function AdminSettingsWorkspace() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {copy.settings.cards.map(([title, rows]) => <ConfigCard key={title} title={title} rows={rows} />)}
       </div>
-      <section className="rounded-xl border border-dashed border-slate-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-950">{copy.settings.noteTitle}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+      <section className="rounded-xl border border-dashed border-[var(--gl-hairline)] bg-white p-6">
+        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.settings.noteTitle}</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">
           {copy.settings.noteBody}
         </p>
       </section>
@@ -356,22 +356,22 @@ export function AdminAuditWorkspace() {
       description={copy.audit.description}
       actions={<LinkButton href="/admin/settings">{copy.audit.settings}</LinkButton>}
     >
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-4">
-          <h2 className="text-lg font-semibold text-slate-950">{copy.audit.planTitle}</h2>
-          <p className="text-sm text-slate-500">{copy.audit.planDescription}</p>
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+        <div className="border-b border-[var(--gl-hairline)] p-4">
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.audit.planTitle}</h2>
+          <p className="text-sm text-[var(--gl-ink-muted)]">{copy.audit.planDescription}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[760px] w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr>
                 {copy.audit.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
               </tr>
             </thead>
             <tbody>
               {copy.audit.rows.map(([area, events]) => (
-                <tr key={area} className="border-t border-slate-100">
-                  <td className="px-4 py-2.5 font-semibold text-slate-950">{area}</td>
+                <tr key={area} className="border-t border-[var(--gl-card-cream)]">
+                  <td className="px-4 py-2.5 font-semibold text-[var(--gl-ink)]">{area}</td>
                   <td className="px-4 py-2.5">{events}</td>
                   <td className="px-4 py-2.5"><Badge tone="amber">{copy.audit.backendNeeded}</Badge></td>
                 </tr>
@@ -380,9 +380,9 @@ export function AdminAuditWorkspace() {
           </table>
         </div>
       </section>
-      <section className="rounded-xl border border-dashed border-slate-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-950">{copy.audit.schemaTitle}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+      <section className="rounded-xl border border-dashed border-[var(--gl-hairline)] bg-white p-6">
+        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.audit.schemaTitle}</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">
           {copy.audit.schemaBody}
         </p>
       </section>
@@ -409,9 +409,9 @@ function Frame({
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-emerald-700">{eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-slate-950">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">{description}</p>
+          <p className="text-sm font-medium text-[var(--gl-green)]">{eyebrow}</p>
+          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{description}</p>
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
@@ -423,9 +423,9 @@ function Frame({
 
 function Kpi({ label, value, language = "en" }: { label: string; value: number; language?: DashboardLanguage }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
     </div>
   );
 }
@@ -433,36 +433,36 @@ function Kpi({ label, value, language = "en" }: { label: string; value: number; 
 function Badge({ children, tone = "emerald" }: { children: React.ReactNode; tone?: "emerald" | "green" | "amber" | "slate" }) {
   const classes =
     tone === "green"
-      ? "bg-green-100 text-green-800"
+      ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
       : tone === "amber"
-        ? "bg-amber-100 text-amber-800"
+        ? "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"
         : tone === "slate"
-          ? "bg-slate-100 text-slate-700"
-          : "bg-emerald-50 text-emerald-700";
+          ? "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]"
+          : "bg-[var(--gl-green-soft)] text-[var(--gl-green)]";
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${classes}`}>{children}</span>;
 }
 
 function LinkButton({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">{children}</Link>;
+  return <Link href={href} className="rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">{children}</Link>;
 }
 
 function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-500">{text}</td>
+      <td colSpan={colSpan} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{text}</td>
     </tr>
   );
 }
 
 function ConfigCard({ title, rows }: { title: string; rows: readonly (readonly [string, string])[] }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
       <div className="mt-4 space-y-3">
         {rows.map(([label, value]) => (
-          <div key={label} className="border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
-            <p className="text-sm font-medium text-slate-700">{label}</p>
-            <p className="mt-1 text-sm text-slate-500">{value}</p>
+          <div key={label} className="border-t border-[var(--gl-card-cream)] pt-3 first:border-t-0 first:pt-0">
+            <p className="text-sm font-medium text-[var(--gl-ink-soft)]">{label}</p>
+            <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">{value}</p>
           </div>
         ))}
       </div>

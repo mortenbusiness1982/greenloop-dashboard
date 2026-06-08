@@ -439,12 +439,12 @@ function extractSourceLinks(metadata: Record<string, unknown> | null | undefined
 }
 
 function getStatusTone(status: OutreachStatus) {
-  if (status === "sent") return "bg-emerald-50 text-emerald-800 border-emerald-200";
-  if (status === "approved") return "bg-blue-50 text-blue-800 border-blue-200";
+  if (status === "sent") return "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)] border-[var(--gl-green)]/25";
+  if (status === "approved") return "bg-[var(--gl-coral-soft)] text-[var(--gl-coral-ink)] border-[var(--gl-coral)]/30";
   if (status === "failed") return "bg-red-50 text-red-800 border-red-200";
-  if (status === "skipped") return "bg-slate-50 text-slate-700 border-slate-200";
-  if (status === "sending") return "bg-amber-50 text-amber-800 border-amber-200";
-  return "bg-stone-50 text-stone-800 border-stone-200";
+  if (status === "skipped") return "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)] border-[var(--gl-hairline)]";
+  if (status === "sending") return "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)] border-[var(--gl-amber)]/30";
+  return "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)] border-[var(--gl-hairline)]";
 }
 
 function escapeHtml(value: string) {
@@ -1023,7 +1023,7 @@ export function AdminOutreachWorkspace() {
         </div>
       ) : null}
       {message ? (
-        <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+        <div className="mb-5 rounded-xl border border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] px-4 py-3 text-sm font-semibold text-[var(--gl-green-deep)]">
           {message}
         </div>
       ) : null}
@@ -1128,7 +1128,7 @@ export function AdminOutreachWorkspace() {
           ) : (
             <div className="space-y-5">
               {!isCreating ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                <div className="rounded-xl border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-4 py-3 text-sm font-semibold text-[var(--gl-amber-ink)]">
                   {c.editor.realRecipientWarning}
                 </div>
               ) : null}

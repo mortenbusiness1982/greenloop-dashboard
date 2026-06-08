@@ -450,7 +450,7 @@ export default function AdminActivityPage() {
                     <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.product_name || "Unknown product"}</td>
                     <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.barcode || "—"}</td>
                     <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{Number(event.units || 0)}</td>
-                    <td className="px-4 py-2.5 text-sm font-medium text-emerald-700">{Number(event.points_issued || 0)}</td>
+                    <td className="px-4 py-2.5 text-sm font-medium text-[var(--gl-green)]">{Number(event.points_issued || 0)}</td>
                   </tr>
                 ))
               )}

@@ -126,25 +126,25 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-emerald-700">Maps / Geo Intelligence</p>
-          <h1 className="text-3xl font-semibold text-slate-950">
+          <p className="text-sm font-medium text-[var(--gl-green)]">Maps / Geo Intelligence</p>
+          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">
             {heatmapOnly ? "Recycling Heatmap" : "Geo Intelligence"}
           </h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
             Full-screen recycling location intelligence with date and city filters, top locations, units, events, and export.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!heatmapOnly ? (
-            <Link href="/admin/maps/recycling-heatmap" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <Link href="/admin/maps/recycling-heatmap" className="rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
               Open heatmap
             </Link>
           ) : (
-            <Link href="/admin/maps" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <Link href="/admin/maps" className="rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
               Geo dashboard
             </Link>
           )}
-          <button onClick={exportGeoCsv} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+          <button onClick={exportGeoCsv} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green)]">
             Export Geo CSV
           </button>
         </div>
@@ -152,19 +152,19 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-4">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">From</span>
-            <input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">From</span>
+            <input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">To</span>
-            <input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">To</span>
+            <input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
           </label>
           <label className="block md:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">City</span>
-            <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} placeholder="Filter by city" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">City</span>
+            <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} placeholder="Filter by city" className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
           </label>
         </div>
       </section>
@@ -176,11 +176,11 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
         <Kpi label="Unique users" value={Number(totals?.uniqueConsumers || 0)} />
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">Recycling activity map</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Recycling activity map</h2>
+            <p className="text-sm text-[var(--gl-ink-muted)]">
               {loading ? "Loading map points..." : `${mappableEvents.length} mapped events from ${events.length} loaded rows.`}
             </p>
           </div>
@@ -190,14 +190,14 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
 
       {!heatmapOnly ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-4">
-              <h2 className="text-lg font-semibold text-slate-950">Recent mapped activity</h2>
-              <p className="text-sm text-slate-500">Latest geo-tagged recycling events from the current filter.</p>
+          <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+            <div className="border-b border-[var(--gl-hairline)] p-4">
+              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Recent mapped activity</h2>
+              <p className="text-sm text-[var(--gl-ink-muted)]">Latest geo-tagged recycling events from the current filter.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-[760px] w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
                   <tr>
                     <th className="px-4 py-2.5">Product</th>
                     <th className="px-4 py-2.5">City</th>
@@ -213,10 +213,10 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
                     <EmptyRow colSpan={5} text="No mapped events match these filters." />
                   ) : (
                     mappableEvents.slice(0, 100).map((event, index) => (
-                      <tr key={`${event.event_id || index}-${event.created_at || ""}`} className="border-t border-slate-100 hover:bg-slate-50/70">
+                      <tr key={`${event.event_id || index}-${event.created_at || ""}`} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                         <td className="px-4 py-2.5">
-                          <div className="font-semibold text-slate-950">{event.product_name || "Unknown product"}</div>
-                          <div className="text-xs text-slate-500">{event.barcode || "-"}</div>
+                          <div className="font-semibold text-[var(--gl-ink)]">{event.product_name || "Unknown product"}</div>
+                          <div className="text-xs text-[var(--gl-ink-muted)]">{event.barcode || "-"}</div>
                         </td>
                         <td className="px-4 py-2.5">{event.city || "-"}</td>
                         <td className="px-4 py-2.5">{event.units || 0}</td>
@@ -230,24 +230,24 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-4">
-              <h2 className="text-lg font-semibold text-slate-950">Top locations</h2>
-              <p className="text-sm text-slate-500">Cities ranked by recycled units.</p>
+          <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+            <div className="border-b border-[var(--gl-hairline)] p-4">
+              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Top locations</h2>
+              <p className="text-sm text-[var(--gl-ink-muted)]">Cities ranked by recycled units.</p>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-[var(--gl-card-cream)]">
               {cities.length === 0 ? (
-                <div className="p-4 text-sm text-slate-500">No city data available.</div>
+                <div className="p-4 text-sm text-[var(--gl-ink-muted)]">No city data available.</div>
               ) : (
                 cities.slice(0, 15).map((city, index) => (
                   <div key={`${city.city || "unknown"}-${index}`} className="flex items-center justify-between p-4 text-sm">
                     <div>
-                      <div className="font-semibold text-slate-950">{city.city || "Unknown city"}</div>
-                      <div className="text-xs text-slate-500">{city.consumers || 0} users</div>
+                      <div className="font-semibold text-[var(--gl-ink)]">{city.city || "Unknown city"}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">{city.consumers || 0} users</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-semibold text-slate-950">{city.units || 0}</div>
-                      <div className="text-xs text-slate-500">units</div>
+                      <div className="font-semibold text-[var(--gl-ink)]">{city.units || 0}</div>
+                      <div className="text-xs text-[var(--gl-ink-muted)]">units</div>
                     </div>
                   </div>
                 ))
@@ -262,9 +262,9 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value.toLocaleString()}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString()}</p>
     </div>
   );
 }
@@ -272,7 +272,7 @@ function Kpi({ label, value }: { label: string; value: number }) {
 function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-500">{text}</td>
+      <td colSpan={colSpan} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{text}</td>
     </tr>
   );
 }

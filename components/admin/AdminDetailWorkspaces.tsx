@@ -93,8 +93,8 @@ export function AdminUserDetailWorkspace({ id }: { id: string }) {
         <Kpi label="Recycling events" value={recycling.length} />
         <Kpi label="Recycled units" value={recycling.reduce((sum: number, event: AnyRecord) => sum + Number(event.units || 0), 0)} />
       </div>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        {loading ? <p className="text-sm text-slate-500">Loading user...</p> : (
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+        {loading ? <p className="text-sm text-[var(--gl-ink-muted)]">Loading user...</p> : (
           <div className="grid gap-4 md:grid-cols-2">
             <Info label="Email" value={user?.email} />
             <Info label="Display name" value={user?.display_name} />
@@ -105,21 +105,21 @@ export function AdminUserDetailWorkspace({ id }: { id: string }) {
           </div>
         )}
       </section>
-      <section className="rounded-xl border border-sky-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
         <div className="mb-3">
-          <h2 className="text-lg font-semibold text-slate-900">Active challenges</h2>
-          <p className="text-sm text-slate-500">Joined active challenges for this user.</p>
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Active challenges</h2>
+          <p className="text-sm text-[var(--gl-ink-muted)]">Joined active challenges for this user.</p>
         </div>
         {activeChallenges.length === 0 ? (
-          <p className="text-sm text-slate-500">No active joined challenges.</p>
+          <p className="text-sm text-[var(--gl-ink-muted)]">No active joined challenges.</p>
         ) : (
           <div className="space-y-2">
             {activeChallenges.map((challenge) => (
-              <div key={String(challenge.user_challenge_id || challenge.id)} className="rounded-lg border border-sky-100 bg-sky-50/60 p-3">
+              <div key={String(challenge.user_challenge_id || challenge.id)} className="rounded-lg border border-[var(--gl-green)]/20 bg-[var(--gl-green-soft)]/40 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-slate-900">{String(challenge.title || "Untitled challenge")}</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="font-medium text-[var(--gl-ink)]">{String(challenge.title || "Untitled challenge")}</p>
+                    <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
                       {String(challenge.challenge_type || "personal")} · {Number(challenge.progress_count || 0)}/{Number(challenge.required_count || 0) || 1}
                     </p>
                   </div>
@@ -238,7 +238,7 @@ export function AdminPartnerDetailWorkspace({ id }: { id: string }) {
         <Kpi label="Used" value={unlocks.filter((unlock) => unlock.unlock_status === "used").length} />
       </div>
       {loading ? <EmptyState text="Loading partner..." /> : null}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <Info label="Email" value={partner?.email || id} />
           <Info label="Status" value={partner?.deactivated_at ? "Inactive" : "Active"} />
@@ -298,7 +298,7 @@ export function AdminRewardDetailWorkspace({ id }: { id: string }) {
         <Kpi label="Available codes" value={Number(promoStats?.available || reward?.inventory_available || 0)} />
       </div>
       {loading ? <EmptyState text="Loading reward..." /> : null}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <Info label="Partner" value={reward?.partner_name} />
           <Info label="Status" value={reward?.status || (reward?.active ? "active" : "inactive")} />
@@ -358,7 +358,7 @@ export function AdminChallengeDetailWorkspace({ id }: { id: string }) {
         <Kpi label="Active" value={challenge?.active ? 1 : 0} />
       </div>
       {loading ? <EmptyState text="Loading challenge..." /> : null}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <Info label="Type" value={type} />
           <Info label="Target" value={target || "-"} />
@@ -377,11 +377,11 @@ function Frame({ title, eyebrow, description, error, backHref, children }: { tit
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-emerald-700">{eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-slate-950">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">{description}</p>
+          <p className="text-sm font-medium text-[var(--gl-green)]">{eyebrow}</p>
+          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{description}</p>
         </div>
-        <Link href={backHref} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Back</Link>
+        <Link href={backHref} className="rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Back</Link>
       </div>
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
       {children}
@@ -391,9 +391,9 @@ function Frame({ title, eyebrow, description, error, backHref, children }: { tit
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value.toLocaleString()}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString()}</p>
     </div>
   );
 }
@@ -401,29 +401,29 @@ function Kpi({ label, value }: { label: string; value: number }) {
 function Info({ label, value }: { label: string; value: unknown }) {
   return (
     <div>
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-slate-900">{String(value ?? "-")}</p>
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-[var(--gl-ink)]">{String(value ?? "-")}</p>
     </div>
   );
 }
 
 function SimpleTable({ title, headers, rows }: { title: string; headers: string[]; rows: unknown[][] }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 p-4">
-        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+      <div className="border-b border-[var(--gl-hairline)] p-4">
+        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[720px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>{headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}</tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-slate-500">No rows available.</td></tr>
+              <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No rows available.</td></tr>
             ) : (
               rows.slice(0, 200).map((row, index) => (
-                <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/70">
+                <tr key={index} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                   {row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} className="px-4 py-2.5">{String(cell ?? "-")}</td>)}
                 </tr>
               ))
@@ -436,5 +436,5 @@ function SimpleTable({ title, headers, rows }: { title: string; headers: string[
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">{text}</div>;
+  return <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 text-sm text-[var(--gl-ink-muted)] shadow-sm">{text}</div>;
 }

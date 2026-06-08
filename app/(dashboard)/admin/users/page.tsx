@@ -554,8 +554,8 @@ export default function AdminUsersPage() {
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
                           user.deactivated_at
-                            ? "bg-gray-200 text-gray-700"
-                            : "bg-green-100 text-green-800"
+                            ? "bg-[var(--gl-hairline)] text-[var(--gl-ink-soft)]"
+                            : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
                         }`}
                       >
                         {user.deactivated_at ? "Deactivated" : "Active"}
@@ -597,7 +597,7 @@ export default function AdminUsersPage() {
                             resetAvatarProgress(user);
                           }}
                           disabled={resettingAvatarUserId === user.id}
-                          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded-md border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-3 py-1.5 font-medium text-[var(--gl-amber-ink)] transition hover:bg-[var(--gl-amber-soft)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {resettingAvatarUserId === user.id ? "Resetting..." : "Reset Avatar"}
                         </button>
@@ -644,8 +644,8 @@ export default function AdminUsersPage() {
                   <span
                     className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
                       selectedUser.user.deactivated_at
-                        ? "bg-gray-200 text-gray-700"
-                        : "bg-green-100 text-green-800"
+                        ? "bg-[var(--gl-hairline)] text-[var(--gl-ink-soft)]"
+                        : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
                     }`}
                   >
                     {selectedUser.user.deactivated_at ? "Deactivated" : "Active"}
@@ -747,9 +747,9 @@ export default function AdminUsersPage() {
                 </div>
                 </div>
 
-                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3.5">
+                <div className="mt-3 rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)]/70 p-3.5">
                 <div className="mb-2.5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-800">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-amber-ink)]">
                     Reset Avatar Progress
                   </h3>
                   <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
@@ -760,16 +760,16 @@ export default function AdminUsersPage() {
                   type="button"
                   onClick={() => resetAvatarProgress(selectedUser.user)}
                   disabled={resettingAvatarUserId === selectedUser.user.id}
-                  className="w-full rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-md bg-[var(--gl-amber-ink)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-amber-ink)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resettingAvatarUserId === selectedUser.user.id ? "Resetting..." : "Reset to Turtle"}
                 </button>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-3.5">
+              <div className="rounded-lg border border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)]/50 p-3.5">
                 <div className="mb-2.5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-sky-800">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green-deep)]">
                     Active Challenges
                   </h3>
                   <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
@@ -786,7 +786,7 @@ export default function AdminUsersPage() {
                           ? Math.min(100, Math.round((challenge.progress_count / challenge.required_count) * 100))
                           : 0;
                       return (
-                        <div key={challenge.user_challenge_id} className="rounded-md border border-sky-100 bg-[var(--gl-paper)] p-3">
+                        <div key={challenge.user_challenge_id} className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="font-medium text-[var(--gl-ink)]">{challenge.title}</p>
@@ -810,8 +810,8 @@ export default function AdminUsersPage() {
                                 {challenge.progress_count}/{challenge.required_count || 1}
                               </span>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-sky-100">
-                              <div className="h-full rounded-full bg-sky-600" style={{ width: `${progress}%` }} />
+                            <div className="h-2 overflow-hidden rounded-full bg-[var(--gl-green-soft)]">
+                              <div className="h-full rounded-full bg-[var(--gl-green)]" style={{ width: `${progress}%` }} />
                             </div>
                           </div>
                         </div>
@@ -992,10 +992,10 @@ export default function AdminUsersPage() {
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
                               event.verification_status === "approved"
-                                ? "bg-green-100 text-green-800"
+                                ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
                                 : event.verification_status === "rejected"
                                   ? "bg-red-100 text-red-700"
-                                  : "bg-amber-100 text-amber-800"
+                                  : "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"
                             }`}
                           >
                             {event.verification_status}

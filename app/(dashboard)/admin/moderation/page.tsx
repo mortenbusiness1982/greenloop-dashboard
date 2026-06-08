@@ -84,28 +84,28 @@ function getRiskClasses(tier: RiskTier) {
   }
   if (tier === "review") {
     return {
-      badge: "bg-amber-100 text-amber-800",
-      card: "border-l-4 border-l-amber-400",
-      label: "text-amber-700",
-      summary: "bg-amber-50 text-amber-800 border-amber-200",
-      flag: "bg-amber-100 text-amber-800",
+      badge: "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]",
+      card: "border-l-4 border-l-[var(--gl-amber)]",
+      label: "text-[var(--gl-amber-ink)]",
+      summary: "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)] border-[var(--gl-amber)]/30",
+      flag: "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]",
     };
   }
   if (tier === "low") {
     return {
-      badge: "bg-emerald-100 text-emerald-700",
-      card: "border-l-4 border-l-emerald-500",
-      label: "text-emerald-700",
-      summary: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      flag: "bg-emerald-100 text-emerald-700",
+      badge: "bg-[var(--gl-green-soft)] text-[var(--gl-green)]",
+      card: "border-l-4 border-l-[var(--gl-green)]",
+      label: "text-[var(--gl-green)]",
+      summary: "bg-[var(--gl-green-soft)] text-[var(--gl-green)] border-[var(--gl-green)]/25",
+      flag: "bg-[var(--gl-green-soft)] text-[var(--gl-green)]",
     };
   }
   return {
-    badge: "bg-gray-100 text-gray-700",
-    card: "border-l-4 border-l-gray-300",
-    label: "text-gray-600",
-    summary: "bg-gray-50 text-gray-700 border-gray-200",
-    flag: "bg-gray-100 text-gray-700",
+    badge: "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]",
+    card: "border-l-4 border-l-[var(--gl-hairline)]",
+    label: "text-[var(--gl-ink-muted)]",
+    summary: "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)] border-[var(--gl-hairline)]",
+    flag: "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]",
   };
 }
 
@@ -223,8 +223,8 @@ function ImageSlot({
   const isLegacyImage = isLocalFileUrl(imageUrl);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-      <div className="border-b border-gray-200 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-600">
+    <div className="overflow-hidden rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
+      <div className="border-b border-[var(--gl-hairline)] px-3 py-2 text-xs font-medium uppercase tracking-wide text-[var(--gl-ink-muted)]">
         {label}
       </div>
       <div className="flex h-56 items-center justify-center p-2 xl:h-72">
@@ -235,25 +235,25 @@ function ImageSlot({
             width={520}
             height={320}
             unoptimized
-            className="h-full w-full rounded-md border border-gray-200 object-cover"
+            className="h-full w-full rounded-md border border-[var(--gl-hairline)] object-cover"
           />
         ) : isLegacyImage ? (
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-amber-300 bg-amber-50 text-sm text-amber-700">
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-[var(--gl-amber)]/40 bg-[var(--gl-amber-soft)] text-sm text-[var(--gl-amber-ink)]">
             Legacy image (not available)
           </div>
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-gray-200 bg-gray-100 text-sm text-gray-500">
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] text-sm text-[var(--gl-ink-muted)]">
             Missing
           </div>
         )}
       </div>
-      <div className="space-y-1 border-t border-gray-200 px-3 py-2">
+      <div className="space-y-1 border-t border-[var(--gl-hairline)] px-3 py-2">
         {isLocalFileUrl(imageUrl) ? (
-          <p className="text-[11px] text-amber-700">Local mobile file path — not browser accessible</p>
+          <p className="text-[11px] text-[var(--gl-amber-ink)]">Local mobile file path — not browser accessible</p>
         ) : null}
         <div>
-          <p className="text-[11px] font-medium text-gray-500">Source URL</p>
-          <p className="mt-0.5 break-all font-mono text-[11px] text-gray-400">{formatUrlPreview(imageUrl)}</p>
+          <p className="text-[11px] font-medium text-[var(--gl-ink-muted)]">Source URL</p>
+          <p className="mt-0.5 break-all font-mono text-[11px] text-[var(--gl-ink-faint)]">{formatUrlPreview(imageUrl)}</p>
         </div>
       </div>
     </div>
@@ -417,11 +417,11 @@ export default function ModerationPage() {
     return (
       <div className="mx-auto max-w-7xl space-y-5">
         <div>
-          <div className="h-10 w-56 rounded bg-gray-200" />
+          <div className="h-10 w-56 rounded bg-[var(--gl-hairline)]" />
           <div className="mt-3 flex gap-2">
-            <div className="h-9 w-24 rounded-full bg-gray-200" />
-            <div className="h-9 w-24 rounded-full bg-gray-200" />
-            <div className="h-9 w-24 rounded-full bg-gray-200" />
+            <div className="h-9 w-24 rounded-full bg-[var(--gl-hairline)]" />
+            <div className="h-9 w-24 rounded-full bg-[var(--gl-hairline)]" />
+            <div className="h-9 w-24 rounded-full bg-[var(--gl-hairline)]" />
           </div>
         </div>
 
@@ -429,13 +429,13 @@ export default function ModerationPage() {
           {[0, 1, 2].map((item) => (
             <div key={item} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="h-56 rounded-lg bg-gray-200 xl:h-72" />
-                <div className="h-56 rounded-lg bg-gray-200 xl:h-72" />
+                <div className="h-56 rounded-lg bg-[var(--gl-hairline)] xl:h-72" />
+                <div className="h-56 rounded-lg bg-[var(--gl-hairline)] xl:h-72" />
               </div>
-              <div className="mt-3 h-4 w-40 rounded bg-gray-200" />
+              <div className="mt-3 h-4 w-40 rounded bg-[var(--gl-hairline)]" />
               <div className="mt-3 flex gap-3">
-                <div className="h-10 w-28 rounded bg-gray-200" />
-                <div className="h-10 w-28 rounded bg-gray-200" />
+                <div className="h-10 w-28 rounded bg-[var(--gl-hairline)]" />
+                <div className="h-10 w-28 rounded bg-[var(--gl-hairline)]" />
               </div>
             </div>
           ))}
@@ -520,7 +520,7 @@ export default function ModerationPage() {
                 type="button"
                 onClick={() => void handleRejectSelected(pendingVisibleEventIds)}
                 disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
-                className="rounded bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Reject All
               </button>
@@ -539,10 +539,10 @@ export default function ModerationPage() {
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             High risk: {pendingRiskSummary.high}
           </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-3 py-2 text-sm text-[var(--gl-amber-ink)]">
             Review: {pendingRiskSummary.review}
           </div>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <div className="rounded-lg border border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] px-3 py-2 text-sm text-[var(--gl-green)]">
             Low risk: {pendingRiskSummary.low}
           </div>
           <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2 text-sm text-[var(--gl-ink-soft)]">
@@ -609,7 +609,7 @@ export default function ModerationPage() {
                         </span>
                         <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
                         {isAutoApprovable(event) ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
+                          <span className="rounded-full bg-[var(--gl-green-soft)] px-2 py-0.5 font-semibold text-[var(--gl-green)]">Auto</span>
                         ) : null}
                       </div>
                     </div>

@@ -254,9 +254,9 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 function typeTone(type: ChallengeType | undefined | null) {
-  if (type === "global") return "bg-blue-100 text-blue-800";
-  if (type === "community") return "bg-amber-100 text-amber-800";
-  return "bg-emerald-100 text-emerald-800";
+  if (type === "global") return "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]";
+  if (type === "community") return "bg-[var(--gl-coral-soft)] text-[var(--gl-coral-ink)]";
+  return "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]";
 }
 
 function getVisibilityStatus(challenge: Challenge) {
@@ -264,7 +264,7 @@ function getVisibilityStatus(challenge: Challenge) {
     return {
       label: "Inactive",
       detail: "Hidden from the app.",
-      className: "bg-slate-100 text-slate-700",
+      className: "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]",
     };
   }
 
@@ -276,7 +276,7 @@ function getVisibilityStatus(challenge: Challenge) {
     return {
       label: "Scheduled",
       detail: `Visible from ${formatDateTime(challenge.starts_at)}.`,
-      className: "bg-blue-100 text-blue-800",
+      className: "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]",
     };
   }
 
@@ -284,14 +284,14 @@ function getVisibilityStatus(challenge: Challenge) {
     return {
       label: "Ended",
       detail: "Past end date.",
-      className: "bg-slate-100 text-slate-700",
+      className: "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]",
     };
   }
 
   return {
     label: "Live in app",
     detail: "Visible to matching users now.",
-    className: "bg-green-100 text-green-800",
+    className: "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]",
   };
 }
 
@@ -323,10 +323,10 @@ const challengeRequestStatuses: { value: ChallengeRequestStatus; label: string }
 ];
 
 const challengeRequestStatusTone: Record<ChallengeRequestStatus, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  approved: "bg-green-100 text-green-800",
+  pending: "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]",
+  approved: "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]",
   rejected: "bg-red-100 text-red-800",
-  converted: "bg-blue-100 text-blue-800",
+  converted: "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]",
 };
 
 function getChallengeRequestStatusLabel(status: ChallengeRequestStatus) {
@@ -903,9 +903,9 @@ export function AdminChallengesWorkspace() {
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-emerald-700">Superadmin CRM</p>
-          <h1 className="text-3xl font-semibold text-slate-950">Challenge Manager</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          <p className="text-sm font-medium text-[var(--gl-green)]">Superadmin CRM</p>
+          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">Challenge Manager</h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
             Manage personal, global, and community challenges with target rules, completion rewards, dates, and activation.
           </p>
         </div>
@@ -920,7 +920,7 @@ export function AdminChallengesWorkspace() {
         <Kpi label="Community" value={kpis.community} />
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-2 shadow-sm">
         <div className="grid gap-2 md:grid-cols-3">
           {sectionTabs.map((tab) => {
             const selected = activeSection === tab.key;
@@ -931,17 +931,17 @@ export function AdminChallengesWorkspace() {
                 onClick={() => setActiveSection(tab.key)}
                 className={`rounded-lg border px-4 py-3 text-left transition ${
                   selected
-                    ? "border-emerald-600 bg-emerald-50 text-emerald-950 shadow-sm"
-                    : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50"
+                    ? "border-[var(--gl-green)] bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)] shadow-sm"
+                    : "border-transparent bg-white text-[var(--gl-ink-soft)] hover:border-[var(--gl-hairline)] hover:bg-[var(--gl-card-cream)]"
                 }`}
               >
                 <span className="flex items-center justify-between gap-3">
                   <span className="text-sm font-semibold">{tab.label}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${selected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${selected ? "bg-[var(--gl-green)] text-white" : "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]"}`}>
                     {tab.count}
                   </span>
                 </span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">{tab.description}</span>
+                <span className="mt-1 block text-xs leading-5 text-[var(--gl-ink-muted)]">{tab.description}</span>
               </button>
             );
           })}
@@ -949,13 +949,13 @@ export function AdminChallengesWorkspace() {
       </section>
 
       {activeSection === "requests" ? (
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-4">
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+        <div className="border-b border-[var(--gl-hairline)] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-sm font-medium text-amber-700">Community Challenge Requests</p>
-              <h2 className="text-xl font-semibold text-slate-950">Review requested community challenges</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              <p className="text-sm font-medium text-[var(--gl-amber-ink)]">Community Challenge Requests</p>
+              <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Review requested community challenges</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">
                 Requests submitted from the app are review-only. Approving a request publishes it as a live Community challenge.
               </p>
             </div>
@@ -970,28 +970,28 @@ export function AdminChallengesWorkspace() {
             <select
               value={requestStatusFilter}
               onChange={(event) => setRequestStatusFilter(event.target.value as "all" | ChallengeRequestStatus)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 sm:w-56"
+              className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15 sm:w-56"
             >
               <option value="all">All statuses</option>
               {challengeRequestStatuses.map((status) => (
                 <option key={status.value} value={status.value}>{status.label}</option>
               ))}
             </select>
-            <span className="text-sm text-slate-500">{filteredChallengeRequests.length} request{filteredChallengeRequests.length === 1 ? "" : "s"} shown</span>
+            <span className="text-sm text-[var(--gl-ink-muted)]">{filteredChallengeRequests.length} request{filteredChallengeRequests.length === 1 ? "" : "s"} shown</span>
           </div>
           {requestMessage ? (
-            <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${requestMessage.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`}>
+            <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${requestMessage.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] text-[var(--gl-green)]"}`}>
               {requestMessage.text}
             </div>
           ) : null}
         </div>
 
         {loading ? (
-          <div className="p-6 text-sm text-slate-500">Loading challenge requests...</div>
+          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">Loading challenge requests...</div>
         ) : filteredChallengeRequests.length === 0 ? (
-          <div className="p-6 text-sm text-slate-500">No community challenge requests match this filter.</div>
+          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">No community challenge requests match this filter.</div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-[var(--gl-card-cream)]">
             {filteredChallengeRequests.map((request) => (
               <article key={request.id} className="p-4">
                 <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -999,15 +999,15 @@ export function AdminChallengesWorkspace() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-slate-950">{request.challengeName}</h3>
+                          <h3 className="text-lg font-semibold text-[var(--gl-ink)]">{request.challengeName}</h3>
                           <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${challengeRequestStatusTone[request.status]}`}>
                             {getChallengeRequestStatusLabel(request.status)}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm font-medium text-slate-700">{request.communityName}</p>
-                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{request.description || "No description provided."}</p>
+                        <p className="mt-1 text-sm font-medium text-[var(--gl-ink-soft)]">{request.communityName}</p>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{request.description || "No description provided."}</p>
                       </div>
-                      <div className="text-sm text-slate-500 md:text-right">
+                      <div className="text-sm text-[var(--gl-ink-muted)] md:text-right">
                         <div>Created {formatDateTime(request.createdAt)}</div>
                         <div>Updated {formatDateTime(request.updatedAt)}</div>
                       </div>
@@ -1032,30 +1032,30 @@ export function AdminChallengesWorkspace() {
                     </div>
 
                     {request.notes ? (
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">
-                        <span className="font-semibold text-slate-900">Requester notes: </span>{request.notes}
+                      <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm leading-6 text-[var(--gl-ink-soft)]">
+                        <span className="font-semibold text-[var(--gl-ink)]">Requester notes: </span>{request.notes}
                       </div>
                     ) : null}
 
                     {request.approvedChallengeId ? (
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-900">
+                      <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-xs leading-5 text-[var(--gl-ink-soft)]">
                         Converted to live challenge {request.approvedChallengeId}.
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                      <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] p-3 text-xs leading-5 text-[var(--gl-amber-ink)]">
                         Approving publishes this as a live Community challenge in the app and sends the contact an approval email.
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
                     <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">Admin notes</span>
+                      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Admin notes</span>
                       <textarea
                         value={requestAdminNotes[request.id] || ""}
                         onChange={(event) => updateRequestAdminNotes(request.id, event.target.value)}
                         placeholder="Review notes, edits needed, follow-up owner..."
-                        className="min-h-32 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
+                        className="min-h-32 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15"
                       />
                     </label>
                     <div className="mt-4 grid gap-2">
@@ -1063,13 +1063,13 @@ export function AdminChallengesWorkspace() {
                         type="button"
                         onClick={() => updateChallengeRequest(request)}
                         disabled={requestActionId === `notes-${request.id}`}
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        className="rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)] disabled:opacity-60"
                       >
                         {requestActionId === `notes-${request.id}` ? "Saving notes..." : "Save admin notes"}
                       </button>
                       {request.status === "converted" ? (
                         <div className="grid gap-2">
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
+                          <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)]">
                             Published as a Community challenge
                           </div>
                           {request.approvedChallengeId ? (
@@ -1090,7 +1090,7 @@ export function AdminChallengesWorkspace() {
                               type="button"
                               onClick={() => updateChallengeRequest(request, "approved")}
                               disabled={requestActionId === `approved-${request.id}`}
-                              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                              className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green)] disabled:opacity-60"
                             >
                               {requestActionId === `approved-${request.id}` ? "Publishing..." : "Approve + publish challenge"}
                             </button>
@@ -1100,7 +1100,7 @@ export function AdminChallengesWorkspace() {
                             onClick={() => updateChallengeRequest(request, request.status === "rejected" ? "pending" : "rejected")}
                             disabled={requestActionId === `${request.status === "rejected" ? "pending" : "rejected"}-${request.id}`}
                             className={request.status === "rejected"
-                              ? "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                              ? "rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)] disabled:opacity-60"
                               : "rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"}
                           >
                             {request.status === "rejected"
@@ -1162,10 +1162,10 @@ export function AdminChallengesWorkspace() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-semibold text-[var(--gl-ink)]">{challenge.title}</h3>
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${stage === "Completed" ? "bg-slate-100 text-slate-700" : "bg-green-100 text-green-800"}`}>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${stage === "Completed" ? "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]" : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"}`}>
                               {stage}
                             </span>
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${challenge.certificateEnabled ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]" : "bg-slate-100 text-slate-700"}`}>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${challenge.certificateEnabled ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]" : "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]"}`}>
                               Certificate {status.toLowerCase()}
                             </span>
                           </div>
@@ -1344,15 +1344,15 @@ export function AdminChallengesWorkspace() {
 
       {activeSection === "all" ? (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
+        <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">All challenges</h2>
-              <p className="text-sm text-slate-500">Global is per user; community is shared progress.</p>
+              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">All challenges</h2>
+              <p className="text-sm text-[var(--gl-ink-muted)]">Global is per user; community is shared progress.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or target" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or target" className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
                 <option value="all">All types</option>
                 <option value="personal">Personal</option>
                 <option value="global">Global</option>
@@ -1362,7 +1362,7 @@ export function AdminChallengesWorkspace() {
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[1080px] w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
                 <tr>
                   <th className="px-4 py-2.5">Challenge</th>
                   <th className="px-4 py-2.5">Type</th>
@@ -1378,28 +1378,28 @@ export function AdminChallengesWorkspace() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">Loading challenges...</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">Loading challenges...</td></tr>
                 ) : filteredChallenges.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No challenges match the current filters.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No challenges match the current filters.</td></tr>
                 ) : (
                   filteredChallenges.map((challenge) => (
-                    <tr key={challenge.id} className="border-t border-slate-100 align-top hover:bg-slate-50/70">
+                    <tr key={challenge.id} className="border-t border-[var(--gl-card-cream)] align-top hover:bg-[var(--gl-card-cream)]/70">
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold text-slate-950">{challenge.title}</div>
-                        <div className="mt-1 max-w-xs truncate text-xs text-slate-500">{challenge.description || "No description"}</div>
+                        <div className="font-semibold text-[var(--gl-ink)]">{challenge.title}</div>
+                        <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{challenge.description || "No description"}</div>
                       </td>
                       <td className="px-4 py-2.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span></td>
                       <td className="px-4 py-2.5">
-                        <div className="capitalize text-slate-500">{challenge.targetKind || "brand"}</div>
-                        <div className="font-medium text-slate-800">{getTargetValue(challenge) || "-"}</div>
+                        <div className="capitalize text-[var(--gl-ink-muted)]">{challenge.targetKind || "brand"}</div>
+                        <div className="font-medium text-[var(--gl-ink-soft)]">{getTargetValue(challenge) || "-"}</div>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-700">{challenge.required_count}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{challenge.completionRewardTitle || "-"}</td>
-                      <td className="px-4 py-2.5 text-slate-700">
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.required_count}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.completionRewardTitle || "-"}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">
                         <div>{formatDateTime(challenge.starts_at)}</div>
-                        <div className="text-xs text-slate-500">{formatDateTime(challenge.ends_at)}</div>
+                        <div className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(challenge.ends_at)}</div>
                       </td>
                       <td className="px-4 py-2.5">
                         {(() => {
@@ -1409,16 +1409,16 @@ export function AdminChallengesWorkspace() {
                               <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${visibility.className}`}>
                                 {visibility.label}
                               </span>
-                              <div className="max-w-[170px] text-xs leading-5 text-slate-500">{visibility.detail}</div>
+                              <div className="max-w-[170px] text-xs leading-5 text-[var(--gl-ink-muted)]">{visibility.detail}</div>
                             </div>
                           );
                         })()}
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex flex-wrap gap-2">
-                          <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">View</Link>
-                          <button onClick={() => startEdit(challenge)} className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">Edit</button>
-                          <button onClick={() => toggleChallenge(challenge.id)} disabled={actionId === `toggle-${challenge.id}`} className="rounded-md bg-emerald-600 px-3 py-1.5 text-white disabled:opacity-60">Toggle</button>
+                          <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
+                          <button onClick={() => startEdit(challenge)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
+                          <button onClick={() => toggleChallenge(challenge.id)} disabled={actionId === `toggle-${challenge.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-white disabled:opacity-60">Toggle</button>
                           <button onClick={() => deleteChallenge(challenge)} disabled={actionId === `delete-${challenge.id}`} className="rounded-md bg-red-600 px-3 py-1.5 text-white disabled:opacity-60">
                             {actionId === `delete-${challenge.id}` ? "Deleting..." : "Delete"}
                           </button>
@@ -1432,17 +1432,17 @@ export function AdminChallengesWorkspace() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">{editingId ? "Edit challenge" : "Create challenge"}</h2>
-              <p className="text-sm text-slate-500">Target, timing, progress, and reward</p>
+              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{editingId ? "Edit challenge" : "Create challenge"}</h2>
+              <p className="text-sm text-[var(--gl-ink-muted)]">Target, timing, progress, and reward</p>
             </div>
-            {editingId ? <button type="button" onClick={resetForm} className="text-sm font-semibold text-slate-600 hover:text-slate-950">New challenge</button> : null}
+            {editingId ? <button type="button" onClick={resetForm} className="text-sm font-semibold text-[var(--gl-ink-muted)] hover:text-[var(--gl-ink)]">New challenge</button> : null}
           </div>
           <div className="space-y-4">
             {editingId ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-5 text-amber-900">
+              <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-4 py-2.5 text-xs leading-5 text-[var(--gl-amber-ink)]">
                 You are editing an existing challenge. Changing the type here converts this challenge and keeps its current title, description, target, dates, and reward. Use New challenge to start with an empty form.
               </div>
             ) : null}
@@ -1461,7 +1461,7 @@ export function AdminChallengesWorkspace() {
               <option value="global">Global</option>
               <option value="community">Community</option>
             </Select>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs leading-5 text-slate-600">{challengeSummary(form.challengeType)}</div>
+            <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-4 py-2.5 text-xs leading-5 text-[var(--gl-ink-muted)]">{challengeSummary(form.challengeType)}</div>
             <Select label="Target type" value={form.targetKind} onChange={(value) => setForm((current) => ({ ...current, targetKind: value as TargetKind }))}>
               <option value="any">Any recycled item</option>
               <option value="brand">Brand</option>
@@ -1470,8 +1470,8 @@ export function AdminChallengesWorkspace() {
             </Select>
             {form.targetKind === "brand" ? (
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Target brand</span>
-                <input list="admin-challenge-brand-options" value={form.targetBrandKey || form.brand_key} onChange={(event) => setForm((current) => ({ ...current, targetBrandKey: event.target.value, brand_key: event.target.value }))} required className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15" />
+                <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Target brand</span>
+                <input list="admin-challenge-brand-options" value={form.targetBrandKey || form.brand_key} onChange={(event) => setForm((current) => ({ ...current, targetBrandKey: event.target.value, brand_key: event.target.value }))} required className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15" />
                 <datalist id="admin-challenge-brand-options">
                   {brands.map((brand) => <option key={brand.id} value={brand.name} />)}
                 </datalist>
@@ -1515,7 +1515,7 @@ export function AdminChallengesWorkspace() {
               <Field label={form.challengeType === "community" ? "EcoPoints per joined user" : "Bonus EcoPoints"} type="number" min="0" value={form.bonus_points} onChange={(value) => setForm((current) => ({ ...current, bonus_points: value }))} required={!form.completionRewardId} />
             </div>
             {form.challengeType === "community" ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs leading-5 text-slate-600">
+              <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-4 py-2.5 text-xs leading-5 text-[var(--gl-ink-muted)]">
                 Put the shared goal here. For a 25,000 item university challenge, enter 25000 in Shared item target. The app shows community progress as recycled items / shared item target.
               </div>
             ) : null}
@@ -1523,7 +1523,7 @@ export function AdminChallengesWorkspace() {
               <Field label="Starts at" type="datetime-local" value={form.starts_at} onChange={(value) => setForm((current) => ({ ...current, starts_at: value }))} required />
               <Field label="Ends at" type="datetime-local" value={form.ends_at} onChange={(value) => setForm((current) => ({ ...current, ends_at: value }))} required />
             </div>
-            <button disabled={saving} className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+            <button disabled={saving} className="w-full rounded-lg bg-[var(--gl-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--gl-green)] disabled:opacity-60">
               {saving ? "Saving..." : editingId ? "Update challenge" : "Create challenge"}
             </button>
           </div>
@@ -1543,18 +1543,18 @@ function getTargetValue(challenge: Challenge) {
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
 
 function MiniKpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="text-lg font-semibold text-slate-950">{value}</p>
+    <div className="min-w-16 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2">
+      <p className="text-xs font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="text-lg font-semibold text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
@@ -1571,8 +1571,8 @@ function CertificateMetric({ label, value }: { label: string; value: string | nu
 function Field({ label, value, onChange, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <input {...props} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15" />
+      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
+      <input {...props} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15" />
     </label>
   );
 }
@@ -1580,8 +1580,8 @@ function Field({ label, value, onChange, ...props }: Omit<React.InputHTMLAttribu
 function Textarea({ label, value, onChange, ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange"> & { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <textarea {...props} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15" />
+      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
+      <textarea {...props} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15" />
     </label>
   );
 }
@@ -1589,8 +1589,8 @@ function Textarea({ label, value, onChange, ...props }: Omit<React.TextareaHTMLA
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15">
+      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15">
         {children}
       </select>
     </label>

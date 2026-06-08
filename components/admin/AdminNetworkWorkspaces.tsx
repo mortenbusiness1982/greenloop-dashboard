@@ -596,9 +596,9 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
 function Badge({ children, tone = "emerald" }: { children: React.ReactNode; tone?: "emerald" | "green" | "amber" | "slate" }) {
   const classes =
     tone === "green"
-      ? "bg-green-100 text-green-800"
+      ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
       : tone === "amber"
-        ? "bg-amber-100 text-amber-800"
+        ? "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"
         : tone === "slate"
           ? "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]"
           : "bg-[var(--gl-green-soft)] text-[var(--gl-green)]";
