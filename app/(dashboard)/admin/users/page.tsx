@@ -514,7 +514,6 @@ export default function AdminUsersPage() {
             <thead className="bg-[var(--gl-card-cream)]">
               <tr className="border-b border-[var(--gl-hairline)]">
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Name</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Email</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Role</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Wallet</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Rewards</th>
@@ -523,6 +522,7 @@ export default function AdminUsersPage() {
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Last Activity</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Status</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Actions</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Email</th>
               </tr>
             </thead>
             <tbody>
@@ -543,7 +543,6 @@ export default function AdminUsersPage() {
                     style={{ cursor: "pointer" }}
                   >
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink)]">{user.display_name}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.email}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.role}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.wallet_points}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.redeemed_rewards_count ?? 0}</td>
@@ -613,6 +612,9 @@ export default function AdminUsersPage() {
                           {user.deactivated_at ? "Reactivate" : "Deactivate"}
                         </button>
                       </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">
+                      <span className="block max-w-[240px] truncate" title={user.email}>{user.email}</span>
                     </td>
                   </tr>
                 ))
