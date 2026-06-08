@@ -244,10 +244,10 @@ export function AdminBrandsWorkspace() {
       <TableCard
         title={copy.brands.tableTitle}
         description={copy.brands.tableDescription}
-        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.brands.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />}
+        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.brands.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />}
       >
         <table className="min-w-[850px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               {copy.brands.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
             </tr>
@@ -259,10 +259,10 @@ export function AdminBrandsWorkspace() {
               <EmptyRow colSpan={7} text={copy.brands.empty} />
             ) : (
               filtered.map((brand) => (
-                <tr key={brand.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                <tr key={brand.id} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                   <td className="px-4 py-2.5">
-                    <div className="font-semibold text-slate-950">{brand.name}</div>
-                    <div className="text-xs text-slate-500">{brand.id}</div>
+                    <div className="font-semibold text-[var(--gl-ink)]">{brand.name}</div>
+                    <div className="text-xs text-[var(--gl-ink-muted)]">{brand.id}</div>
                   </td>
                   <td className="px-4 py-2.5">{brand.product_count || 0}</td>
                   <td className="px-4 py-2.5">{brand.admin_count || 0}</td>
@@ -271,9 +271,9 @@ export function AdminBrandsWorkspace() {
                   <td className="px-4 py-2.5">{formatDate(brand.created_at, language)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-2">
-                      <Link href={`/admin/brands/${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.detail}</Link>
-                      <Link href={`/admin/products?brandId=${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.products}</Link>
-                      <Link href={`/admin/reports/brands?brandId=${brand.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.reports}</Link>
+                      <Link href={`/admin/brands/${brand.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">{copy.common.detail}</Link>
+                      <Link href={`/admin/products?brandId=${brand.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">{copy.common.products}</Link>
+                      <Link href={`/admin/reports/brands?brandId=${brand.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">{copy.common.reports}</Link>
                     </div>
                   </td>
                 </tr>
@@ -354,12 +354,12 @@ export function AdminProductsWorkspace() {
         description={copy.products.tableDescription}
         controls={
           <div className="flex flex-col gap-2 lg:flex-row">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.products.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <select value={brandId} onChange={(event) => setBrandId(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.products.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+            <select value={brandId} onChange={(event) => setBrandId(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
               <option value="">{copy.products.allBrands}</option>
               {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
             </select>
-            <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
               <option value="">{copy.products.allStatuses}</option>
               <option value="verified">{copy.products.verified}</option>
               <option value="imported">{copy.products.imported}</option>
@@ -369,7 +369,7 @@ export function AdminProductsWorkspace() {
         }
       >
         <table className="min-w-[1050px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               {copy.products.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
             </tr>
@@ -381,10 +381,10 @@ export function AdminProductsWorkspace() {
               <EmptyRow colSpan={7} text={copy.products.empty} />
             ) : (
               products.map((product) => (
-                <tr key={product.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                <tr key={product.id} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                   <td className="px-4 py-2.5">
-                    <div className="font-semibold text-slate-950">{product.name || product.ean || copy.products.unknownProduct}</div>
-                    <div className="text-xs text-slate-500">{product.ean || product.barcode || "-"}</div>
+                    <div className="font-semibold text-[var(--gl-ink)]">{product.name || product.ean || copy.products.unknownProduct}</div>
+                    <div className="text-xs text-[var(--gl-ink-muted)]">{product.ean || product.barcode || "-"}</div>
                     {product.is_placeholder_name ? <Badge tone="amber">{copy.products.placeholderName}</Badge> : null}
                   </td>
                   <td className="px-4 py-2.5">{product.brand_name || "-"}</td>
@@ -466,10 +466,10 @@ export function AdminPartnersWorkspace() {
       <TableCard
         title={copy.partners.tableTitle}
         description={copy.partners.tableDescription}
-        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.partners.search} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />}
+        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.partners.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />}
       >
         <table className="min-w-[850px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               {copy.partners.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
             </tr>
@@ -481,10 +481,10 @@ export function AdminPartnersWorkspace() {
               <EmptyRow colSpan={6} text={copy.partners.empty} />
             ) : (
               filtered.map((partner) => (
-                <tr key={partner.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                <tr key={partner.id} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                   <td className="px-4 py-2.5">
-                    <div className="font-semibold text-slate-950">{partner.display_name || partner.email || copy.partners.unnamed}</div>
-                    <div className="text-xs text-slate-500">{partner.email || partner.id}</div>
+                    <div className="font-semibold text-[var(--gl-ink)]">{partner.display_name || partner.email || copy.partners.unnamed}</div>
+                    <div className="text-xs text-[var(--gl-ink-muted)]">{partner.email || partner.id}</div>
                   </td>
                   <td className="px-4 py-2.5"><Badge tone={partner.deactivated_at ? "slate" : "green"}>{partner.deactivated_at ? copy.common.inactive : copy.common.active}</Badge></td>
                   <td className="px-4 py-2.5">{partner.fulfilled_unlocks_count || 0}</td>
@@ -492,8 +492,8 @@ export function AdminPartnersWorkspace() {
                   <td className="px-4 py-2.5">{formatDate(partner.created_at, language)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-2">
-                      <Link href={`/admin/partners/${partner.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">{copy.common.detail}</Link>
-                      <Link href={`/admin/rewards/unlocks?partnerId=${partner.id}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">
+                      <Link href={`/admin/partners/${partner.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">{copy.common.detail}</Link>
+                      <Link href={`/admin/rewards/unlocks?partnerId=${partner.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">
                         {copy.partners.unlockHistory}
                       </Link>
                     </div>
@@ -527,9 +527,9 @@ function WorkspaceFrame({
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-emerald-700">{eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-slate-950">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">{description}</p>
+          <p className="text-sm font-medium text-[var(--gl-green)]">{eyebrow}</p>
+          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{description}</p>
         </div>
         {actions}
       </div>
@@ -545,9 +545,9 @@ function KpiGrid({ children }: { children: React.ReactNode }) {
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
@@ -564,11 +564,11 @@ function TableCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-          <p className="text-sm text-slate-500">{description}</p>
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+          <p className="text-sm text-[var(--gl-ink-muted)]">{description}</p>
         </div>
         {controls}
       </div>
@@ -579,7 +579,7 @@ function TableCard({
 
 function LinkButton({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+    <Link href={href} className="rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
       {children}
     </Link>
   );
@@ -588,7 +588,7 @@ function LinkButton({ href, children }: { href: string; children: React.ReactNod
 function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-4 py-8 text-center text-slate-500">{text}</td>
+      <td colSpan={colSpan} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{text}</td>
     </tr>
   );
 }
@@ -600,7 +600,7 @@ function Badge({ children, tone = "emerald" }: { children: React.ReactNode; tone
       : tone === "amber"
         ? "bg-amber-100 text-amber-800"
         : tone === "slate"
-          ? "bg-slate-100 text-slate-700"
-          : "bg-emerald-50 text-emerald-700";
+          ? "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]"
+          : "bg-[var(--gl-green-soft)] text-[var(--gl-green)]";
   return <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${classes}`}>{children}</span>;
 }

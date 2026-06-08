@@ -485,9 +485,9 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-emerald-700">{copy.eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-slate-950">{copy.titles[kind]}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          <p className="text-sm font-medium text-[var(--gl-green)]">{copy.eyebrow}</p>
+          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{copy.titles[kind]}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
             {copy.description}
           </p>
         </div>
@@ -500,19 +500,19 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 
       {(kind === "platform" || kind === "geo" || kind === "exports") ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-3">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">{copy.filters.from}</span>
-              <input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.filters.from}</span>
+              <input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">{copy.filters.to}</span>
-              <input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.filters.to}</span>
+              <input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">{copy.filters.city}</span>
-              <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} placeholder={copy.filters.cityPlaceholder} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.filters.city}</span>
+              <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} placeholder={copy.filters.cityPlaceholder} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
             </label>
           </div>
         </section>
@@ -528,9 +528,9 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {copy.links.map((report) => (
-              <Link key={report.href} href={report.href} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
-                <h2 className="text-lg font-semibold text-slate-950">{report.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{report.description}</p>
+              <Link key={report.href} href={report.href} className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm transition hover:border-[var(--gl-green)]/25 hover:shadow-md">
+                <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{report.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">{report.description}</p>
               </Link>
             ))}
           </div>
@@ -566,7 +566,7 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
             headers={[copy.tables.headers.brand, copy.tables.headers.products, copy.tables.headers.admins, copy.tables.headers.rewards, copy.tables.headers.ecoPoints]}
             loading={loading}
             rows={brands.map((brand) => [brand.name, brand.product_count || 0, brand.admin_count || 0, brand.reward_count || 0, brand.eco_points_issued || 0])}
-            action={<button onClick={exportBrands} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportBrands}</button>}
+            action={<button onClick={exportBrands} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportBrands}</button>}
             copy={copy}
           />
         </>
@@ -586,7 +586,7 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
             headers={[copy.tables.headers.user, copy.tables.headers.role, copy.tables.headers.wallet, copy.tables.headers.events, copy.tables.headers.units, copy.tables.headers.city]}
             loading={loading}
             rows={users.map((user) => [user.email || user.display_name || user.id, user.role || "-", user.wallet_points || 0, user.recycling_events_count || 0, user.recycled_units_count || 0, user.latest_city || "-"])}
-            action={<button onClick={exportUsers} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportUsers}</button>}
+            action={<button onClick={exportUsers} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportUsers}</button>}
             copy={copy}
           />
         </>
@@ -605,7 +605,7 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
             headers={[copy.tables.headers.city, copy.tables.headers.units, copy.tables.headers.users]}
             loading={loading}
             rows={(platform?.geoBreakdown ?? []).map((city) => [city.city || copy.tables.unknown, city.units || 0, city.consumers || 0])}
-            action={<button onClick={exportPlatformEvents} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportGeoEvents}</button>}
+            action={<button onClick={exportPlatformEvents} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportGeoEvents}</button>}
             copy={copy}
           />
         </>
@@ -642,15 +642,15 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
 
 function Kpi({ label, value, language }: { label: string; value: number; language: DashboardLanguage }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-slate-950">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
     </div>
   );
 }
 
 function LinkButton({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">{children}</Link>;
+  return <Link href={href} className="rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">{children}</Link>;
 }
 
 function SimpleTable({
@@ -669,24 +669,24 @@ function SimpleTable({
   copy: AdminReportsCopy;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 p-4">
-        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-[var(--gl-hairline)] p-4">
+        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
         {action}
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[640px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>{headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}</tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-slate-500">{copy.tables.loading}</td></tr>
+              <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.tables.loading}</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-slate-500">{copy.tables.noRows}</td></tr>
+              <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.tables.noRows}</td></tr>
             ) : (
               rows.slice(0, 200).map((row, index) => (
-                <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/70">
+                <tr key={index} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                   {row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} className="px-4 py-2.5">{String(cell ?? "-")}</td>)}
                 </tr>
               ))
@@ -700,17 +700,17 @@ function SimpleTable({
 
 function EventTable({ events, loading, onExport, language, copy }: { events: PlatformEvent[]; loading: boolean; onExport: () => void; language: DashboardLanguage; copy: AdminReportsCopy }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 p-4">
+    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-[var(--gl-hairline)] p-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">{copy.tables.platformRowsTitle}</h2>
-          <p className="text-sm text-slate-500">{copy.tables.platformRowsDescription}</p>
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.tables.platformRowsTitle}</h2>
+          <p className="text-sm text-[var(--gl-ink-muted)]">{copy.tables.platformRowsDescription}</p>
         </div>
-        <button onClick={onExport} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportEvents}</button>
+        <button onClick={onExport} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportEvents}</button>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[980px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               <th className="px-4 py-2.5">{copy.tables.headers.created}</th>
               <th className="px-4 py-2.5">{copy.tables.headers.product}</th>
@@ -722,12 +722,12 @@ function EventTable({ events, loading, onExport, language, copy }: { events: Pla
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">{copy.tables.loadingActivity}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.tables.loadingActivity}</td></tr>
             ) : events.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">{copy.tables.noEvents}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.tables.noEvents}</td></tr>
             ) : (
               events.slice(0, 200).map((event, index) => (
-                <tr key={`${event.event_id || index}-${event.created_at || ""}`} className="border-t border-slate-100 hover:bg-slate-50/70">
+                <tr key={`${event.event_id || index}-${event.created_at || ""}`} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
                   <td className="px-4 py-2.5">{formatDate(event.created_at, language)}</td>
                   <td className="px-4 py-2.5">{event.product_name || copy.tables.unknownProduct}</td>
                   <td className="px-4 py-2.5">{event.city || "-"}</td>
@@ -746,10 +746,10 @@ function EventTable({ events, loading, onExport, language, copy }: { events: Pla
 
 function ExportCard({ title, description, onClick, disabled, buttonLabel }: { title: string; description: string; onClick: () => void; disabled?: boolean; buttonLabel: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-      <p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{description}</p>
-      <button disabled={disabled} onClick={onClick} className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+      <p className="mt-2 min-h-12 text-sm leading-6 text-[var(--gl-ink-muted)]">{description}</p>
+      <button disabled={disabled} onClick={onClick} className="mt-4 rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green)] disabled:opacity-60">
         {buttonLabel}
       </button>
     </div>

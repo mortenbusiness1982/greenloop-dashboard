@@ -680,9 +680,9 @@ export default function AdminUsersPage() {
                   Manage Balance & Avatar
                 </h3>
                 <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3.5">
+                <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)]/70 p-3.5">
                   <div className="mb-2.5">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-800">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-amber-ink)]">
                       Add EcoPoints
                     </h3>
                     <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
@@ -983,7 +983,7 @@ export default function AdminUsersPage() {
                             <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
                               Day: {new Date(event.created_at).toLocaleDateString()}
                             </p>
-                            <p className="mt-1 text-sm font-semibold text-emerald-700">
+                            <p className="mt-1 text-sm font-semibold text-[var(--gl-amber-ink)]">
                               {event.points_issued} EcoPoints
                             </p>
                           </div>
