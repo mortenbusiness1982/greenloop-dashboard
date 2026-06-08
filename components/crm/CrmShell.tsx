@@ -64,9 +64,10 @@ type NavItemKey =
   | "settings"
   | "activeRewards"
   | "unlocks"
-  | "history";
+  | "history"
+  | "certificate";
 
-type NavGroupKey = "overview" | "operations" | "network" | "reports" | "workspace" | "brandOperations" | "fulfillment";
+type NavGroupKey = "overview" | "operations" | "network" | "reports" | "workspace" | "brandOperations" | "fulfillment" | "organization";
 
 const shellCopy: Record<DashboardLanguage, {
   roles: Record<DashboardRole, string>;
@@ -90,12 +91,14 @@ const shellCopy: Record<DashboardLanguage, {
       admin: "Superadmin CRM",
       brand_admin: "Brand CRM",
       partner: "Partner CRM",
+      organization: "Organization Portal",
       user: "GreenLoop",
     },
     roleNames: {
       admin: "Admin",
       brand_admin: "Brand admin",
       partner: "Partner",
+      organization: "Organization",
       user: "User",
     },
     groups: {
@@ -106,6 +109,7 @@ const shellCopy: Record<DashboardLanguage, {
       workspace: "Workspace",
       brandOperations: "Brand Operations",
       fulfillment: "Fulfillment",
+      organization: "Organization",
     },
     items: {
       overview: "Overview",
@@ -128,6 +132,7 @@ const shellCopy: Record<DashboardLanguage, {
       activeRewards: "Active Rewards",
       unlocks: "Unlocks",
       history: "History",
+      certificate: "Certificate",
     },
     env: {
       production: "Production",
@@ -151,12 +156,14 @@ const shellCopy: Record<DashboardLanguage, {
       admin: "CRM Superadmin",
       brand_admin: "CRM de Marca",
       partner: "CRM de Socio",
+      organization: "Portal de organización",
       user: "GreenLoop",
     },
     roleNames: {
       admin: "Administrador",
       brand_admin: "Admin de marca",
       partner: "Socio",
+      organization: "Organización",
       user: "Usuario",
     },
     groups: {
@@ -167,6 +174,7 @@ const shellCopy: Record<DashboardLanguage, {
       workspace: "Espacio",
       brandOperations: "Operaciones de marca",
       fulfillment: "Canjes",
+      organization: "Organización",
     },
     items: {
       overview: "Resumen",
@@ -189,6 +197,7 @@ const shellCopy: Record<DashboardLanguage, {
       activeRewards: "Recompensas activas",
       unlocks: "Desbloqueos",
       history: "Historial",
+      certificate: "Certificado",
     },
     env: {
       production: "Producción",
@@ -278,6 +287,16 @@ const navigation: Record<Exclude<DashboardRole, "user">, NavGroup[]> = {
       ],
     },
   ],
+  organization: [
+    {
+      key: "organization",
+      items: [
+        { key: "overview", href: "/organization/overview", icon: Home },
+        { key: "challenges", href: "/organization/overview", icon: Flag },
+        { key: "certificate", href: "/organization/overview", icon: BarChart3 },
+      ],
+    },
+  ],
 };
 
 function resolveEnvLabel(language: DashboardLanguage): string {
@@ -297,7 +316,7 @@ function subscribeSession(onStoreChange: () => void) {
 }
 
 function isActive(pathname: string, href: string) {
-  if (href === "/admin" || href === "/brand" || href === "/partner") return pathname === href;
+  if (href === "/admin" || href === "/brand" || href === "/partner" || href === "/organization") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -306,6 +325,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     admin: "admin",
     brand: "brand",
     partner: "partner",
+    organization: "organization",
     overview: "overview",
     users: "users",
     activity: "recycling activity",
@@ -324,11 +344,13 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     settings: "settings",
     unlocks: "unlocks",
     history: "history",
+    certificate: "certificate",
   },
   es: {
     admin: "admin",
     brand: "marca",
     partner: "socio",
+    organization: "organización",
     overview: "resumen",
     users: "usuarios",
     activity: "actividad de reciclaje",
@@ -347,6 +369,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     settings: "configuración",
     unlocks: "desbloqueos",
     history: "historial",
+    certificate: "certificado",
   },
 };
 

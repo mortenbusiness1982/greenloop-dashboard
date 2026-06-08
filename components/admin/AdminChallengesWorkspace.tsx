@@ -586,8 +586,14 @@ export function AdminChallengesWorkspace() {
     }
   }
 
-  async function deleteChallenge(id: string | number) {
-    if (!window.confirm("Delete this challenge?")) return;
+  async function deleteChallenge(challenge: Challenge) {
+    const id = challenge.id;
+    const confirmed = window.confirm(
+      language === "es"
+        ? `Eliminar el reto "${challenge.title}"? Esta accion no se puede deshacer.`
+        : `Delete the challenge "${challenge.title}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
     const token = getToken();
     if (!token) return router.replace("/login");
     setActionId(`delete-${id}`);
@@ -595,7 +601,7 @@ export function AdminChallengesWorkspace() {
       await apiFetch(`/admin/challenges/${id}`, { token, method: "DELETE" });
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete challenge");
+      setError(err instanceof Error ? err.message : language === "es" ? "No se pudo eliminar el reto" : "Unable to delete challenge");
     } finally {
       setActionId(null);
     }
@@ -1241,7 +1247,7 @@ export function AdminChallengesWorkspace() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => deleteChallenge(challenge.id)}
+                            onClick={() => deleteChallenge(challenge)}
                             disabled={actionId === `delete-${id}`}
                             className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
                           >
@@ -1339,7 +1345,9 @@ export function AdminChallengesWorkspace() {
                           <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">View</Link>
                           <button onClick={() => startEdit(challenge)} className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">Edit</button>
                           <button onClick={() => toggleChallenge(challenge.id)} disabled={actionId === `toggle-${challenge.id}`} className="rounded-md bg-emerald-600 px-3 py-1.5 text-white disabled:opacity-60">Toggle</button>
-                          <button onClick={() => deleteChallenge(challenge.id)} disabled={actionId === `delete-${challenge.id}`} className="rounded-md bg-red-600 px-3 py-1.5 text-white disabled:opacity-60">Delete</button>
+                          <button onClick={() => deleteChallenge(challenge)} disabled={actionId === `delete-${challenge.id}`} className="rounded-md bg-red-600 px-3 py-1.5 text-white disabled:opacity-60">
+                            {actionId === `delete-${challenge.id}` ? "Deleting..." : "Delete"}
+                          </button>
                         </div>
                       </td>
                     </tr>

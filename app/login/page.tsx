@@ -37,6 +37,8 @@ export default function LoginPage() {
         router.push("/partner/overview");
       } else if (role === "brand_admin") {
         router.push("/brand/overview");
+      } else if (role === "organization") {
+        router.push("/organization/overview");
       } else {
         router.push("/");
       }
@@ -50,8 +52,8 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <form onSubmit={onSubmit} className="w-full max-w-md rounded-lg bg-white p-6 shadow">
-        <h1 className="text-2xl font-semibold text-gray-900">Brand Login</h1>
-        <p className="mt-1 text-sm text-gray-600">Sign in to view redemption analytics.</p>
+        <h1 className="text-2xl font-semibold text-gray-900">GreenLoop Portal Login</h1>
+        <p className="mt-1 text-sm text-gray-600">Sign in to manage your GreenLoop workspace.</p>
 
         <div className="mt-5 space-y-4">
           <div>

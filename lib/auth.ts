@@ -1,6 +1,6 @@
 const TOKEN_KEY = "greenloop_jwt";
 
-export type DashboardRole = "admin" | "brand_admin" | "partner" | "user";
+export type DashboardRole = "admin" | "brand_admin" | "partner" | "organization" | "user";
 
 export type DashboardSession = {
   token: string;
@@ -76,7 +76,7 @@ export function getSession(): DashboardSession | null {
   }
 
   const role = payload?.role;
-  if (role !== "admin" && role !== "brand_admin" && role !== "partner" && role !== "user") {
+  if (role !== "admin" && role !== "brand_admin" && role !== "partner" && role !== "organization" && role !== "user") {
     cachedSessionToken = token;
     cachedSession = null;
     return null;
@@ -97,6 +97,7 @@ export function getHomeForRole(role: DashboardRole): string {
   if (role === "admin") return "/admin/overview";
   if (role === "brand_admin") return "/brand/overview";
   if (role === "partner") return "/partner/overview";
+  if (role === "organization") return "/organization/overview";
   return "/login";
 }
 
@@ -104,5 +105,6 @@ export function isRouteAllowedForRole(pathname: string, role: DashboardRole): bo
   if (role === "admin") return pathname.startsWith("/admin");
   if (role === "brand_admin") return pathname.startsWith("/brand");
   if (role === "partner") return pathname.startsWith("/partner");
+  if (role === "organization") return pathname.startsWith("/organization");
   return false;
 }
