@@ -561,8 +561,8 @@ export default function AdminUsersPage() {
                         {user.deactivated_at ? "Deactivated" : "Active"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-sm">
-                      <div className="flex flex-wrap gap-2">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm">
+                      <div className="flex flex-nowrap items-center gap-2">
                         <Link
                           href={`/admin/users/${user.id}`}
                           onClick={(event) => event.stopPropagation()}
