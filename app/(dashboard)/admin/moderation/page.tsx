@@ -227,13 +227,13 @@ function ImageSlot({
       <div className="border-b border-gray-200 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-600">
         {label}
       </div>
-      <div className="flex h-40 items-center justify-center p-2">
+      <div className="flex h-56 items-center justify-center p-2 xl:h-72">
         {imageUrl && !isLegacyImage ? (
           <Image
             src={imageUrl}
             alt={alt}
-            width={320}
-            height={160}
+            width={520}
+            height={320}
             unoptimized
             className="h-full w-full rounded-md border border-gray-200 object-cover"
           />
@@ -361,6 +361,13 @@ export default function ModerationPage() {
   }, [router]);
 
   async function handleBulkModeration(ids: string[], action: "approve" | "reject") {
+    if (ids.length > 1) {
+      const confirmed = window.confirm(
+        `Are you sure you want to ${action} ${ids.length} recycling events?`
+      );
+      if (!confirmed) return;
+    }
+
     for (const id of ids) {
       await handleModerationAction(id, action);
     }
@@ -408,7 +415,7 @@ export default function ModerationPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-5">
+      <div className="mx-auto max-w-7xl space-y-5">
         <div>
           <div className="h-10 w-56 rounded bg-gray-200" />
           <div className="mt-3 flex gap-2">
@@ -422,8 +429,8 @@ export default function ModerationPage() {
           {[0, 1, 2].map((item) => (
             <div key={item} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="h-40 rounded-lg bg-gray-200" />
-                <div className="h-40 rounded-lg bg-gray-200" />
+                <div className="h-56 rounded-lg bg-gray-200 xl:h-72" />
+                <div className="h-56 rounded-lg bg-gray-200 xl:h-72" />
               </div>
               <div className="mt-3 h-4 w-40 rounded bg-gray-200" />
               <div className="mt-3 flex gap-3">
@@ -438,7 +445,7 @@ export default function ModerationPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-7xl space-y-5">
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
           Admin · Operations
@@ -560,7 +567,7 @@ export default function ModerationPage() {
             return (
               <section
                 key={event.id}
-                className={`relative rounded-xl border bg-[var(--gl-paper)] p-3 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md ${riskClasses.card} ${
+                className={`relative rounded-xl border bg-[var(--gl-paper)] p-4 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md ${riskClasses.card} ${
                   isSelected ? "border-[var(--gl-green)] ring-2 ring-[var(--gl-green-soft)]" : "border-[var(--gl-hairline)]"
                 }`}
               >
@@ -576,60 +583,71 @@ export default function ModerationPage() {
                   </label>
                 ) : null}
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <ImageSlot label="Bag" imageUrl={event.bagImageUrl} alt={`Bag evidence for event ${event.id}`} />
-                  <ImageSlot
-                    label="Container"
-                    imageUrl={event.containerImageUrl}
-                    alt={`Container evidence for event ${event.id}`}
-                  />
-                </div>
-
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--gl-ink-muted)]">
-                    <span>Event: {shortenEventId(event.id)}</span>
-                    <span className="capitalize">Status: {event.verificationStatus}</span>
-                    <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
-                      AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
-                    </span>
-                    <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
-                    {isAutoApprovable(event) ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
-                    ) : null}
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <ImageSlot label="Bag" imageUrl={event.bagImageUrl} alt={`Bag evidence for event ${event.id}`} />
+                    <ImageSlot
+                      label="Container"
+                      imageUrl={event.containerImageUrl}
+                      alt={`Container evidence for event ${event.id}`}
+                    />
                   </div>
-                  {isSubmitting ? <p className="text-xs text-[var(--gl-ink-muted)]">Submitting...</p> : null}
-                </div>
 
-                {event.validationFlags.length > 0 ? (
-                  <div className="mt-2">
-                    <p className="mb-1 text-xs font-semibold text-[var(--gl-ink-soft)]">Flags</p>
-                    <div className="flex flex-wrap gap-2">
-                      {event.validationFlags.map((flag) => (
-                        <span key={`${event.id}-${flag}`} className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClasses.flag}`}>
-                          {flag}
+                  <aside className={`rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 ${showSelection ? "pt-9" : ""}`}>
+                    <div className="space-y-2 text-xs text-[var(--gl-ink-muted)]">
+                      <p>
+                        <span className="font-semibold text-[var(--gl-ink-soft)]">Event:</span>{" "}
+                        {shortenEventId(event.id)}
+                      </p>
+                      <p className="capitalize">
+                        <span className="font-semibold text-[var(--gl-ink-soft)]">Status:</span>{" "}
+                        {event.verificationStatus}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
+                          AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
                         </span>
-                      ))}
+                        <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
+                        {isAutoApprovable(event) ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Auto</span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
 
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleModerationAction(event.id, "approve")}
-                    disabled={isSubmitting}
-                    className="rounded bg-[var(--gl-green)] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModerationAction(event.id, "reject")}
-                    disabled={isSubmitting}
-                    className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Reject
-                  </button>
+                    {event.validationFlags.length > 0 ? (
+                      <div className="mt-4">
+                        <p className="mb-1 text-xs font-semibold text-[var(--gl-ink-soft)]">Flags</p>
+                        <div className="flex flex-wrap gap-2">
+                          {event.validationFlags.map((flag) => (
+                            <span key={`${event.id}-${flag}`} className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClasses.flag}`}>
+                              {flag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleModerationAction(event.id, "approve")}
+                        disabled={isSubmitting}
+                        className="rounded bg-[var(--gl-green)] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleModerationAction(event.id, "reject")}
+                        disabled={isSubmitting}
+                        className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Reject
+                      </button>
+                    </div>
+
+                    {isSubmitting ? <p className="mt-3 text-xs text-[var(--gl-ink-muted)]">Submitting...</p> : null}
+                  </aside>
                 </div>
               </section>
             );
