@@ -148,6 +148,8 @@ const copy: Record<DashboardLanguage, {
     highValue: string;
     assetRecommended: string;
     namedContactEmail: string;
+    namedContactGenericEmail: string;
+    organizationEmail: string;
     emailOnly: string;
     contactNameOnly: string;
     genericContact: string;
@@ -251,7 +253,9 @@ const copy: Record<DashboardLanguage, {
     badges: {
       highValue: "High value",
       assetRecommended: "Asset recommended",
-      namedContactEmail: "Named contact + email",
+      namedContactEmail: "Named person + email",
+      namedContactGenericEmail: "Named person + company email",
+      organizationEmail: "Organization email",
       emailOnly: "Email only",
       contactNameOnly: "Contact name only",
       genericContact: "Generic contact",
@@ -265,10 +269,10 @@ const copy: Record<DashboardLanguage, {
       save: "Save changes",
       createDraft: "Create draft",
       approve: "Approve draft",
-      approveAll: "Approve all visible drafts",
+      approveAll: "Approve visible",
       deleteSelected: "Delete draft",
-      deleteAll: "Delete all visible unsent",
-      sentArchive: "Sent archive",
+      deleteAll: "Delete visible",
+      sentArchive: "Sent",
       close: "Close",
       quickApprove: "Approve",
       sendTest: "Send test",
@@ -362,7 +366,9 @@ const copy: Record<DashboardLanguage, {
     badges: {
       highValue: "Alto valor",
       assetRecommended: "Asset recomendado",
-      namedContactEmail: "Contacto con nombre + email",
+      namedContactEmail: "Persona + email directo",
+      namedContactGenericEmail: "Persona + email empresa",
+      organizationEmail: "Email de organización",
       emailOnly: "Solo email",
       contactNameOnly: "Solo nombre",
       genericContact: "Contacto genérico",
@@ -376,10 +382,10 @@ const copy: Record<DashboardLanguage, {
       save: "Guardar cambios",
       createDraft: "Crear borrador",
       approve: "Aprobar borrador",
-      approveAll: "Aprobar todos los borradores visibles",
+      approveAll: "Aprobar visibles",
       deleteSelected: "Eliminar borrador",
-      deleteAll: "Eliminar visibles sin enviar",
-      sentArchive: "Archivo enviados",
+      deleteAll: "Eliminar visibles",
+      sentArchive: "Enviados",
       close: "Cerrar",
       quickApprove: "Aprobar",
       sendTest: "Enviar prueba",
@@ -485,12 +491,15 @@ function extractSourceLinks(metadata: Record<string, unknown> | null | undefined
 
 type ContactQualityKey =
   | "namedContactEmail"
+  | "namedContactGenericEmail"
+  | "organizationEmail"
   | "emailOnly"
   | "contactNameOnly"
   | "genericContact"
   | "missingContact";
 
 const genericEmailPrefixes = ["info", "hello", "contact", "admin", "sales", "marketing", "office", "support", "hola", "correo", "comunicacion"];
+const nonPersonLeadNames = ["organization contact", "company contact", "contact", "team", "marketing", "management", "admin", "info", "general", "hotel", "restaurant"];
 
 function metadataText(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
   if (!metadata) return "";
@@ -530,15 +539,39 @@ function isGenericEmail(email?: string | null) {
   return genericEmailPrefixes.some((prefix) => local === prefix || local.startsWith(`${prefix}.`) || local.startsWith(`${prefix}-`));
 }
 
-function getContactQuality(email: Pick<OutreachEmail, "lead_name" | "lead_email">): ContactQualityKey {
-  const hasName = Boolean(email.lead_name?.trim());
+function normalizeContactText(value?: string | null) {
+  return value
+    ?.trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim() ?? "";
+}
+
+function looksLikePersonName(leadName?: string | null, organizationName?: string | null) {
+  const name = normalizeContactText(leadName);
+  if (!name) return false;
+
+  const organization = normalizeContactText(organizationName);
+  if (organization && (name === organization || name.includes(organization) || organization.includes(name))) return false;
+  if (nonPersonLeadNames.some((generic) => name === generic || name.includes(` ${generic} `) || name.endsWith(` ${generic}`))) return false;
+
+  const parts = name.split(/\s+/).filter(Boolean);
+  return parts.length >= 2;
+}
+
+function getContactQuality(email: Pick<OutreachEmail, "lead_name" | "lead_email" | "organization_name">): ContactQualityKey {
   const hasEmail = Boolean(email.lead_email?.trim());
   const generic = isGenericEmail(email.lead_email);
+  const hasPersonName = looksLikePersonName(email.lead_name, email.organization_name);
+  const hasAnyName = Boolean(email.lead_name?.trim());
 
-  if (hasName && hasEmail && !generic) return "namedContactEmail";
+  if (hasPersonName && hasEmail && !generic) return "namedContactEmail";
+  if (hasPersonName && hasEmail) return "namedContactGenericEmail";
   if (hasEmail && generic) return "genericContact";
-  if (hasEmail) return "emailOnly";
-  if (hasName) return "contactNameOnly";
+  if (hasEmail) return "organizationEmail";
+  if (hasPersonName || hasAnyName) return "contactNameOnly";
   return "missingContact";
 }
 
@@ -716,7 +749,7 @@ export function AdminOutreachWorkspace() {
     }
   }, [form.metadataText]);
 
-  const selectedContactQuality = getContactQuality({ lead_name: form.lead_name, lead_email: form.lead_email });
+  const selectedContactQuality = getContactQuality({ lead_name: form.lead_name, lead_email: form.lead_email, organization_name: form.organization_name });
   const selectedResearchReason = getResearchReason(formMetadata);
   const selectedPriorityConfidence = getPriorityConfidence(formMetadata);
   const selectedHighValue = selected ? isHighValue(selected) : metadataFlag(formMetadata, ["high_value", "highValue"]);
