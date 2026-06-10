@@ -141,6 +141,7 @@ const copy: Record<DashboardLanguage, {
     errorMessage: string;
     contactQuality: string;
     whyThisLead: string;
+    noLeadReason: string;
     editMessage: string;
   };
   badges: {
@@ -244,6 +245,7 @@ const copy: Record<DashboardLanguage, {
       errorMessage: "Error message",
       contactQuality: "Contact quality",
       whyThisLead: "Why this lead?",
+      noLeadReason: "No lead reason saved yet. Ask the research agent to include why_this_lead in metadata.",
       editMessage: "Edit message",
     },
     badges: {
@@ -354,6 +356,7 @@ const copy: Record<DashboardLanguage, {
       errorMessage: "Mensaje de error",
       contactQuality: "Calidad del contacto",
       whyThisLead: "¿Por qué este lead?",
+      noLeadReason: "No hay motivo guardado todavía. Pide al agente de research que incluya why_this_lead en metadata.",
       editMessage: "Editar mensaje",
     },
     badges: {
@@ -1070,9 +1073,9 @@ export function AdminOutreachWorkspace() {
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">{c.title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{c.description}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex max-w-full flex-wrap gap-2 lg:max-w-[620px] lg:justify-end">
           <button
-            className="rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--gl-green-deep)]"
+            className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--gl-green-deep)]"
             onClick={startNewDraft}
             disabled={Boolean(action)}
             type="button"
@@ -1080,7 +1083,7 @@ export function AdminOutreachWorkspace() {
             {c.actions.newDraft}
           </button>
           <button
-            className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
+            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
             onClick={loadEmails}
             disabled={loading || Boolean(action)}
             type="button"
@@ -1088,7 +1091,7 @@ export function AdminOutreachWorkspace() {
             {c.actions.reload}
           </button>
           <button
-            className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
+            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
             onClick={() => setSentArchiveOpen(true)}
             type="button"
           >
@@ -1107,9 +1110,9 @@ export function AdminOutreachWorkspace() {
               counts.failed ? `${counts.failed} ${c.kpis.failed.toLowerCase()}` : null,
             ])}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             <button
-              className="rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="whitespace-nowrap rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={deleteAllVisibleUnsent}
               disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending")}
@@ -1117,7 +1120,7 @@ export function AdminOutreachWorkspace() {
               {action === "deleteAll" ? "..." : c.actions.deleteAll}
             </button>
             <button
-              className="rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={approveAllVisibleDrafts}
               disabled={Boolean(action) || !activeEmails.some((email) => email.status === "drafted")}
@@ -1317,8 +1320,8 @@ export function AdminOutreachWorkspace() {
 
                 <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--gl-ink-muted)]">{c.editor.whyThisLead}</p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--gl-ink)]">
-                    {selectedResearchReason || "-"}
+                  <p className={`mt-2 text-sm leading-6 ${selectedResearchReason ? "text-[var(--gl-ink)]" : "text-[var(--gl-ink-muted)]"}`}>
+                    {selectedResearchReason || c.editor.noLeadReason}
                   </p>
                   <p className="mt-3 text-xs font-semibold text-[var(--gl-ink-muted)]">
                     {compactSummary([
@@ -1341,22 +1344,22 @@ export function AdminOutreachWorkspace() {
               <Field label={c.editor.subject} value={form.subject} onChange={(value) => updateForm("subject", value)} disabled={disabled} />
 
               <div>
-                <Label>{c.editor.editMessage}</Label>
-                <textarea
-                  className="min-h-[260px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 font-mono text-xs leading-5 text-[var(--gl-ink)]"
-                  value={form.html_body}
-                  onChange={(event) => updateForm("html_body", event.target.value)}
-                  disabled={disabled}
-                />
-              </div>
-
-              <div>
                 <Label>{c.editor.preview}</Label>
                 <iframe
                   title="Outreach email preview"
                   srcDoc={buildPreviewHtml(form.html_body)}
                   sandbox=""
-                  className="h-[360px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
+                  className="h-[420px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
+                />
+              </div>
+
+              <div>
+                <Label>{c.editor.editMessage}</Label>
+                <textarea
+                  className="min-h-[220px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 font-mono text-xs leading-5 text-[var(--gl-ink)]"
+                  value={form.html_body}
+                  onChange={(event) => updateForm("html_body", event.target.value)}
+                  disabled={disabled}
                 />
               </div>
 
