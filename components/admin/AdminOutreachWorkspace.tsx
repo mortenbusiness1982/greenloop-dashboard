@@ -139,6 +139,20 @@ const copy: Record<DashboardLanguage, {
     realRecipientWarning: string;
     resendId: string;
     errorMessage: string;
+    contactQuality: string;
+    whyThisLead: string;
+    editMessage: string;
+  };
+  badges: {
+    highValue: string;
+    assetRecommended: string;
+    namedContactEmail: string;
+    emailOnly: string;
+    contactNameOnly: string;
+    genericContact: string;
+    missingContact: string;
+    genericEmail: string;
+    needsContact: string;
   };
   actions: {
     reload: string;
@@ -161,8 +175,8 @@ const copy: Record<DashboardLanguage, {
 }> = {
   en: {
     eyebrow: "Outreach",
-    title: "Outreach approval desk",
-    description: "Review AI-generated outreach drafts, edit the message, approve it, send a safe test, then manually send the approved real email.",
+    title: "Outreach drafts",
+    description: "A daily decision desk for research-backed drafts: check the contact, review the reason, approve, test, then send manually.",
     loadError: "Unable to load outreach drafts",
     saveError: "Unable to save outreach draft",
     actionError: "Outreach action failed",
@@ -228,6 +242,20 @@ const copy: Record<DashboardLanguage, {
       realRecipientWarning: "Real sends are locked until the record is approved. Test sends create a separate approved copy and never overwrite this recipient.",
       resendId: "Resend ID",
       errorMessage: "Error message",
+      contactQuality: "Contact quality",
+      whyThisLead: "Why this lead?",
+      editMessage: "Edit message",
+    },
+    badges: {
+      highValue: "High value",
+      assetRecommended: "Asset recommended",
+      namedContactEmail: "Named contact + email",
+      emailOnly: "Email only",
+      contactNameOnly: "Contact name only",
+      genericContact: "Generic contact",
+      missingContact: "Missing contact",
+      genericEmail: "Generic email",
+      needsContact: "Needs contact",
     },
     actions: {
       reload: "Reload",
@@ -257,8 +285,8 @@ const copy: Record<DashboardLanguage, {
   },
   es: {
     eyebrow: "Prospección",
-    title: "Mesa de aprobación de outreach",
-    description: "Revisa borradores creados por IA, edita el mensaje, apruébalo, envía una prueba segura y después manda manualmente el email real aprobado.",
+    title: "Borradores de prospección",
+    description: "Una mesa diaria para decidir: revisa el contacto, entiende el motivo, aprueba, prueba y envía manualmente.",
     loadError: "No se pudieron cargar los borradores",
     saveError: "No se pudo guardar el borrador",
     actionError: "Falló la acción de outreach",
@@ -324,6 +352,20 @@ const copy: Record<DashboardLanguage, {
       realRecipientWarning: "El envío real está bloqueado hasta aprobar el registro. Las pruebas crean una copia aprobada y nunca sobrescriben este destinatario.",
       resendId: "ID de Resend",
       errorMessage: "Mensaje de error",
+      contactQuality: "Calidad del contacto",
+      whyThisLead: "¿Por qué este lead?",
+      editMessage: "Editar mensaje",
+    },
+    badges: {
+      highValue: "Alto valor",
+      assetRecommended: "Asset recomendado",
+      namedContactEmail: "Contacto con nombre + email",
+      emailOnly: "Solo email",
+      contactNameOnly: "Solo nombre",
+      genericContact: "Contacto genérico",
+      missingContact: "Falta contacto",
+      genericEmail: "Email genérico",
+      needsContact: "Necesita contacto",
     },
     actions: {
       reload: "Recargar",
@@ -436,6 +478,101 @@ function extractSourceLinks(metadata: Record<string, unknown> | null | undefined
       return "";
     })
     .filter(Boolean);
+}
+
+type ContactQualityKey =
+  | "namedContactEmail"
+  | "emailOnly"
+  | "contactNameOnly"
+  | "genericContact"
+  | "missingContact";
+
+const genericEmailPrefixes = ["info", "hello", "contact", "admin", "sales", "marketing", "office", "support", "hola", "correo", "comunicacion"];
+
+function metadataText(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!metadata) return "";
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
+  const text = metadataText(metadata, keys);
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+function metadataFlag(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!metadata) return false;
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["yes", "true", "1", "recommended", "high", "alto", "si", "sí"].includes(normalized)) return true;
+      if (["no", "false", "0"].includes(normalized)) return false;
+    }
+  }
+  return false;
+}
+
+function isGenericEmail(email?: string | null) {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) return false;
+  const local = normalized.split("@")[0];
+  return genericEmailPrefixes.some((prefix) => local === prefix || local.startsWith(`${prefix}.`) || local.startsWith(`${prefix}-`));
+}
+
+function getContactQuality(email: Pick<OutreachEmail, "lead_name" | "lead_email">): ContactQualityKey {
+  const hasName = Boolean(email.lead_name?.trim());
+  const hasEmail = Boolean(email.lead_email?.trim());
+  const generic = isGenericEmail(email.lead_email);
+
+  if (hasName && hasEmail && !generic) return "namedContactEmail";
+  if (hasEmail && generic) return "genericContact";
+  if (hasEmail) return "emailOnly";
+  if (hasName) return "contactNameOnly";
+  return "missingContact";
+}
+
+function getResearchReason(metadata: Record<string, unknown> | null | undefined) {
+  return metadataText(metadata, [
+    "research_notes",
+    "researchNotes",
+    "why_this_lead",
+    "whyThisLead",
+    "why_it_matters",
+    "greenloop_fit",
+    "personalization_reason",
+    "notes",
+  ]);
+}
+
+function getPriorityConfidence(metadata: Record<string, unknown> | null | undefined) {
+  return {
+    priority: metadataNumber(metadata, ["priority_score", "priorityScore", "priority"]),
+    confidence: metadataNumber(metadata, ["confidence_score", "confidenceScore", "confidence"]),
+  };
+}
+
+function isHighValue(email: OutreachEmail) {
+  const metadata = email.metadata ?? {};
+  if (metadataFlag(metadata, ["high_value", "highValue"])) return true;
+  const { priority, confidence } = getPriorityConfidence(metadata);
+  return priority !== null && confidence !== null && priority >= 8 && confidence >= 7;
+}
+
+function isAssetRecommended(email: OutreachEmail) {
+  const metadata = email.metadata ?? {};
+  return metadataFlag(metadata, ["asset_recommended", "assetRecommended", "personalized_asset", "personalizedAsset"]);
+}
+
+function compactSummary(parts: Array<string | number | null | undefined>) {
+  return parts.filter((part) => part !== null && part !== undefined && String(part).trim()).join(" · ");
 }
 
 function getStatusTone(status: OutreachStatus) {
@@ -567,6 +704,20 @@ export function AdminOutreachWorkspace() {
       return [];
     }
   }, [form.metadataText]);
+
+  const formMetadata = useMemo(() => {
+    try {
+      return parseJsonField<Record<string, unknown>>(form.metadataText, {});
+    } catch {
+      return {};
+    }
+  }, [form.metadataText]);
+
+  const selectedContactQuality = getContactQuality({ lead_name: form.lead_name, lead_email: form.lead_email });
+  const selectedResearchReason = getResearchReason(formMetadata);
+  const selectedPriorityConfidence = getPriorityConfidence(formMetadata);
+  const selectedHighValue = selected ? isHighValue(selected) : metadataFlag(formMetadata, ["high_value", "highValue"]);
+  const selectedAssetRecommended = selected ? isAssetRecommended(selected) : metadataFlag(formMetadata, ["asset_recommended", "assetRecommended", "personalized_asset", "personalizedAsset"]);
 
   const loadEmails = useCallback(async () => {
     const token = getToken();
@@ -946,19 +1097,35 @@ export function AdminOutreachWorkspace() {
         </div>
       </section>
 
-      <section className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
-        {[
-          [c.kpis.total, counts.total],
-          [c.kpis.drafted, counts.drafted],
-          [c.kpis.approved, counts.approved],
-          [c.kpis.sent, counts.sent],
-          [c.kpis.failed, counts.failed],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--gl-ink)]">{value}</p>
+      <section className="mb-5 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-sm font-semibold text-[var(--gl-ink)]">
+            {compactSummary([
+              `${counts.drafted} ${c.kpis.drafted.toLowerCase()}`,
+              `${counts.approved} ${c.kpis.approved.toLowerCase()}`,
+              `${counts.sent} ${c.kpis.sent.toLowerCase()}`,
+              counts.failed ? `${counts.failed} ${c.kpis.failed.toLowerCase()}` : null,
+            ])}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              onClick={deleteAllVisibleUnsent}
+              disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending")}
+            >
+              {action === "deleteAll" ? "..." : c.actions.deleteAll}
+            </button>
+            <button
+              className="rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              onClick={approveAllVisibleDrafts}
+              disabled={Boolean(action) || !activeEmails.some((email) => email.status === "drafted")}
+            >
+              {action === "approveAll" ? "..." : c.actions.approveAll}
+            </button>
           </div>
-        ))}
+        </div>
       </section>
 
       <section className="mb-5 grid gap-3 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:grid-cols-3">
@@ -993,30 +1160,6 @@ export function AdminOutreachWorkspace() {
         </label>
       </section>
 
-      <section className="mb-5 flex flex-col gap-2 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-        <p className="text-sm text-[var(--gl-ink-muted)]">
-          {activeEmails.filter((email) => email.status === "drafted").length} {c.kpis.drafted.toLowerCase()} · {sentEmails.length} {c.kpis.sent.toLowerCase()}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            onClick={deleteAllVisibleUnsent}
-            disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending")}
-          >
-            {action === "deleteAll" ? "..." : c.actions.deleteAll}
-          </button>
-          <button
-            className="rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            onClick={approveAllVisibleDrafts}
-            disabled={Boolean(action) || !activeEmails.some((email) => email.status === "drafted")}
-          >
-            {action === "approveAll" ? "..." : c.actions.approveAll}
-          </button>
-        </div>
-      </section>
-
       {error ? (
         <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
           {error}
@@ -1042,6 +1185,19 @@ export function AdminOutreachWorkspace() {
               <div className="divide-y divide-[var(--gl-hairline)]">
                 {activeEmails.map((email) => {
                   const selectedRow = email.id === selectedId;
+                  const contactQuality = getContactQuality(email);
+                  const researchReason = getResearchReason(email.metadata);
+                  const { priority, confidence } = getPriorityConfidence(email.metadata);
+                  const highValue = isHighValue(email);
+                  const assetRecommended = isAssetRecommended(email);
+                  const summary = compactSummary([
+                    email.audience_type || null,
+                    email.campaign_name || null,
+                    priority !== null ? `P${priority}` : null,
+                    confidence !== null ? `C${confidence}` : null,
+                    `${c.list.created}: ${formatDate(email.created_at)}`,
+                  ]);
+
                   return (
                     <div
                       key={email.id}
@@ -1065,9 +1221,11 @@ export function AdminOutreachWorkspace() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-[var(--gl-ink)]">
-                            {email.organization_name || email.lead_name || email.lead_email}
+                            {email.organization_name || email.lead_name || email.lead_email || c.list.noSubject}
                           </p>
-                          <p className="mt-1 truncate text-xs text-[var(--gl-ink-muted)]">{email.lead_email}</p>
+                          <p className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--gl-ink)]">
+                            {email.subject || c.list.noSubject}
+                          </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${getStatusTone(email.status)}`}>
@@ -1087,15 +1245,25 @@ export function AdminOutreachWorkspace() {
                           ) : null}
                         </div>
                       </div>
-                      <p className="mt-3 line-clamp-2 text-sm font-semibold text-[var(--gl-ink)]">
-                        {email.subject || c.list.noSubject}
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--gl-ink-muted)]">
-                        <span>{email.audience_type || "-"}</span>
-                        <span className="truncate text-right">{email.campaign_name || "-"}</span>
-                        <span>{c.list.created}: {formatDate(email.created_at)}</span>
-                        <span className="truncate text-right">{email.error_message ? `${c.list.error}: ${email.error_message}` : ""}</span>
+
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        <Badge tone={contactQuality === "missingContact" || contactQuality === "genericContact" ? "warning" : "green"}>
+                          {c.badges[contactQuality]}
+                        </Badge>
+                        {highValue ? <Badge tone="amber">{c.badges.highValue}</Badge> : null}
+                        {assetRecommended ? <Badge tone="blue">{c.badges.assetRecommended}</Badge> : null}
+                        {email.error_message ? <Badge tone="danger">{c.list.error}</Badge> : null}
                       </div>
+
+                      <p className="mt-3 truncate text-xs font-semibold text-[var(--gl-ink-muted)]">
+                        {compactSummary([email.lead_name || null, email.lead_email || null]) || c.badges.needsContact}
+                      </p>
+                      {researchReason ? (
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--gl-ink-muted)]">
+                          <span className="font-bold text-[var(--gl-ink-soft)]">{c.editor.whyThisLead}:</span> {researchReason}
+                        </p>
+                      ) : null}
+                      <p className="mt-3 truncate text-xs text-[var(--gl-ink-muted)]">{summary}</p>
                     </div>
                   );
                 })}
@@ -1133,6 +1301,35 @@ export function AdminOutreachWorkspace() {
                 </div>
               ) : null}
 
+              <div className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
+                <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--gl-ink-muted)]">{c.editor.contactQuality}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge tone={selectedContactQuality === "missingContact" || selectedContactQuality === "genericContact" ? "warning" : "green"}>
+                      {c.badges[selectedContactQuality]}
+                    </Badge>
+                    {selectedHighValue ? <Badge tone="amber">{c.badges.highValue}</Badge> : null}
+                    {selectedAssetRecommended ? <Badge tone="blue">{c.badges.assetRecommended}</Badge> : null}
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-[var(--gl-ink)]">{form.lead_name || c.badges.contactNameOnly}</p>
+                  <p className="mt-1 break-all text-sm text-[var(--gl-ink-muted)]">{form.lead_email || c.badges.needsContact}</p>
+                </div>
+
+                <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--gl-ink-muted)]">{c.editor.whyThisLead}</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--gl-ink)]">
+                    {selectedResearchReason || "-"}
+                  </p>
+                  <p className="mt-3 text-xs font-semibold text-[var(--gl-ink-muted)]">
+                    {compactSummary([
+                      selectedPriorityConfidence.priority !== null ? `P${selectedPriorityConfidence.priority}` : null,
+                      selectedPriorityConfidence.confidence !== null ? `C${selectedPriorityConfidence.confidence}` : null,
+                      sourceLinks.length ? `${sourceLinks.length} ${c.editor.sourceLinks.toLowerCase()}` : null,
+                    ]) || c.editor.noSourceLinks}
+                  </p>
+                </div>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label={c.editor.organizationName} value={form.organization_name} onChange={(value) => updateForm("organization_name", value)} disabled={disabled} />
                 <Field label={c.editor.audienceType} value={form.audience_type} onChange={(value) => updateForm("audience_type", value)} disabled={disabled} />
@@ -1144,7 +1341,7 @@ export function AdminOutreachWorkspace() {
               <Field label={c.editor.subject} value={form.subject} onChange={(value) => updateForm("subject", value)} disabled={disabled} />
 
               <div>
-                <Label>{c.editor.htmlBody}</Label>
+                <Label>{c.editor.editMessage}</Label>
                 <textarea
                   className="min-h-[260px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 font-mono text-xs leading-5 text-[var(--gl-ink)]"
                   value={form.html_body}
@@ -1300,6 +1497,23 @@ export function AdminOutreachWorkspace() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "green" | "amber" | "blue" | "warning" | "danger" | "neutral" }) {
+  const tones = {
+    green: "border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]",
+    amber: "border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]",
+    blue: "border-blue-200 bg-blue-50 text-blue-800",
+    warning: "border-orange-200 bg-orange-50 text-orange-800",
+    danger: "border-red-200 bg-red-50 text-red-800",
+    neutral: "border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]",
+  };
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-bold ${tones[tone]}`}>
+      {children}
+    </span>
   );
 }
 
