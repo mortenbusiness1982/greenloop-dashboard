@@ -1519,7 +1519,7 @@ export function AdminOutreachWorkspace() {
                   title="Outreach email preview"
                   srcDoc={buildPreviewHtml(form.html_body)}
                   sandbox=""
-                  className="h-[420px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
+                  className="h-[640px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
                 />
               </div>
 
