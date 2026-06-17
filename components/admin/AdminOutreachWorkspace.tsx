@@ -161,6 +161,7 @@ const copy: Record<DashboardLanguage, {
     editMessage: string;
     attachments: string;
     noAttachments: string;
+    openAttachment: string;
   };
   badges: {
     highValue: string;
@@ -278,6 +279,7 @@ const copy: Record<DashboardLanguage, {
       editMessage: "Edit message",
       attachments: "Attachments",
       noAttachments: "No PDF attachment saved on this draft.",
+      openAttachment: "Open PDF",
     },
     badges: {
       highValue: "High value",
@@ -405,6 +407,7 @@ const copy: Record<DashboardLanguage, {
       editMessage: "Editar mensaje",
       attachments: "Adjuntos",
       noAttachments: "Este borrador no tiene PDF adjunto guardado.",
+      openAttachment: "Abrir PDF",
     },
     badges: {
       highValue: "Alto valor",
@@ -689,8 +692,13 @@ function textToHtml(value: string) {
     .join("");
 }
 
+function extractBodyContent(value: string) {
+  const match = value.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  return match?.[1]?.trim() || value;
+}
+
 function buildPreviewHtml(htmlBody: string) {
-  const source = htmlBody.trim();
+  const source = extractBodyContent(htmlBody.trim());
   const body = textToHtml(source) || "<p style='color:#718078'>No email message yet.</p>";
   const signature = `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#14211B;">
@@ -714,21 +722,25 @@ function buildPreviewHtml(htmlBody: string) {
     </table>
   `;
 
-  if (/<\/body>/i.test(source)) {
-    return source.replace(/<\/body>/i, `${signature}</body>`);
+  return `
+    <div style="font-family:Arial,sans-serif;font-size:15px;line-height:22px;color:#123127;">
+      ${body}
+      ${signature}
+    </div>
+  `;
+}
+
+function getAttachmentHref(attachment: OutreachAttachment) {
+  if (attachment.content) {
+    const contentType = attachment.content_type || attachment.contentType || "application/pdf";
+    return `data:${contentType};base64,${attachment.content}`;
   }
 
-  return `
-    <!doctype html>
-    <html>
-      <body style="margin:0;padding:22px;background:#ffffff;font-family:Arial,sans-serif;color:#123127;">
-        <div style="font-size:15px;line-height:22px;color:#123127;">
-          ${body}
-          ${signature}
-        </div>
-      </body>
-    </html>
-  `;
+  if (attachment.path && /^https?:\/\//i.test(attachment.path)) {
+    return attachment.path;
+  }
+
+  return null;
 }
 
 function parseAttachmentsForDisplay(text: string): OutreachAttachment[] {
@@ -1510,16 +1522,39 @@ export function AdminOutreachWorkspace() {
                     ? "border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
                     : "border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] text-[var(--gl-ink-muted)]"
                 }`}>
-                  <span className="font-bold text-[var(--gl-ink)]">{c.editor.attachments}:</span>{" "}
-                  {formAttachments.length
-                    ? formAttachments.map((attachment) => attachment.filename).join(", ")
-                    : c.editor.noAttachments}
+                  <span className="font-bold text-[var(--gl-ink)]">{c.editor.attachments}:</span>
+                  {formAttachments.length ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {formAttachments.map((attachment) => {
+                        const href = getAttachmentHref(attachment);
+                        return href ? (
+                          <a
+                            key={attachment.filename}
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            download={attachment.filename}
+                            className="rounded-full border border-[var(--gl-green)]/30 bg-white px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)] hover:bg-[var(--gl-paper)]"
+                          >
+                            {attachment.filename} · {c.editor.openAttachment}
+                          </a>
+                        ) : (
+                          <span
+                            key={attachment.filename}
+                            className="rounded-full border border-[var(--gl-hairline)] bg-white px-3 py-1 text-xs font-bold text-[var(--gl-ink-muted)]"
+                          >
+                            {attachment.filename}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span className="ml-1">{c.editor.noAttachments}</span>
+                  )}
                 </div>
-                <iframe
-                  title="Outreach email preview"
-                  srcDoc={buildPreviewHtml(form.html_body)}
-                  sandbox=""
-                  className="h-[640px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
+                <div
+                  className="max-h-[640px] min-h-[420px] overflow-auto rounded-xl border border-[var(--gl-hairline)] bg-white p-6"
+                  dangerouslySetInnerHTML={{ __html: buildPreviewHtml(form.html_body) }}
                 />
               </div>
 
