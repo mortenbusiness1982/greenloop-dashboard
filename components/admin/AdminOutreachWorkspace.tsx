@@ -5,7 +5,16 @@ import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
-type OutreachStatus = "drafted" | "approved" | "sending" | "sent" | "failed" | "skipped";
+type OutreachStatus =
+  | "drafted"
+  | "approved"
+  | "saved_for_later"
+  | "disregarded"
+  | "deleted"
+  | "sending"
+  | "sent"
+  | "failed"
+  | "skipped";
 
 type OutreachAttachment = {
   filename?: string;
@@ -68,7 +77,7 @@ type OutreachForm = {
 
 const TEST_RECIPIENT = "mortenbusiness@gmail.com";
 
-const statusOptions: OutreachStatus[] = ["drafted", "approved", "failed", "skipped"];
+const statusOptions: OutreachStatus[] = ["drafted", "approved", "saved_for_later", "disregarded", "deleted", "failed"];
 
 const copy: Record<DashboardLanguage, {
   eyebrow: string;
@@ -79,6 +88,8 @@ const copy: Record<DashboardLanguage, {
   actionError: string;
   saved: string;
   approved: string;
+  savedForLater: string;
+  disregarded: string;
   approveAllConfirm: (count: number) => string;
   approveAllDone: (count: number) => string;
   deleteAllConfirm: (count: number) => string;
@@ -106,6 +117,11 @@ const copy: Record<DashboardLanguage, {
   list: {
     title: string;
     activeTitle: string;
+    bucketDrafts: string;
+    bucketReady: string;
+    bucketLater: string;
+    bucketDisregarded: string;
+    bucketDeleted: string;
     archiveTitle: string;
     archiveDescription: string;
     empty: string;
@@ -143,6 +159,8 @@ const copy: Record<DashboardLanguage, {
     whyThisLead: string;
     noLeadReason: string;
     editMessage: string;
+    attachments: string;
+    noAttachments: string;
   };
   badges: {
     highValue: string;
@@ -166,12 +184,14 @@ const copy: Record<DashboardLanguage, {
     approveAll: string;
     deleteSelected: string;
     deleteAll: string;
+    saveForLater: string;
     sentArchive: string;
     close: string;
     quickApprove: string;
     sendTest: string;
     sendReal: string;
     skip: string;
+    disregard: string;
     sending: string;
   };
   statuses: Record<OutreachStatus, string>;
@@ -185,6 +205,8 @@ const copy: Record<DashboardLanguage, {
     actionError: "Outreach action failed",
     saved: "Draft saved.",
     approved: "Draft approved.",
+    savedForLater: "Draft saved for later.",
+    disregarded: "Draft moved to disregarded drafts.",
     approveAllConfirm: (count) => `Approve ${count} visible drafts?`,
     approveAllDone: (count) => `${count} drafts approved.`,
     deleteAllConfirm: (count) => `Delete ${count} visible unsent outreach records? Sent emails will stay in the archive.`,
@@ -211,7 +233,12 @@ const copy: Record<DashboardLanguage, {
     },
     list: {
       title: "Drafts",
-      activeTitle: "Active drafts",
+      activeTitle: "Drafts",
+      bucketDrafts: "Drafts",
+      bucketReady: "Ready to send",
+      bucketLater: "Saved for later",
+      bucketDisregarded: "Disregarded drafts",
+      bucketDeleted: "Deleted items",
       archiveTitle: "Sent approvals archive",
       archiveDescription: "Sent emails stay here as the audit trail so GreenLoop does not contact the same lead twice by accident.",
       empty: "No outreach records match these filters.",
@@ -249,6 +276,8 @@ const copy: Record<DashboardLanguage, {
       whyThisLead: "Why this lead?",
       noLeadReason: "No lead reason saved yet. Ask the research agent to include why_this_lead in metadata.",
       editMessage: "Edit message",
+      attachments: "Attachments",
+      noAttachments: "No PDF attachment saved on this draft.",
     },
     badges: {
       highValue: "High value",
@@ -272,21 +301,26 @@ const copy: Record<DashboardLanguage, {
       approveAll: "Approve visible",
       deleteSelected: "Delete draft",
       deleteAll: "Delete visible",
+      saveForLater: "Save for later",
       sentArchive: "Sent",
       close: "Close",
       quickApprove: "Approve",
       sendTest: "Send test",
       sendReal: "Send approved email",
       skip: "Mark not suitable",
+      disregard: "Disregard draft",
       sending: "Working...",
     },
     statuses: {
       drafted: "Drafted",
-      approved: "Approved",
+      approved: "Ready to send",
+      saved_for_later: "Saved for later",
+      disregarded: "Disregarded",
+      deleted: "Deleted",
       sending: "Sending",
       sent: "Sent",
       failed: "Failed",
-      skipped: "Not suitable",
+      skipped: "Disregarded",
     },
   },
   es: {
@@ -298,6 +332,8 @@ const copy: Record<DashboardLanguage, {
     actionError: "Falló la acción de outreach",
     saved: "Borrador guardado.",
     approved: "Borrador aprobado.",
+    savedForLater: "Borrador guardado para más adelante.",
+    disregarded: "Borrador movido a descartados.",
     approveAllConfirm: (count) => `¿Aprobar ${count} borradores visibles?`,
     approveAllDone: (count) => `${count} borradores aprobados.`,
     deleteAllConfirm: (count) => `¿Eliminar ${count} registros visibles sin enviar? Los emails enviados se conservarán en el archivo.`,
@@ -324,7 +360,12 @@ const copy: Record<DashboardLanguage, {
     },
     list: {
       title: "Borradores",
-      activeTitle: "Borradores activos",
+      activeTitle: "Borradores",
+      bucketDrafts: "Borradores",
+      bucketReady: "Listos para enviar",
+      bucketLater: "Guardados para luego",
+      bucketDisregarded: "Borradores descartados",
+      bucketDeleted: "Eliminados",
       archiveTitle: "Archivo de aprobaciones enviadas",
       archiveDescription: "Los emails enviados se guardan aquí como historial para que GreenLoop no contacte dos veces al mismo lead por accidente.",
       empty: "No hay registros que coincidan con estos filtros.",
@@ -362,6 +403,8 @@ const copy: Record<DashboardLanguage, {
       whyThisLead: "¿Por qué este lead?",
       noLeadReason: "No hay motivo guardado todavía. Pide al agente de research que incluya why_this_lead en metadata.",
       editMessage: "Editar mensaje",
+      attachments: "Adjuntos",
+      noAttachments: "Este borrador no tiene PDF adjunto guardado.",
     },
     badges: {
       highValue: "Alto valor",
@@ -385,21 +428,26 @@ const copy: Record<DashboardLanguage, {
       approveAll: "Aprobar visibles",
       deleteSelected: "Eliminar borrador",
       deleteAll: "Eliminar visibles",
+      saveForLater: "Guardar para luego",
       sentArchive: "Enviados",
       close: "Cerrar",
       quickApprove: "Aprobar",
       sendTest: "Enviar prueba",
       sendReal: "Enviar email aprobado",
       skip: "Marcar no adecuado",
+      disregard: "Descartar borrador",
       sending: "Procesando...",
     },
     statuses: {
       drafted: "Borrador",
-      approved: "Aprobado",
+      approved: "Listo para enviar",
+      saved_for_later: "Guardado para luego",
+      disregarded: "Descartado",
+      deleted: "Eliminado",
       sending: "Enviando",
       sent: "Enviado",
       failed: "Fallido",
-      skipped: "No adecuado",
+      skipped: "Descartado",
     },
   },
 };
@@ -615,7 +663,9 @@ function getStatusTone(status: OutreachStatus) {
   if (status === "sent") return "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)] border-[var(--gl-green)]/25";
   if (status === "approved") return "bg-[var(--gl-coral-soft)] text-[var(--gl-coral-ink)] border-[var(--gl-coral)]/30";
   if (status === "failed") return "bg-red-50 text-red-800 border-red-200";
-  if (status === "skipped") return "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)] border-[var(--gl-hairline)]";
+  if (status === "saved_for_later") return "bg-blue-50 text-blue-800 border-blue-200";
+  if (status === "disregarded" || status === "skipped") return "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)] border-[var(--gl-hairline)]";
+  if (status === "deleted") return "bg-red-50 text-red-800 border-red-200";
   if (status === "sending") return "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)] border-[var(--gl-amber)]/30";
   return "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)] border-[var(--gl-hairline)]";
 }
@@ -681,12 +731,21 @@ function buildPreviewHtml(htmlBody: string) {
   `;
 }
 
+function parseAttachmentsForDisplay(text: string): OutreachAttachment[] {
+  try {
+    const attachments = parseJsonField<OutreachAttachment[]>(text, []);
+    return Array.isArray(attachments) ? attachments.filter((attachment) => attachment?.filename) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function AdminOutreachWorkspace() {
   const { language } = useDashboardLanguage();
   const c = copy[language];
   const [emails, setEmails] = useState<OutreachEmail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("drafted");
   const [audienceFilter, setAudienceFilter] = useState<string>("");
   const [campaignFilter, setCampaignFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -705,10 +764,12 @@ export function AdminOutreachWorkspace() {
 
   const filteredEmails = useMemo(() => {
     return emails.filter((email) => {
+      if (statusFilter && email.status !== statusFilter) return false;
+      if (!statusFilter && email.status === "deleted") return false;
       if (audienceFilter && email.audience_type !== audienceFilter) return false;
       return true;
     });
-  }, [audienceFilter, emails]);
+  }, [audienceFilter, emails, statusFilter]);
 
   const activeEmails = useMemo(
     () => filteredEmails.filter((email) => email.status !== "sent"),
@@ -729,7 +790,7 @@ export function AdminOutreachWorkspace() {
         if (email.status in acc) acc[email.status as keyof typeof acc] += 1;
         return acc;
       },
-      { total: 0, drafted: 0, approved: 0, sent: 0, failed: 0, skipped: 0, sending: 0 }
+      { total: 0, drafted: 0, approved: 0, saved_for_later: 0, disregarded: 0, deleted: 0, sent: 0, failed: 0, skipped: 0, sending: 0 }
     );
   }, [emails]);
 
@@ -754,6 +815,7 @@ export function AdminOutreachWorkspace() {
   const selectedPriorityConfidence = getPriorityConfidence(formMetadata);
   const selectedHighValue = selected ? isHighValue(selected) : metadataFlag(formMetadata, ["high_value", "highValue"]);
   const selectedAssetRecommended = selected ? isAssetRecommended(selected) : metadataFlag(formMetadata, ["asset_recommended", "assetRecommended", "personalized_asset", "personalizedAsset"]);
+  const formAttachments = useMemo(() => parseAttachmentsForDisplay(form.attachmentsText), [form.attachmentsText]);
 
   const loadEmails = useCallback(async () => {
     const token = getToken();
@@ -763,12 +825,11 @@ export function AdminOutreachWorkspace() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
       if (campaignFilter.trim()) params.set("campaign", campaignFilter.trim());
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const data = await apiFetch<OutreachListResponse>(`/admin/outreach/emails${suffix}`, { token });
       setEmails(data.emails ?? []);
-      const firstActiveId = data.emails.find((email) => email.status !== "sent")?.id ?? null;
+      const firstActiveId = data.emails.find((email) => email.status !== "sent" && email.status !== "deleted")?.id ?? null;
       setSelectedId((current) => current && data.emails.some((email) => email.id === current)
         ? current
         : firstActiveId);
@@ -777,7 +838,7 @@ export function AdminOutreachWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [c.loadError, campaignFilter, statusFilter]);
+  }, [c.loadError, campaignFilter]);
 
   useEffect(() => {
     loadEmails();
@@ -907,7 +968,7 @@ export function AdminOutreachWorkspace() {
 
   const quickApprove = async (email: OutreachEmail) => {
     const token = getToken();
-    if (!token || email.status !== "drafted") return;
+    if (!token || !["drafted", "saved_for_later"].includes(email.status)) return;
     setAction(`approve-${email.id}`);
     setError(null);
     setMessage(null);
@@ -929,7 +990,7 @@ export function AdminOutreachWorkspace() {
   const approveAllVisibleDrafts = async () => {
     const token = getToken();
     if (!token) return;
-    const drafts = activeEmails.filter((email) => email.status === "drafted");
+    const drafts = activeEmails.filter((email) => ["drafted", "saved_for_later"].includes(email.status));
     if (!drafts.length) return;
     if (!window.confirm(c.approveAllConfirm(drafts.length))) return;
     setAction("approveAll");
@@ -968,7 +1029,11 @@ export function AdminOutreachWorkspace() {
         token,
         method: "DELETE",
       });
-      setEmails((current) => current.filter((email) => email.id !== selected.id));
+      setEmails((current) => current.map((email) => (
+        email.id === selected.id
+          ? { ...email, status: "deleted", approved_at: null, updated_at: new Date().toISOString() }
+          : email
+      )));
       setSelectedId((current) => (current === selected.id ? null : current));
       setMessage(c.deleteAllDone(1));
     } catch (err) {
@@ -981,7 +1046,7 @@ export function AdminOutreachWorkspace() {
   const deleteAllVisibleUnsent = async () => {
     const token = getToken();
     if (!token) return;
-    const deletable = activeEmails.filter((email) => email.status !== "sending");
+    const deletable = activeEmails.filter((email) => email.status !== "sending" && email.status !== "deleted");
     if (!deletable.length) return;
     if (!window.confirm(c.deleteAllConfirm(deletable.length))) return;
 
@@ -998,7 +1063,11 @@ export function AdminOutreachWorkspace() {
         deletedCount += 1;
       }
       const deletedIds = new Set(deletable.map((email) => email.id));
-      setEmails((current) => current.filter((email) => !deletedIds.has(email.id)));
+      setEmails((current) => current.map((email) => (
+        deletedIds.has(email.id)
+          ? { ...email, status: "deleted", approved_at: null, updated_at: new Date().toISOString() }
+          : email
+      )));
       setSelectedId((current) => (current && deletedIds.has(current) ? null : current));
       setMessage(c.deleteAllDone(deletedCount));
     } catch (err) {
@@ -1009,21 +1078,43 @@ export function AdminOutreachWorkspace() {
     }
   };
 
-  const skipSelected = async () => {
+  const saveForLaterSelected = async () => {
     if (!selected) return;
     const token = getToken();
     if (!token) return;
-    setAction("skip");
+    setAction("saveForLater");
     setError(null);
     setMessage(null);
     try {
       const data = await apiFetch<OutreachMutationResponse>(`/admin/outreach/emails/${selected.id}`, {
         token,
         method: "PATCH",
-        body: { status: "skipped" },
+        body: { status: "saved_for_later" },
       });
       setEmails((current) => current.map((email) => (email.id === selected.id ? data.email : email)));
-      setMessage(c.skipped);
+      setMessage(c.savedForLater);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : c.actionError);
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const disregardSelected = async () => {
+    if (!selected) return;
+    const token = getToken();
+    if (!token) return;
+    setAction("disregard");
+    setError(null);
+    setMessage(null);
+    try {
+      const data = await apiFetch<OutreachMutationResponse>(`/admin/outreach/emails/${selected.id}`, {
+        token,
+        method: "PATCH",
+        body: { status: "disregarded" },
+      });
+      setEmails((current) => current.map((email) => (email.id === selected.id ? data.email : email)));
+      setMessage(c.disregarded);
     } catch (err) {
       setError(err instanceof Error ? err.message : c.actionError);
     } finally {
@@ -1096,7 +1187,7 @@ export function AdminOutreachWorkspace() {
     }
   };
 
-  const disabled = Boolean(action) || (!isCreating && (!selected || ["sent", "sending"].includes(selected.status)));
+  const disabled = Boolean(action) || (!isCreating && (!selected || ["sent", "sending", "deleted"].includes(selected.status)));
 
   return (
     <div className="space-y-5">
@@ -1139,6 +1230,8 @@ export function AdminOutreachWorkspace() {
             {compactSummary([
               `${counts.drafted} ${c.kpis.drafted.toLowerCase()}`,
               `${counts.approved} ${c.kpis.approved.toLowerCase()}`,
+              `${counts.saved_for_later} ${c.list.bucketLater.toLowerCase()}`,
+              `${counts.disregarded + counts.skipped} ${c.list.bucketDisregarded.toLowerCase()}`,
               `${counts.sent} ${c.kpis.sent.toLowerCase()}`,
               counts.failed ? `${counts.failed} ${c.kpis.failed.toLowerCase()}` : null,
             ])}
@@ -1148,7 +1241,7 @@ export function AdminOutreachWorkspace() {
               className="whitespace-nowrap rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={deleteAllVisibleUnsent}
-              disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending")}
+              disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending" && email.status !== "deleted")}
             >
               {action === "deleteAll" ? "..." : c.actions.deleteAll}
             </button>
@@ -1156,12 +1249,46 @@ export function AdminOutreachWorkspace() {
               className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={approveAllVisibleDrafts}
-              disabled={Boolean(action) || !activeEmails.some((email) => email.status === "drafted")}
+              disabled={Boolean(action) || !activeEmails.some((email) => ["drafted", "saved_for_later"].includes(email.status))}
             >
               {action === "approveAll" ? "..." : c.actions.approveAll}
             </button>
           </div>
         </div>
+      </section>
+
+      <section className="mb-5 flex flex-wrap gap-2 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3 shadow-sm">
+        {[
+          ["drafted", c.list.bucketDrafts, counts.drafted],
+          ["approved", c.list.bucketReady, counts.approved],
+          ["saved_for_later", c.list.bucketLater, counts.saved_for_later],
+          ["disregarded", c.list.bucketDisregarded, counts.disregarded + counts.skipped],
+          ["deleted", c.list.bucketDeleted, counts.deleted],
+        ].map(([status, label, count]) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter(String(status))}
+            className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+              statusFilter === status
+                ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
+                : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
+            }`}
+          >
+            {label} <span className="opacity-70">{count}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setStatusFilter("")}
+          className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+            statusFilter === ""
+              ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
+              : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
+          }`}
+        >
+          {c.filters.allStatuses}
+        </button>
       </section>
 
       <section className="mb-5 grid gap-3 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:grid-cols-3">
@@ -1267,7 +1394,7 @@ export function AdminOutreachWorkspace() {
                           <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${getStatusTone(email.status)}`}>
                             {c.statuses[email.status]}
                           </span>
-                          {email.status === "drafted" ? (
+                          {["drafted", "saved_for_later"].includes(email.status) ? (
                             <button
                               type="button"
                               onClick={(event) => {
@@ -1378,6 +1505,16 @@ export function AdminOutreachWorkspace() {
 
               <div>
                 <Label>{c.editor.preview}</Label>
+                <div className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
+                  formAttachments.length
+                    ? "border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
+                    : "border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] text-[var(--gl-ink-muted)]"
+                }`}>
+                  <span className="font-bold text-[var(--gl-ink)]">{c.editor.attachments}:</span>{" "}
+                  {formAttachments.length
+                    ? formAttachments.map((attachment) => attachment.filename).join(", ")
+                    : c.editor.noAttachments}
+                </div>
                 <iframe
                   title="Outreach email preview"
                   srcDoc={buildPreviewHtml(form.html_body)}
@@ -1460,6 +1597,7 @@ export function AdminOutreachWorkspace() {
                   <>
                     <ActionButton onClick={saveSelected} disabled={disabled} loading={action === "save"}>{c.actions.save}</ActionButton>
                     <ActionButton onClick={approveSelected} disabled={disabled} loading={action === "approve"}>{c.actions.approve}</ActionButton>
+                    <ActionButton onClick={saveForLaterSelected} disabled={disabled} loading={action === "saveForLater"} tone="neutral">{c.actions.saveForLater}</ActionButton>
                     <ActionButton onClick={sendTest} disabled={disabled} loading={action === "test"} tone="neutral">{c.actions.sendTest}</ActionButton>
                     <ActionButton
                       onClick={sendReal}
@@ -1469,10 +1607,10 @@ export function AdminOutreachWorkspace() {
                     >
                       {c.actions.sendReal}
                     </ActionButton>
-                    <ActionButton onClick={skipSelected} disabled={Boolean(action) || !selected || selected.status === "sent"} loading={action === "skip"} tone="danger">
-                      {c.actions.skip}
+                    <ActionButton onClick={disregardSelected} disabled={Boolean(action) || !selected || ["sent", "sending", "deleted"].includes(selected.status)} loading={action === "disregard"} tone="danger">
+                      {c.actions.disregard}
                     </ActionButton>
-                    <ActionButton onClick={deleteSelected} disabled={Boolean(action) || !selected || selected.status === "sent" || selected.status === "sending"} loading={action === "delete"} tone="danger">
+                    <ActionButton onClick={deleteSelected} disabled={Boolean(action) || !selected || ["sent", "sending", "deleted"].includes(selected.status)} loading={action === "delete"} tone="danger">
                       {c.actions.deleteSelected}
                     </ActionButton>
                   </>
