@@ -77,7 +77,7 @@ type OutreachForm = {
 
 const TEST_RECIPIENT = "mortenbusiness@gmail.com";
 
-const statusOptions: OutreachStatus[] = ["drafted", "approved", "saved_for_later", "disregarded", "deleted", "failed"];
+const statusOptions: OutreachStatus[] = ["drafted", "approved", "saved_for_later", "disregarded", "deleted", "sent", "failed"];
 
 const copy: Record<DashboardLanguage, {
   eyebrow: string;
@@ -106,6 +106,8 @@ const copy: Record<DashboardLanguage, {
     allAudiences: string;
     campaign: string;
     campaignPlaceholder: string;
+    search: string;
+    searchPlaceholder: string;
   };
   kpis: {
     total: string;
@@ -224,6 +226,8 @@ const copy: Record<DashboardLanguage, {
       allAudiences: "All audiences",
       campaign: "Campaign",
       campaignPlaceholder: "Filter by campaign",
+      search: "Search outreach",
+      searchPlaceholder: "Search name, email, organization, subject, campaign, Resend ID...",
     },
     kpis: {
       total: "Total",
@@ -352,6 +356,8 @@ const copy: Record<DashboardLanguage, {
       allAudiences: "Todas las audiencias",
       campaign: "Campaña",
       campaignPlaceholder: "Filtrar por campaña",
+      search: "Buscar prospección",
+      searchPlaceholder: "Buscar nombre, email, organización, asunto, campaña, ID Resend...",
     },
     kpis: {
       total: "Total",
@@ -662,6 +668,24 @@ function compactSummary(parts: Array<string | number | null | undefined>) {
   return parts.filter((part) => part !== null && part !== undefined && String(part).trim()).join(" · ");
 }
 
+function matchesSearch(email: OutreachEmail, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+
+  return [
+    email.campaign_name,
+    email.lead_name,
+    email.lead_email,
+    email.organization_name,
+    email.audience_type,
+    email.subject,
+    email.status,
+    email.resend_email_id,
+    email.reply_status,
+    email.error_message,
+  ].some((value) => value?.toLowerCase().includes(normalized));
+}
+
 function getStatusTone(status: OutreachStatus) {
   if (status === "sent") return "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)] border-[var(--gl-green)]/25";
   if (status === "approved") return "bg-[var(--gl-coral-soft)] text-[var(--gl-coral-ink)] border-[var(--gl-coral)]/30";
@@ -760,6 +784,7 @@ export function AdminOutreachWorkspace() {
   const [statusFilter, setStatusFilter] = useState<string>("drafted");
   const [audienceFilter, setAudienceFilter] = useState<string>("");
   const [campaignFilter, setCampaignFilter] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -774,23 +799,30 @@ export function AdminOutreachWorkspace() {
     [emails, selectedId]
   );
 
-  const filteredEmails = useMemo(() => {
+  const searchedEmails = useMemo(() => {
     return emails.filter((email) => {
-      if (statusFilter && email.status !== statusFilter) return false;
       if (!statusFilter && email.status === "deleted") return false;
       if (audienceFilter && email.audience_type !== audienceFilter) return false;
+      if (!matchesSearch(email, searchFilter)) return false;
       return true;
     });
-  }, [audienceFilter, emails, statusFilter]);
+  }, [audienceFilter, emails, searchFilter, statusFilter]);
 
-  const activeEmails = useMemo(
-    () => filteredEmails.filter((email) => email.status !== "sent"),
-    [filteredEmails]
+  const filteredEmails = useMemo(() => {
+    return searchedEmails.filter((email) => {
+      if (statusFilter && email.status !== statusFilter) return false;
+      return true;
+    });
+  }, [searchedEmails, statusFilter]);
+
+  const listEmails = useMemo(
+    () => filteredEmails.filter((email) => (searchFilter.trim() || statusFilter === "sent" ? true : email.status !== "sent")),
+    [filteredEmails, searchFilter, statusFilter]
   );
 
   const sentEmails = useMemo(
-    () => emails.filter((email) => email.status === "sent"),
-    [emails]
+    () => searchedEmails.filter((email) => email.status === "sent"),
+    [searchedEmails]
   );
 
   const audienceOptions = useMemo(() => uniqueStrings(emails.map((email) => email.audience_type)), [emails]);
@@ -838,6 +870,7 @@ export function AdminOutreachWorkspace() {
     try {
       const params = new URLSearchParams();
       if (campaignFilter.trim()) params.set("campaign", campaignFilter.trim());
+      if (searchFilter.trim()) params.set("search", searchFilter.trim());
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const data = await apiFetch<OutreachListResponse>(`/admin/outreach/emails${suffix}`, { token });
       setEmails(data.emails ?? []);
@@ -850,7 +883,7 @@ export function AdminOutreachWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [c.loadError, campaignFilter]);
+  }, [c.loadError, campaignFilter, searchFilter]);
 
   useEffect(() => {
     loadEmails();
@@ -1002,7 +1035,7 @@ export function AdminOutreachWorkspace() {
   const approveAllVisibleDrafts = async () => {
     const token = getToken();
     if (!token) return;
-    const drafts = activeEmails.filter((email) => ["drafted", "saved_for_later"].includes(email.status));
+    const drafts = listEmails.filter((email) => ["drafted", "saved_for_later"].includes(email.status));
     if (!drafts.length) return;
     if (!window.confirm(c.approveAllConfirm(drafts.length))) return;
     setAction("approveAll");
@@ -1058,7 +1091,7 @@ export function AdminOutreachWorkspace() {
   const deleteAllVisibleUnsent = async () => {
     const token = getToken();
     if (!token) return;
-    const deletable = activeEmails.filter((email) => email.status !== "sending" && email.status !== "deleted");
+    const deletable = listEmails.filter((email) => email.status !== "sending" && email.status !== "deleted" && email.status !== "sent");
     if (!deletable.length) return;
     if (!window.confirm(c.deleteAllConfirm(deletable.length))) return;
 
@@ -1253,7 +1286,7 @@ export function AdminOutreachWorkspace() {
               className="whitespace-nowrap rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={deleteAllVisibleUnsent}
-              disabled={Boolean(action) || !activeEmails.some((email) => email.status !== "sending" && email.status !== "deleted")}
+              disabled={Boolean(action) || !listEmails.some((email) => email.status !== "sending" && email.status !== "deleted" && email.status !== "sent")}
             >
               {action === "deleteAll" ? "..." : c.actions.deleteAll}
             </button>
@@ -1261,7 +1294,7 @@ export function AdminOutreachWorkspace() {
               className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               onClick={approveAllVisibleDrafts}
-              disabled={Boolean(action) || !activeEmails.some((email) => ["drafted", "saved_for_later"].includes(email.status))}
+              disabled={Boolean(action) || !listEmails.some((email) => ["drafted", "saved_for_later"].includes(email.status))}
             >
               {action === "approveAll" ? "..." : c.actions.approveAll}
             </button>
@@ -1276,6 +1309,7 @@ export function AdminOutreachWorkspace() {
           ["saved_for_later", c.list.bucketLater, counts.saved_for_later],
           ["disregarded", c.list.bucketDisregarded, counts.disregarded + counts.skipped],
           ["deleted", c.list.bucketDeleted, counts.deleted],
+          ["sent", c.actions.sentArchive, counts.sent],
         ].map(([status, label, count]) => (
           <button
             key={status}
@@ -1303,7 +1337,16 @@ export function AdminOutreachWorkspace() {
         </button>
       </section>
 
-      <section className="mb-5 grid gap-3 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:grid-cols-3">
+      <section className="mb-5 grid gap-3 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:grid-cols-2 xl:grid-cols-4">
+        <label className="md:col-span-2 xl:col-span-1">
+          <span className="sr-only">{c.filters.search}</span>
+          <input
+            className="w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)]"
+            value={searchFilter}
+            onChange={(event) => setSearchFilter(event.target.value)}
+            placeholder={c.filters.searchPlaceholder}
+          />
+        </label>
         <select
           className="rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)]"
           value={statusFilter}
@@ -1354,11 +1397,11 @@ export function AdminOutreachWorkspace() {
           <div className="max-h-[780px] overflow-y-auto">
             {loading ? (
               <p className="p-5 text-sm text-[var(--gl-ink-muted)]">{c.list.loading}</p>
-            ) : activeEmails.length === 0 ? (
+            ) : listEmails.length === 0 ? (
               <p className="p-5 text-sm text-[var(--gl-ink-muted)]">{c.list.empty}</p>
             ) : (
               <div className="divide-y divide-[var(--gl-hairline)]">
-                {activeEmails.map((email) => {
+                {listEmails.map((email) => {
                   const selectedRow = email.id === selectedId;
                   const contactQuality = getContactQuality(email);
                   const researchReason = getResearchReason(email.metadata);
@@ -1687,7 +1730,16 @@ export function AdminOutreachWorkspace() {
                   </thead>
                   <tbody className="divide-y divide-[var(--gl-hairline)]">
                     {sentEmails.map((email) => (
-                      <tr key={email.id}>
+                      <tr
+                        key={email.id}
+                        className="cursor-pointer hover:bg-[var(--gl-card-cream)]"
+                        onClick={() => {
+                          setIsCreating(false);
+                          setSelectedId(email.id);
+                          setStatusFilter("sent");
+                          setSentArchiveOpen(false);
+                        }}
+                      >
                         <td className="px-4 py-3 font-semibold text-[var(--gl-ink)]">{email.organization_name || email.lead_name || "-"}</td>
                         <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{email.lead_email}</td>
                         <td className="max-w-[280px] truncate px-4 py-3 text-[var(--gl-ink)]">{email.subject}</td>
