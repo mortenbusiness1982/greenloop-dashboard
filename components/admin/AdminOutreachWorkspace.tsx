@@ -164,6 +164,7 @@ const copy: Record<DashboardLanguage, {
     attachments: string;
     noAttachments: string;
     openAttachment: string;
+    attachmentOpenError: string;
   };
   badges: {
     highValue: string;
@@ -284,6 +285,7 @@ const copy: Record<DashboardLanguage, {
       attachments: "Attachments",
       noAttachments: "No PDF attachment saved on this draft.",
       openAttachment: "Open PDF",
+      attachmentOpenError: "Unable to open this attachment. Reload the draft and try again.",
     },
     badges: {
       highValue: "High value",
@@ -414,6 +416,7 @@ const copy: Record<DashboardLanguage, {
       attachments: "Adjuntos",
       noAttachments: "Este borrador no tiene PDF adjunto guardado.",
       openAttachment: "Abrir PDF",
+      attachmentOpenError: "No se ha podido abrir el adjunto. Recarga el borrador e inténtalo de nuevo.",
     },
     badges: {
       highValue: "Alto valor",
@@ -754,17 +757,42 @@ function buildPreviewHtml(htmlBody: string) {
   `;
 }
 
-function getAttachmentHref(attachment: OutreachAttachment) {
+function canOpenAttachment(attachment: OutreachAttachment) {
+  return Boolean(attachment.content || (attachment.path && /^https?:\/\//i.test(attachment.path)));
+}
+
+function openUrlInNewTab(url: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function openAttachment(attachment: OutreachAttachment) {
   if (attachment.content) {
+    const normalized = attachment.content.replace(/\s/g, "");
+    const binary = window.atob(normalized);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
     const contentType = attachment.content_type || attachment.contentType || "application/pdf";
-    return `data:${contentType};base64,${attachment.content}`;
+    const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+    openUrlInNewTab(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
   }
 
   if (attachment.path && /^https?:\/\//i.test(attachment.path)) {
-    return attachment.path;
+    openUrlInNewTab(attachment.path);
+    return;
   }
 
-  return null;
+  throw new Error("Attachment has no browser-readable content");
 }
 
 function parseAttachmentsForDisplay(text: string): OutreachAttachment[] {
@@ -1569,18 +1597,22 @@ export function AdminOutreachWorkspace() {
                   {formAttachments.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {formAttachments.map((attachment) => {
-                        const href = getAttachmentHref(attachment);
-                        return href ? (
-                          <a
+                        return canOpenAttachment(attachment) ? (
+                          <button
+                            type="button"
                             key={attachment.filename}
-                            href={href}
-                            target="_blank"
-                            rel="noreferrer"
-                            download={attachment.filename}
+                            onClick={() => {
+                              try {
+                                setError(null);
+                                openAttachment(attachment);
+                              } catch {
+                                setError(c.editor.attachmentOpenError);
+                              }
+                            }}
                             className="rounded-full border border-[var(--gl-green)]/30 bg-white px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)] hover:bg-[var(--gl-paper)]"
                           >
                             {attachment.filename} · {c.editor.openAttachment}
-                          </a>
+                          </button>
                         ) : (
                           <span
                             key={attachment.filename}
