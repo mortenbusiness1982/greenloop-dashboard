@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
@@ -190,6 +191,7 @@ const copy: Record<DashboardLanguage, {
     deleteAll: string;
     saveForLater: string;
     sentArchive: string;
+    backToDrafts: string;
     close: string;
     quickApprove: string;
     sendTest: string;
@@ -311,6 +313,7 @@ const copy: Record<DashboardLanguage, {
       deleteAll: "Delete visible",
       saveForLater: "Save for later",
       sentArchive: "Sent",
+      backToDrafts: "Back to drafts",
       close: "Close",
       quickApprove: "Approve",
       sendTest: "Send test",
@@ -442,6 +445,7 @@ const copy: Record<DashboardLanguage, {
       deleteAll: "Eliminar visibles",
       saveForLater: "Guardar para luego",
       sentArchive: "Enviados",
+      backToDrafts: "Volver a borradores",
       close: "Cerrar",
       quickApprove: "Aprobar",
       sendTest: "Enviar prueba",
@@ -821,6 +825,21 @@ export function AdminOutreachWorkspace() {
   const [isCreating, setIsCreating] = useState(false);
   const [sentArchiveOpen, setSentArchiveOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
+  const listPanelRef = useRef<HTMLDivElement>(null);
+  const editorPanelRef = useRef<HTMLDivElement>(null);
+
+  const scrollToPanel = (ref: RefObject<HTMLDivElement | null>) => {
+    if (typeof window === "undefined" || window.matchMedia("(min-width: 1280px)").matches) return;
+    window.requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const openEmail = (id: string) => {
+    setIsCreating(false);
+    setSelectedId(id);
+    scrollToPanel(editorPanelRef);
+  };
 
   const selected = useMemo(
     () => emails.find((email) => email.id === selectedId) ?? null,
@@ -965,6 +984,7 @@ export function AdminOutreachWorkspace() {
     setForm(emptyForm());
     setError(null);
     setMessage(null);
+    scrollToPanel(editorPanelRef);
   };
 
   const createDraft = async () => {
@@ -1418,7 +1438,10 @@ export function AdminOutreachWorkspace() {
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.25fr)]">
-        <div className="overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
+        <div
+          ref={listPanelRef}
+          className="scroll-mt-24 overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm"
+        >
           <div className="border-b border-[var(--gl-hairline)] p-4">
             <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.activeTitle}</h2>
           </div>
@@ -1449,15 +1472,12 @@ export function AdminOutreachWorkspace() {
                       key={email.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => {
-                        setIsCreating(false);
-                        setSelectedId(email.id);
-                      }}
+                      aria-current={selectedRow ? "true" : undefined}
+                      onClick={() => openEmail(email.id)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          setIsCreating(false);
-                          setSelectedId(email.id);
+                          openEmail(email.id);
                         }
                       }}
                       className={`block w-full px-4 py-4 text-left transition ${
@@ -1518,7 +1538,18 @@ export function AdminOutreachWorkspace() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+        <div
+          ref={editorPanelRef}
+          className="scroll-mt-24 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm xl:sticky xl:top-4 xl:self-start"
+        >
+          <button
+            type="button"
+            onClick={() => scrollToPanel(listPanelRef)}
+            className="mb-4 inline-flex items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-bold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)] xl:hidden"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            {c.actions.backToDrafts}
+          </button>
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-xl font-bold text-[var(--gl-ink)]">{isCreating ? c.editor.newTitle : c.editor.title}</h2>
@@ -1766,10 +1797,9 @@ export function AdminOutreachWorkspace() {
                         key={email.id}
                         className="cursor-pointer hover:bg-[var(--gl-card-cream)]"
                         onClick={() => {
-                          setIsCreating(false);
-                          setSelectedId(email.id);
                           setStatusFilter("sent");
                           setSentArchiveOpen(false);
+                          window.requestAnimationFrame(() => openEmail(email.id));
                         }}
                       >
                         <td className="px-4 py-3 font-semibold text-[var(--gl-ink)]">{email.organization_name || email.lead_name || "-"}</td>
