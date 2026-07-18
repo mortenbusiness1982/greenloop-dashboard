@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { CheckSquare2, Send, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
@@ -100,6 +101,11 @@ const copy: Record<DashboardLanguage, {
   testSent: (id?: string | null) => string;
   realSent: (id?: string | null) => string;
   sendConfirm: (email: string) => string;
+  bulkSendConfirm: (count: number) => string;
+  bulkSendDone: (sent: number) => string;
+  bulkSendFailed: (sent: number, failed: number) => string;
+  bulkSendProgress: (current: number, total: number) => string;
+  selectedCount: (count: number) => string;
   invalidJson: (field: string) => string;
   filters: {
     allStatuses: string;
@@ -186,6 +192,9 @@ const copy: Record<DashboardLanguage, {
     createDraft: string;
     approve: string;
     approveAll: string;
+    selectAllReady: string;
+    clearSelection: string;
+    sendSelected: string;
     deleteSelected: string;
     deleteAll: string;
     saveForLater: string;
@@ -221,6 +230,11 @@ const copy: Record<DashboardLanguage, {
     testSent: (id) => `Test email sent to ${TEST_RECIPIENT}${id ? ` (${id})` : ""}.`,
     realSent: (id) => `Real email sent${id ? ` (${id})` : ""}.`,
     sendConfirm: (email) => `This will send to ${email}. Continue?`,
+    bulkSendConfirm: (count) => `Send ${count} approved emails to their real recipients now? This cannot be undone.`,
+    bulkSendDone: (sent) => `${sent} approved emails sent.`,
+    bulkSendFailed: (sent, failed) => `${sent} emails sent. ${failed} failed and remain ready to retry.`,
+    bulkSendProgress: (current, total) => `Sending ${current} of ${total}`,
+    selectedCount: (count) => `${count} selected`,
     invalidJson: (field) => `${field} must be valid JSON.`,
     filters: {
       allStatuses: "All statuses",
@@ -307,6 +321,9 @@ const copy: Record<DashboardLanguage, {
       createDraft: "Create draft",
       approve: "Approve draft",
       approveAll: "Approve visible",
+      selectAllReady: "Select all ready",
+      clearSelection: "Clear",
+      sendSelected: "Send selected",
       deleteSelected: "Delete draft",
       deleteAll: "Delete visible",
       saveForLater: "Save for later",
@@ -352,6 +369,11 @@ const copy: Record<DashboardLanguage, {
     testSent: (id) => `Email de prueba enviado a ${TEST_RECIPIENT}${id ? ` (${id})` : ""}.`,
     realSent: (id) => `Email real enviado${id ? ` (${id})` : ""}.`,
     sendConfirm: (email) => `Esto enviará el email a ${email}. ¿Continuar?`,
+    bulkSendConfirm: (count) => `¿Enviar ahora ${count} emails aprobados a sus destinatarios reales? Esta acción no se puede deshacer.`,
+    bulkSendDone: (sent) => `${sent} emails aprobados enviados.`,
+    bulkSendFailed: (sent, failed) => `${sent} emails enviados. ${failed} han fallado y siguen listos para reintentar.`,
+    bulkSendProgress: (current, total) => `Enviando ${current} de ${total}`,
+    selectedCount: (count) => `${count} seleccionados`,
     invalidJson: (field) => `${field} debe ser JSON válido.`,
     filters: {
       allStatuses: "Todos los estados",
@@ -438,6 +460,9 @@ const copy: Record<DashboardLanguage, {
       createDraft: "Crear borrador",
       approve: "Aprobar borrador",
       approveAll: "Aprobar visibles",
+      selectAllReady: "Seleccionar listos",
+      clearSelection: "Limpiar",
+      sendSelected: "Enviar seleccionados",
       deleteSelected: "Eliminar borrador",
       deleteAll: "Eliminar visibles",
       saveForLater: "Guardar para luego",
@@ -821,6 +846,8 @@ export function AdminOutreachWorkspace() {
   const [isCreating, setIsCreating] = useState(false);
   const [sentArchiveOpen, setSentArchiveOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
+  const [selectedSendIds, setSelectedSendIds] = useState<Set<string>>(() => new Set());
+  const [bulkSendProgress, setBulkSendProgress] = useState({ current: 0, total: 0 });
 
   const selected = useMemo(
     () => emails.find((email) => email.id === selectedId) ?? null,
@@ -851,6 +878,16 @@ export function AdminOutreachWorkspace() {
   const sentEmails = useMemo(
     () => searchedEmails.filter((email) => email.status === "sent"),
     [searchedEmails]
+  );
+
+  const readyEmails = useMemo(
+    () => searchedEmails.filter((email) => email.status === "approved"),
+    [searchedEmails]
+  );
+
+  const selectedReadyEmails = useMemo(
+    () => readyEmails.filter((email) => selectedSendIds.has(email.id)),
+    [readyEmails, selectedSendIds]
   );
 
   const audienceOptions = useMemo(() => uniqueStrings(emails.map((email) => email.audience_type)), [emails]);
@@ -902,6 +939,11 @@ export function AdminOutreachWorkspace() {
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const data = await apiFetch<OutreachListResponse>(`/admin/outreach/emails${suffix}`, { token });
       setEmails(data.emails ?? []);
+      setSelectedSendIds((current) => new Set(
+        data.emails
+          .filter((email) => email.status === "approved" && current.has(email.id))
+          .map((email) => email.id)
+      ));
       const firstActiveId = data.emails.find((email) => email.status !== "sent" && email.status !== "deleted")?.id ?? null;
       setSelectedId((current) => current && data.emails.some((email) => email.id === current)
         ? current
@@ -922,6 +964,10 @@ export function AdminOutreachWorkspace() {
     setForm(selected ? formFromEmail(selected) : emptyForm());
     setAdvancedDetailsOpen(false);
   }, [isCreating, selected]);
+
+  useEffect(() => {
+    setSelectedSendIds(new Set());
+  }, [audienceFilter, campaignFilter, searchFilter]);
 
   const updateForm = (key: keyof OutreachForm, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -1260,6 +1306,65 @@ export function AdminOutreachWorkspace() {
     }
   };
 
+  const selectAllReady = () => {
+    setStatusFilter("approved");
+    setSelectedSendIds(new Set(readyEmails.map((email) => email.id)));
+    setError(null);
+    setMessage(null);
+  };
+
+  const toggleReadySelection = (emailId: string) => {
+    setSelectedSendIds((current) => {
+      const next = new Set(current);
+      if (next.has(emailId)) next.delete(emailId);
+      else next.add(emailId);
+      return next;
+    });
+  };
+
+  const sendSelectedReady = async () => {
+    const targets = selectedReadyEmails;
+    if (!targets.length || !window.confirm(c.bulkSendConfirm(targets.length))) return;
+
+    const token = getToken();
+    if (!token) return;
+    setAction("bulkSend");
+    setError(null);
+    setMessage(null);
+    setBulkSendProgress({ current: 0, total: targets.length });
+
+    let sentCount = 0;
+    const failedIds: string[] = [];
+    for (const [index, email] of targets.entries()) {
+      setBulkSendProgress({ current: index + 1, total: targets.length });
+      try {
+        const sent = await apiFetch<OutreachMutationResponse>(`/admin/outreach/emails/${email.id}/send`, {
+          token,
+          method: "POST",
+        });
+        sentCount += 1;
+        setEmails((current) => current.map((item) => (item.id === email.id ? sent.email : item)));
+        setSelectedSendIds((current) => {
+          const next = new Set(current);
+          next.delete(email.id);
+          return next;
+        });
+      } catch {
+        failedIds.push(email.id);
+      }
+    }
+
+    if (failedIds.length) {
+      setError(c.bulkSendFailed(sentCount, failedIds.length));
+      setSelectedSendIds(new Set(failedIds));
+      await loadEmails();
+    } else {
+      setMessage(c.bulkSendDone(sentCount));
+    }
+    setBulkSendProgress({ current: 0, total: 0 });
+    setAction(null);
+  };
+
   const disabled = Boolean(action) || (!isCreating && (!selected || ["sent", "sending", "deleted"].includes(selected.status)));
 
   return (
@@ -1326,6 +1431,39 @@ export function AdminOutreachWorkspace() {
             >
               {action === "approveAll" ? "..." : c.actions.approveAll}
             </button>
+            <button
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              onClick={selectAllReady}
+              disabled={Boolean(action) || readyEmails.length === 0}
+            >
+              <CheckSquare2 size={16} aria-hidden="true" />
+              {c.actions.selectAllReady} ({readyEmails.length})
+            </button>
+            {selectedReadyEmails.length ? (
+              <button
+                className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+                onClick={sendSelectedReady}
+                disabled={Boolean(action)}
+              >
+                <Send size={16} aria-hidden="true" />
+                {action === "bulkSend"
+                  ? c.bulkSendProgress(bulkSendProgress.current, bulkSendProgress.total)
+                  : `${c.actions.sendSelected} (${selectedReadyEmails.length})`}
+              </button>
+            ) : null}
+            {selectedReadyEmails.length ? (
+              <button
+                className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-bold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+                onClick={() => setSelectedSendIds(new Set())}
+                disabled={Boolean(action)}
+              >
+                <X size={16} aria-hidden="true" />
+                {c.actions.clearSelection}
+              </button>
+            ) : null}
           </div>
         </div>
       </section>
@@ -1419,8 +1557,13 @@ export function AdminOutreachWorkspace() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.25fr)]">
         <div className="overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-          <div className="border-b border-[var(--gl-hairline)] p-4">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--gl-hairline)] p-4">
             <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.activeTitle}</h2>
+            {selectedReadyEmails.length ? (
+              <span className="rounded-full bg-[var(--gl-green-soft)] px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)]">
+                {c.selectedCount(selectedReadyEmails.length)}
+              </span>
+            ) : null}
           </div>
           <div className="max-h-[780px] overflow-y-auto">
             {loading ? (
@@ -1465,13 +1608,26 @@ export function AdminOutreachWorkspace() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-[var(--gl-ink)]">
-                            {email.organization_name || email.lead_name || email.lead_email || c.list.noSubject}
-                          </p>
-                          <p className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--gl-ink)]">
-                            {email.subject || c.list.noSubject}
-                          </p>
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          {email.status === "approved" ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedSendIds.has(email.id)}
+                              aria-label={`${c.actions.sendSelected}: ${email.organization_name || email.lead_email}`}
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => event.stopPropagation()}
+                              onChange={() => toggleReadySelection(email.id)}
+                              className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--gl-hairline-strong)] accent-[var(--gl-green)]"
+                            />
+                          ) : null}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-[var(--gl-ink)]">
+                              {email.organization_name || email.lead_name || email.lead_email || c.list.noSubject}
+                            </p>
+                            <p className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--gl-ink)]">
+                              {email.subject || c.list.noSubject}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${getStatusTone(email.status)}`}>
