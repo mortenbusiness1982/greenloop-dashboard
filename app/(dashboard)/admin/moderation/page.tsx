@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -9,6 +10,13 @@ import { apiFetch } from "@/lib/api";
 type EventRow = {
   id: string | number;
   user_id?: string | number | null;
+  display_name?: string | null;
+  email?: string | null;
+  city?: string | null;
+  province?: string | null;
+  country?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   verification_status?: string | null;
   type?: string | null;
   url?: string | null;
@@ -21,6 +29,13 @@ type EventRow = {
 type ModerationEvent = {
   id: string;
   userId: string;
+  displayName: string | null;
+  email: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  lat: number | null;
+  lng: number | null;
   verificationStatus: string;
   bagImageUrl: string | null;
   containerImageUrl: string | null;
@@ -142,6 +157,17 @@ function toText(value: string | number | null | undefined, fallback = "—") {
   return String(value);
 }
 
+function formatLocation(event: ModerationEvent) {
+  const namedLocation = [event.city, event.province, event.country].filter(Boolean).join(", ");
+  if (namedLocation) return namedLocation;
+
+  if (event.lat !== null && event.lng !== null) {
+    return `${event.lat.toFixed(5)}, ${event.lng.toFixed(5)}`;
+  }
+
+  return "Location unavailable";
+}
+
 function resolveImageSlot(row: EventRow): "bag" | "container" | null {
   const combined = `${row.type ?? ""} ${row.url ?? ""}`.toLowerCase();
 
@@ -160,6 +186,13 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
     const existing = grouped.get(id) ?? {
       id,
       userId: toText(row.user_id),
+      displayName: row.display_name ?? null,
+      email: row.email ?? null,
+      city: row.city ?? null,
+      province: row.province ?? null,
+      country: row.country ?? null,
+      lat: typeof row.lat === "number" ? row.lat : null,
+      lng: typeof row.lng === "number" ? row.lng : null,
       verificationStatus: toText(row.verification_status),
       bagImageUrl: null,
       containerImageUrl: null,
@@ -171,6 +204,34 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
 
     if (existing.userId === "—" && row.user_id != null) {
       existing.userId = String(row.user_id);
+    }
+
+    if (!existing.displayName && row.display_name) {
+      existing.displayName = row.display_name;
+    }
+
+    if (!existing.email && row.email) {
+      existing.email = row.email;
+    }
+
+    if (!existing.city && row.city) {
+      existing.city = row.city;
+    }
+
+    if (!existing.province && row.province) {
+      existing.province = row.province;
+    }
+
+    if (!existing.country && row.country) {
+      existing.country = row.country;
+    }
+
+    if (existing.lat === null && typeof row.lat === "number") {
+      existing.lat = row.lat;
+    }
+
+    if (existing.lng === null && typeof row.lng === "number") {
+      existing.lng = row.lng;
     }
 
     if (existing.verificationStatus === "—" && row.verification_status) {
@@ -603,6 +664,31 @@ export default function ModerationPage() {
                         <span className="font-semibold text-[var(--gl-ink-soft)]">Status:</span>{" "}
                         {event.verificationStatus}
                       </p>
+                      <div className="border-t border-[var(--gl-hairline)] pt-2">
+                        <p className="font-semibold text-[var(--gl-ink-soft)]">Scanned by</p>
+                        {event.userId !== "—" ? (
+                          <Link
+                            href={`/admin/users/${encodeURIComponent(event.userId)}`}
+                            className="mt-0.5 block break-words text-sm font-medium text-[var(--gl-green)] hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gl-green-ring)]"
+                          >
+                            {event.displayName || event.email || event.userId}
+                          </Link>
+                        ) : (
+                          <p className="mt-0.5 text-sm text-[var(--gl-ink-muted)]">User unavailable</p>
+                        )}
+                        {event.email && event.displayName ? (
+                          <p className="mt-0.5 break-all text-[11px] text-[var(--gl-ink-faint)]">{event.email}</p>
+                        ) : null}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[var(--gl-ink-soft)]">Location</p>
+                        <p className="mt-0.5 text-sm text-[var(--gl-ink)]">{formatLocation(event)}</p>
+                        {(event.city || event.province || event.country) && event.lat !== null && event.lng !== null ? (
+                          <p className="mt-0.5 font-mono text-[11px] text-[var(--gl-ink-faint)]">
+                            {event.lat.toFixed(5)}, {event.lng.toFixed(5)}
+                          </p>
+                        ) : null}
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
                           AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
