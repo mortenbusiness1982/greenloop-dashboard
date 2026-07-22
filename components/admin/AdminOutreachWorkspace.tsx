@@ -839,6 +839,8 @@ export function AdminOutreachWorkspace() {
   const [campaignFilter, setCampaignFilter] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<OutreachEmail | null>(null);
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -849,10 +851,15 @@ export function AdminOutreachWorkspace() {
   const [selectedSendIds, setSelectedSendIds] = useState<Set<string>>(() => new Set());
   const [bulkSendProgress, setBulkSendProgress] = useState({ current: 0, total: 0 });
 
-  const selected = useMemo(
+  const selectedSummary = useMemo(
     () => emails.find((email) => email.id === selectedId) ?? null,
     [emails, selectedId]
   );
+  const selected = selectedSummary?.html_body != null
+    ? selectedSummary
+    : selectedDetail?.id === selectedId
+      ? selectedDetail
+      : selectedSummary;
 
   const searchedEmails = useMemo(() => {
     return emails.filter((email) => {
@@ -934,10 +941,12 @@ export function AdminOutreachWorkspace() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      params.set("view", "summary");
       if (campaignFilter.trim()) params.set("campaign", campaignFilter.trim());
       if (searchFilter.trim()) params.set("search", searchFilter.trim());
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const data = await apiFetch<OutreachListResponse>(`/admin/outreach/emails${suffix}`, { token });
+      setSelectedDetail(null);
       setEmails(data.emails ?? []);
       setSelectedSendIds((current) => new Set(
         data.emails
@@ -958,6 +967,36 @@ export function AdminOutreachWorkspace() {
   useEffect(() => {
     loadEmails();
   }, [loadEmails]);
+
+  useEffect(() => {
+    if (isCreating || !selectedId) {
+      setDetailLoading(false);
+      setSelectedDetail(null);
+      return;
+    }
+
+    if (selectedDetail?.id === selectedId) return;
+
+    const token = getToken();
+    if (!token) return;
+
+    let cancelled = false;
+    setDetailLoading(true);
+    apiFetch<OutreachMutationResponse>(`/admin/outreach/emails/${selectedId}`, { token })
+      .then((data) => {
+        if (!cancelled) setSelectedDetail(data.email);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : c.loadError);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [c.loadError, isCreating, selectedDetail?.id, selectedId]);
 
   useEffect(() => {
     if (isCreating) return;
@@ -1008,6 +1047,8 @@ export function AdminOutreachWorkspace() {
   const startNewDraft = () => {
     setIsCreating(true);
     setSelectedId(null);
+    setSelectedDetail(null);
+    setDetailLoading(false);
     setForm(emptyForm());
     setError(null);
     setMessage(null);
@@ -1365,7 +1406,7 @@ export function AdminOutreachWorkspace() {
     setAction(null);
   };
 
-  const disabled = Boolean(action) || (!isCreating && (!selected || ["sent", "sending", "deleted"].includes(selected.status)));
+  const disabled = Boolean(action) || detailLoading || (!isCreating && (!selected || ["sent", "sending", "deleted"].includes(selected.status)));
 
   return (
     <div className="space-y-5">
@@ -1691,7 +1732,11 @@ export function AdminOutreachWorkspace() {
             ) : null}
           </div>
 
-          {!selected && !isCreating ? (
+          {detailLoading && selectedId && !isCreating ? (
+            <p className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-5 text-sm text-[var(--gl-ink-muted)]">
+              {c.list.loading}
+            </p>
+          ) : !selected && !isCreating ? (
             <p className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-5 text-sm text-[var(--gl-ink-muted)]">
               {c.editor.empty}
             </p>
