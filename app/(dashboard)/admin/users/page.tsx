@@ -22,6 +22,16 @@ type AdminUser = {
   last_activity_at?: string | null;
   latest_city?: string | null;
   latest_province?: string | null;
+  app_platform?: string | null;
+  appPlatform?: string | null;
+  app_version?: string | null;
+  appVersion?: string | null;
+  app_seen_at?: string | null;
+  appSeenAt?: string | null;
+  push_platform?: string | null;
+  pushPlatform?: string | null;
+  push_seen_at?: string | null;
+  pushSeenAt?: string | null;
 };
 
 type UserActivityResponse = {
@@ -89,6 +99,34 @@ function formatDateTime(value?: string | null) {
 function csvCell(value: unknown) {
   const text = String(value ?? "");
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function getUserPlatform(user?: AdminUser | null) {
+  return user?.app_platform || user?.appPlatform || user?.push_platform || user?.pushPlatform || null;
+}
+
+function getUserAppVersion(user?: AdminUser | null) {
+  return user?.app_version || user?.appVersion || null;
+}
+
+function getUserPlatformSeenAt(user?: AdminUser | null) {
+  return user?.app_seen_at || user?.appSeenAt || user?.push_seen_at || user?.pushSeenAt || null;
+}
+
+function formatUserPlatform(user?: AdminUser | null) {
+  const platform = getUserPlatform(user)?.toLowerCase();
+  if (platform === "ios") return "iOS app";
+  if (platform === "android") return "Android app";
+  if (platform === "web") return "Web";
+  return "Unknown app";
+}
+
+function getUserPlatformClasses(user?: AdminUser | null) {
+  const platform = getUserPlatform(user)?.toLowerCase();
+  if (platform === "ios") return "bg-slate-100 text-slate-700";
+  if (platform === "android") return "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]";
+  if (platform === "web") return "bg-blue-50 text-blue-700";
+  return "bg-[var(--gl-card-cream)] text-[var(--gl-ink-muted)]";
 }
 
 export default function AdminUsersPage() {
@@ -168,11 +206,11 @@ export default function AdminUsersPage() {
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return users;
     return users.filter((user) =>
-      [user.display_name, user.email, user.role]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
+      !query ||
+        [user.display_name, user.email, user.role, formatUserPlatform(user), getUserAppVersion(user)]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [search, users]);
 
@@ -394,6 +432,9 @@ export default function AdminUsersPage() {
       "display_name",
       "email",
       "role",
+      "app_platform",
+      "app_version",
+      "app_seen_at",
       "created_at",
       "status",
       "wallet_points",
@@ -409,6 +450,9 @@ export default function AdminUsersPage() {
       display_name: user.display_name,
       email: user.email,
       role: user.role,
+      app_platform: formatUserPlatform(user),
+      app_version: getUserAppVersion(user) ?? "",
+      app_seen_at: getUserPlatformSeenAt(user) ?? "",
       created_at: user.created_at,
       status: user.deactivated_at ? "deactivated" : "active",
       wallet_points: user.wallet_points,
@@ -502,7 +546,7 @@ export default function AdminUsersPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by display name, email, or role"
+            placeholder="Search by display name, email, role, or app platform"
             className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
           />
         </label>
@@ -542,7 +586,19 @@ export default function AdminUsersPage() {
                     }`}
                     style={{ cursor: "pointer" }}
                   >
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink)]">{user.display_name}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink)]">
+                      <div>{user.display_name}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getUserPlatformClasses(user)}`}>
+                          {formatUserPlatform(user)}
+                        </span>
+                        {getUserAppVersion(user) ? (
+                          <span className="text-[11px] font-normal text-[var(--gl-ink-muted)]">
+                            v{getUserAppVersion(user)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.role}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.wallet_points}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.redeemed_rewards_count ?? 0}</td>
@@ -657,6 +713,21 @@ export default function AdminUsersPage() {
                   <div>
                     <p className="font-medium text-[var(--gl-ink-muted)]">Role</p>
                     <p>{selectedUser.user.role}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[var(--gl-ink-muted)]">App</p>
+                    <p>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getUserPlatformClasses(selectedUser.user)}`}>
+                        {formatUserPlatform(selectedUser.user)}
+                      </span>
+                    </p>
+                    {getUserAppVersion(selectedUser.user) || getUserPlatformSeenAt(selectedUser.user) ? (
+                      <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
+                        {getUserAppVersion(selectedUser.user) ? `v${getUserAppVersion(selectedUser.user)}` : ""}
+                        {getUserAppVersion(selectedUser.user) && getUserPlatformSeenAt(selectedUser.user) ? " · " : ""}
+                        {getUserPlatformSeenAt(selectedUser.user) ? `seen ${formatDateTime(getUserPlatformSeenAt(selectedUser.user))}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <p className="font-medium text-[var(--gl-ink-muted)]">Wallet</p>

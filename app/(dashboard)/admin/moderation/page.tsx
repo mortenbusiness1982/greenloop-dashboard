@@ -9,10 +9,21 @@ import { apiFetch } from "@/lib/api";
 type EventRow = {
   id: string | number;
   user_id?: string | number | null;
+  display_name?: string | null;
+  user_display_name?: string | null;
+  email?: string | null;
+  user_email?: string | null;
   verification_status?: string | null;
   type?: string | null;
   url?: string | null;
   created_at?: string | null;
+  city?: string | null;
+  province?: string | null;
+  country?: string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   validation_status?: string | null;
   validation_score?: number | null;
   validation_flags?: string[] | null;
@@ -21,13 +32,33 @@ type EventRow = {
 type ModerationEvent = {
   id: string;
   userId: string;
+  userName: string | null;
+  userEmail: string | null;
   verificationStatus: string;
   bagImageUrl: string | null;
   containerImageUrl: string | null;
   createdAt: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  lat: number | null;
+  lng: number | null;
   validationStatus: string | null;
   validationScore: number | null;
   validationFlags: string[];
+};
+
+type ScanContext = {
+  eventId: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  createdAt: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 type FilterKey = "pending" | "approved" | "rejected";
@@ -127,11 +158,6 @@ function isTypingTarget(target: EventTarget | null) {
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 }
 
-function formatUrlPreview(url?: string | null) {
-  if (!url) return "No source URL";
-  return url;
-}
-
 function shortenEventId(id: string) {
   if (id.length <= 8) return id;
   return `${id.slice(0, 8)}...`;
@@ -140,6 +166,50 @@ function shortenEventId(id: string) {
 function toText(value: string | number | null | undefined, fallback = "—") {
   if (value === null || value === undefined || value === "") return fallback;
   return String(value);
+}
+
+function toOptionalText(...values: Array<string | number | null | undefined>) {
+  for (const value of values) {
+    if (value !== null && value !== undefined && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return null;
+}
+
+function toNullableNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatScanDate(value: string | null) {
+  if (!value) return "Unknown time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function formatScanUser(context: ScanContext) {
+  if (context.userName && context.userEmail) return `${context.userName} · ${context.userEmail}`;
+  return context.userName || context.userEmail || "Unknown user";
+}
+
+function formatScanLocation(context: ScanContext) {
+  const namedLocation = [context.city, context.province, context.country].filter(Boolean).join(", ");
+  if (namedLocation) return namedLocation;
+  if (context.lat !== null && context.lng !== null) {
+    return `${context.lat.toFixed(5)}, ${context.lng.toFixed(5)}`;
+  }
+  return "Unknown location";
+}
+
+function formatScanCoordinates(context: ScanContext) {
+  if (context.lat === null || context.lng === null) return "No GPS coordinates";
+  return `${context.lat.toFixed(5)}, ${context.lng.toFixed(5)}`;
 }
 
 function resolveImageSlot(row: EventRow): "bag" | "container" | null {
@@ -160,10 +230,17 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
     const existing = grouped.get(id) ?? {
       id,
       userId: toText(row.user_id),
+      userName: toOptionalText(row.display_name, row.user_display_name),
+      userEmail: toOptionalText(row.email, row.user_email),
       verificationStatus: toText(row.verification_status),
       bagImageUrl: null,
       containerImageUrl: null,
       createdAt: row.created_at ?? null,
+      city: toOptionalText(row.city),
+      province: toOptionalText(row.province),
+      country: toOptionalText(row.country),
+      lat: toNullableNumber(row.lat ?? row.latitude),
+      lng: toNullableNumber(row.lng ?? row.longitude),
       validationStatus: row.validation_status ?? null,
       validationScore: row.validation_score ?? null,
       validationFlags: Array.isArray(row.validation_flags) ? row.validation_flags.filter(Boolean) : [],
@@ -173,6 +250,9 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
       existing.userId = String(row.user_id);
     }
 
+    existing.userName = existing.userName ?? toOptionalText(row.display_name, row.user_display_name);
+    existing.userEmail = existing.userEmail ?? toOptionalText(row.email, row.user_email);
+
     if (existing.verificationStatus === "—" && row.verification_status) {
       existing.verificationStatus = String(row.verification_status);
     }
@@ -180,6 +260,12 @@ function groupEvents(rows: EventRow[]): ModerationEvent[] {
     if (!existing.createdAt && row.created_at) {
       existing.createdAt = row.created_at;
     }
+
+    existing.city = existing.city ?? toOptionalText(row.city);
+    existing.province = existing.province ?? toOptionalText(row.province);
+    existing.country = existing.country ?? toOptionalText(row.country);
+    existing.lat = existing.lat ?? toNullableNumber(row.lat ?? row.latitude);
+    existing.lng = existing.lng ?? toNullableNumber(row.lng ?? row.longitude);
 
     if (!existing.validationStatus && row.validation_status) {
       existing.validationStatus = row.validation_status;
@@ -215,10 +301,12 @@ function ImageSlot({
   label,
   imageUrl,
   alt,
+  context,
 }: {
   label: string;
   imageUrl: string | null;
   alt: string;
+  context: ScanContext;
 }) {
   const isLegacyImage = isLocalFileUrl(imageUrl);
 
@@ -251,10 +339,33 @@ function ImageSlot({
         {isLocalFileUrl(imageUrl) ? (
           <p className="text-[11px] text-[var(--gl-amber-ink)]">Local mobile file path — not browser accessible</p>
         ) : null}
-        <div>
-          <p className="text-[11px] font-medium text-[var(--gl-ink-muted)]">Source URL</p>
-          <p className="mt-0.5 break-all font-mono text-[11px] text-[var(--gl-ink-faint)]">{formatUrlPreview(imageUrl)}</p>
+        <div className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Scan context</p>
+          <dl className="mt-2 grid gap-1.5 text-[11px]">
+            <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+              <dt className="font-medium text-[var(--gl-ink-muted)]">When</dt>
+              <dd className="min-w-0 text-[var(--gl-ink)]">{formatScanDate(context.createdAt)}</dd>
+            </div>
+            <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+              <dt className="font-medium text-[var(--gl-ink-muted)]">Where</dt>
+              <dd className="min-w-0 text-[var(--gl-ink)]">{formatScanLocation(context)}</dd>
+            </div>
+            <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
+              <dt className="font-medium text-[var(--gl-ink-muted)]">User</dt>
+              <dd className="min-w-0 break-words text-[var(--gl-ink)]">{formatScanUser(context)}</dd>
+            </div>
+          </dl>
         </div>
+        {imageUrl && !isLegacyImage ? (
+          <a
+            href={imageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex text-[11px] font-semibold text-[var(--gl-green-deep)] underline-offset-2 hover:underline"
+          >
+            Open uploaded photo
+          </a>
+        ) : null}
       </div>
     </div>
   );
@@ -563,6 +674,18 @@ export default function ModerationPage() {
             const showSelection = activeFilter === "pending";
             const riskTier = getRiskTier(event);
             const riskClasses = getRiskClasses(riskTier);
+            const scanContext: ScanContext = {
+              eventId: event.id,
+              userId: event.userId,
+              userName: event.userName,
+              userEmail: event.userEmail,
+              createdAt: event.createdAt,
+              city: event.city,
+              province: event.province,
+              country: event.country,
+              lat: event.lat,
+              lng: event.lng,
+            };
 
             return (
               <section
@@ -585,11 +708,17 @@ export default function ModerationPage() {
 
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
                   <div className="grid gap-3 lg:grid-cols-2">
-                    <ImageSlot label="Bag" imageUrl={event.bagImageUrl} alt={`Bag evidence for event ${event.id}`} />
+                    <ImageSlot
+                      label="Bag"
+                      imageUrl={event.bagImageUrl}
+                      alt={`Bag evidence for event ${event.id}`}
+                      context={scanContext}
+                    />
                     <ImageSlot
                       label="Container"
                       imageUrl={event.containerImageUrl}
                       alt={`Container evidence for event ${event.id}`}
+                      context={scanContext}
                     />
                   </div>
 
@@ -612,6 +741,32 @@ export default function ModerationPage() {
                           <span className="rounded-full bg-[var(--gl-green-soft)] px-2 py-0.5 font-semibold text-[var(--gl-green)]">Auto</span>
                         ) : null}
                       </div>
+                    </div>
+
+                    <div className="mt-4 rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+                        Recycler & place
+                      </p>
+                      <dl className="mt-2 grid gap-2 text-xs">
+                        <div>
+                          <dt className="font-semibold text-[var(--gl-ink-soft)]">User</dt>
+                          <dd className="mt-0.5 break-words text-[var(--gl-ink)]">{formatScanUser(scanContext)}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-semibold text-[var(--gl-ink-soft)]">Recycled at</dt>
+                          <dd className="mt-0.5 text-[var(--gl-ink)]">{formatScanLocation(scanContext)}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-semibold text-[var(--gl-ink-soft)]">GPS</dt>
+                          <dd className="mt-0.5 font-mono text-[11px] text-[var(--gl-ink-muted)]">
+                            {formatScanCoordinates(scanContext)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="font-semibold text-[var(--gl-ink-soft)]">Time</dt>
+                          <dd className="mt-0.5 text-[var(--gl-ink)]">{formatScanDate(scanContext.createdAt)}</dd>
+                        </div>
+                      </dl>
                     </div>
 
                     {event.validationFlags.length > 0 ? (
