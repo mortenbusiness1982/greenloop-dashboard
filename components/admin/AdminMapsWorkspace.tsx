@@ -180,9 +180,6 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Recycling activity map</h2>
-            <p className="text-sm text-[var(--gl-ink-muted)]">
-              {loading ? "Loading map points..." : "Approved recycling activity for the current filters."}
-            </p>
           </div>
         </div>
         <AdminRecyclingHeatmap events={mappableEvents} className={heatmapOnly ? "h-[720px]" : "h-[620px]"} />
