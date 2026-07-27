@@ -170,8 +170,7 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Mapped events" value={mappableEvents.length} />
+      <div className="grid gap-4 md:grid-cols-3">
         <Kpi label="Total units" value={Number(totals?.totalUnits || 0)} />
         <Kpi label="Total events" value={Number(totals?.totalEvents || 0)} />
         <Kpi label="Unique users" value={Number(totals?.uniqueConsumers || 0)} />
@@ -182,7 +181,7 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
           <div>
             <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Recycling activity map</h2>
             <p className="text-sm text-[var(--gl-ink-muted)]">
-              {loading ? "Loading map points..." : `${mappableEvents.length} mapped events from ${events.length} loaded rows.`}
+              {loading ? "Loading map points..." : "Approved recycling activity for the current filters."}
             </p>
           </div>
         </div>
