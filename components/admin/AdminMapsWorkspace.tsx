@@ -75,6 +75,7 @@ export function AdminMapsWorkspace({ heatmapOnly = false }: { heatmapOnly?: bool
       if (filters.from) params.set("from", filters.from);
       if (filters.to) params.set("to", filters.to);
       if (filters.city.trim()) params.set("city", filters.city.trim());
+      params.set("events", "all");
       const result = await apiFetch(`/admin/reports/platform${params.toString() ? `?${params}` : ""}`, { token });
       setReport(result as PlatformGeoResponse);
     } catch (err) {
