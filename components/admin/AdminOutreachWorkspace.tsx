@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckSquare2, Send, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -832,6 +832,8 @@ function parseAttachmentsForDisplay(text: string): OutreachAttachment[] {
 export function AdminOutreachWorkspace() {
   const { language } = useDashboardLanguage();
   const c = copy[language];
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const [emails, setEmails] = useState<OutreachEmail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("drafted");
@@ -850,6 +852,7 @@ export function AdminOutreachWorkspace() {
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
   const [selectedSendIds, setSelectedSendIds] = useState<Set<string>>(() => new Set());
   const [bulkSendProgress, setBulkSendProgress] = useState({ current: 0, total: 0 });
+  const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
 
   const selectedSummary = useMemo(
     () => emails.find((email) => email.id === selectedId) ?? null,
@@ -1052,6 +1055,32 @@ export function AdminOutreachWorkspace() {
     setForm(emptyForm());
     setError(null);
     setMessage(null);
+    setMobilePane("editor");
+    window.setTimeout(() => {
+      if (window.innerWidth < 1280) {
+        editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
+  };
+
+  const selectEmailForReview = (emailId: string) => {
+    setIsCreating(false);
+    setSelectedId(emailId);
+    setMobilePane("editor");
+    window.setTimeout(() => {
+      if (window.innerWidth < 1280) {
+        editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
+  };
+
+  const returnToMobileList = () => {
+    setMobilePane("list");
+    window.setTimeout(() => {
+      if (window.innerWidth < 1280) {
+        listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
   };
 
   const createDraft = async () => {
@@ -1597,14 +1626,26 @@ export function AdminOutreachWorkspace() {
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.25fr)]">
-        <div className="overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-[var(--gl-hairline)] p-4">
-            <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.activeTitle}</h2>
-            {selectedReadyEmails.length ? (
-              <span className="rounded-full bg-[var(--gl-green-soft)] px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)]">
-                {c.selectedCount(selectedReadyEmails.length)}
-              </span>
-            ) : null}
+        <div
+          ref={listRef}
+          className={`overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm ${
+            mobilePane === "editor" ? "hidden xl:block" : ""
+          }`}
+        >
+          <div className="border-b border-[var(--gl-hairline)] p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.activeTitle}</h2>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-[var(--gl-ink-muted)] xl:hidden">
+                  {language === "es" ? "Toca un borrador para revisarlo." : "Tap a draft to review it."}
+                </p>
+                {selectedReadyEmails.length ? (
+                  <span className="rounded-full bg-[var(--gl-green-soft)] px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)]">
+                    {c.selectedCount(selectedReadyEmails.length)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </div>
           <div className="max-h-[780px] overflow-y-auto">
             {loading ? (
@@ -1633,15 +1674,11 @@ export function AdminOutreachWorkspace() {
                       key={email.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => {
-                        setIsCreating(false);
-                        setSelectedId(email.id);
-                      }}
+                      onClick={() => selectEmailForReview(email.id)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          setIsCreating(false);
-                          setSelectedId(email.id);
+                          selectEmailForReview(email.id);
                         }
                       }}
                       className={`block w-full px-4 py-4 text-left transition ${
@@ -1715,7 +1752,19 @@ export function AdminOutreachWorkspace() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+        <div
+          ref={editorRef}
+          className={`rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm ${
+            mobilePane === "list" ? "hidden xl:block" : ""
+          }`}
+        >
+          <button
+            type="button"
+            onClick={returnToMobileList}
+            className="mb-4 inline-flex items-center rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] shadow-sm xl:hidden"
+          >
+            {language === "es" ? "Volver a propuestas" : "Back to proposals"}
+          </button>
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-xl font-bold text-[var(--gl-ink)]">{isCreating ? c.editor.newTitle : c.editor.title}</h2>
