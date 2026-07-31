@@ -2,7 +2,7 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckSquare2, Send, X } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { API_BASE, apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
@@ -782,10 +782,6 @@ function buildPreviewHtml(htmlBody: string) {
   `;
 }
 
-function canOpenAttachment(attachment: OutreachAttachment) {
-  return Boolean(attachment.content || (attachment.path && /^https?:\/\//i.test(attachment.path)));
-}
-
 function openUrlInNewTab(url: string) {
   const link = document.createElement("a");
   link.href = url;
@@ -796,30 +792,6 @@ function openUrlInNewTab(url: string) {
   link.click();
   link.remove();
 }
-
-function openAttachment(attachment: OutreachAttachment) {
-  if (attachment.content) {
-    const normalized = attachment.content.replace(/\s/g, "");
-    const binary = window.atob(normalized);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-    const contentType = attachment.content_type || attachment.contentType || "application/pdf";
-    const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
-    openUrlInNewTab(url);
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return;
-  }
-
-  if (attachment.path && /^https?:\/\//i.test(attachment.path)) {
-    openUrlInNewTab(attachment.path);
-    return;
-  }
-
-  throw new Error("Attachment has no browser-readable content");
-}
-
 function parseAttachmentsForDisplay(text: string): OutreachAttachment[] {
   try {
     const attachments = parseJsonField<OutreachAttachment[]>(text, []);
@@ -827,6 +799,26 @@ function parseAttachmentsForDisplay(text: string): OutreachAttachment[] {
   } catch {
     return [];
   }
+}
+
+function getAttachmentUrl(attachment: OutreachAttachment) {
+  if (!attachment.path) return null;
+  if (/^https?:\/\//i.test(attachment.path)) return attachment.path;
+  if (attachment.path.startsWith("/")) return `${API_BASE}${attachment.path}`;
+  return null;
+}
+
+function base64ToBlobUrl(content: string, contentType: string) {
+  const base64 = (content.includes(",") ? content.split(",").pop() : content)?.replace(/\s/g, "") || "";
+  const byteCharacters = window.atob(base64);
+  const buffer = new ArrayBuffer(byteCharacters.length);
+  const bytes = new Uint8Array(buffer);
+
+  for (let index = 0; index < byteCharacters.length; index += 1) {
+    bytes[index] = byteCharacters.charCodeAt(index);
+  }
+
+  return URL.createObjectURL(new Blob([buffer], { type: contentType }));
 }
 
 export function AdminOutreachWorkspace() {
@@ -935,6 +927,26 @@ export function AdminOutreachWorkspace() {
   const selectedHighValue = selected ? isHighValue(selected) : metadataFlag(formMetadata, ["high_value", "highValue"]);
   const selectedAssetRecommended = selected ? isAssetRecommended(selected) : metadataFlag(formMetadata, ["asset_recommended", "assetRecommended", "personalized_asset", "personalizedAsset"]);
   const formAttachments = useMemo(() => parseAttachmentsForDisplay(form.attachmentsText), [form.attachmentsText]);
+
+  const openAttachment = (attachment: OutreachAttachment) => {
+    setError(null);
+    try {
+      const contentType = attachment.content_type || attachment.contentType || "application/pdf";
+      const objectUrl = attachment.content ? base64ToBlobUrl(attachment.content, contentType) : null;
+      const url = objectUrl || getAttachmentUrl(attachment);
+      if (!url) {
+        setError(language === "es" ? "Este adjunto no tiene un enlace valido." : "This attachment does not have a valid link.");
+        return;
+      }
+
+      openUrlInNewTab(url);
+      if (objectUrl) {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : c.actionError);
+    }
+  };
 
   const loadEmails = useCallback(async () => {
     const token = getToken();
@@ -1847,18 +1859,12 @@ export function AdminOutreachWorkspace() {
                   {formAttachments.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {formAttachments.map((attachment) => {
-                        return canOpenAttachment(attachment) ? (
+                        const canOpen = Boolean(attachment.content || getAttachmentUrl(attachment));
+                        return canOpen ? (
                           <button
-                            type="button"
                             key={attachment.filename}
-                            onClick={() => {
-                              try {
-                                setError(null);
-                                openAttachment(attachment);
-                              } catch {
-                                setError(c.editor.attachmentOpenError);
-                              }
-                            }}
+                            type="button"
+                            onClick={() => openAttachment(attachment)}
                             className="rounded-full border border-[var(--gl-green)]/30 bg-white px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)] hover:bg-[var(--gl-paper)]"
                           >
                             {attachment.filename} · {c.editor.openAttachment}
