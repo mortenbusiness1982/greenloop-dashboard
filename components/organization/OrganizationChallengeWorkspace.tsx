@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Download, Flag, Leaf, RefreshCcw, Target, Trash2, Users } from "lucide-react";
+import { CheckCircle2, Download, Flag, Leaf, RefreshCcw, Target, Trash2, UserPlus, Users } from "lucide-react";
 import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
@@ -26,6 +26,19 @@ type OrganizationChallenge = {
   certificateAvailable: boolean;
   certificateStatus: string;
   certificateGeneratedAt?: string | null;
+  visibility?: "public" | "private";
+  allowJoinRequests?: boolean;
+  allowDirectInvites?: boolean;
+  leaderboardEnabled?: boolean;
+};
+
+type ChallengeParticipant = {
+  id: string;
+  status: "requested" | "invited" | "approved" | "rejected" | "removed";
+  source: string;
+  displayName?: string | null;
+  email?: string | null;
+  approvedRecycles: number;
 };
 
 function formatDate(value?: string | null) {
@@ -35,6 +48,21 @@ function formatDate(value?: string | null) {
 
 function formatNumber(value: number) {
   return Number(value || 0).toLocaleString("en-US");
+}
+
+function parseParticipantInvites(value: string) {
+  const byEmail = new Map<string, { email: string; displayName?: string }>();
+  for (const line of value.split(/[\n;]+/).map((item) => item.trim()).filter(Boolean)) {
+    const parts = line.split(",").map((item) => item.trim()).filter(Boolean);
+    if (parts.length >= 2 && !parts[0].includes("@") && parts[1].includes("@")) {
+      byEmail.set(parts[1].toLowerCase(), { email: parts[1], displayName: parts[0] });
+      continue;
+    }
+    for (const email of parts.filter((item) => item.includes("@"))) {
+      byEmail.set(email.toLowerCase(), { email });
+    }
+  }
+  return Array.from(byEmail.values());
 }
 
 function StatCard({
@@ -73,6 +101,10 @@ export function OrganizationChallengeWorkspace() {
   const [challenges, setChallenges] = useState<OrganizationChallenge[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [participants, setParticipants] = useState<ChallengeParticipant[]>([]);
+  const [inviteEmails, setInviteEmails] = useState("");
+  const [participantAction, setParticipantAction] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,6 +133,62 @@ export function OrganizationChallengeWorkspace() {
     loadChallenges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!selected?.id) return;
+    const token = getToken();
+    if (!token) return;
+    apiFetch<{ participants: ChallengeParticipant[] }>(`/organization/challenges/${selected.id}/participants`, { token })
+      .then((data) => setParticipants(data.participants || []))
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load participants"));
+  }, [selected?.id]);
+
+  async function inviteParticipants() {
+    if (!selected) return;
+    const token = getToken();
+    if (!token) return router.replace("/login");
+    const invitees = parseParticipantInvites(inviteEmails);
+    if (!invitees.length) return;
+
+    setParticipantAction("invite");
+    setError(null);
+    try {
+      await apiFetch(`/organization/challenges/${selected.id}/invitations`, {
+        token,
+        method: "POST",
+        body: { participants: invitees },
+      });
+      setInviteEmails("");
+      const data = await apiFetch<{ participants: ChallengeParticipant[] }>(`/organization/challenges/${selected.id}/participants`, { token });
+      setParticipants(data.participants || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not invite participants");
+    } finally {
+      setParticipantAction(null);
+    }
+  }
+
+  async function decideParticipant(participantId: string, status: "approved" | "rejected" | "removed") {
+    if (!selected) return;
+    const token = getToken();
+    if (!token) return router.replace("/login");
+    setParticipantAction(`${participantId}-${status}`);
+    setError(null);
+    try {
+      await apiFetch(`/organization/challenges/${selected.id}/participants/${participantId}`, {
+        token,
+        method: "PATCH",
+        body: { status },
+      });
+      const data = await apiFetch<{ participants: ChallengeParticipant[] }>(`/organization/challenges/${selected.id}/participants`, { token });
+      setParticipants(data.participants || []);
+      await loadChallenges();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update participant");
+    } finally {
+      setParticipantAction(null);
+    }
+  }
 
   async function cancelChallenge() {
     if (!selected) return;
@@ -151,14 +239,18 @@ export function OrganizationChallengeWorkspace() {
 
   if (!challenges.length) {
     return (
-      <section className="rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-8 text-center shadow-[var(--gl-shadow-sm)]">
-        <div className="mx-auto mb-5 flex h-28 w-28 items-center justify-center rounded-full bg-[var(--gl-green-soft)] ring-1 ring-[var(--gl-green-ring)]">
-          <Image src="/bella-stage-2.png" alt="GreenLoop companion turtle" width={104} height={104} className="h-24 w-24 object-contain" />
-        </div>
-        <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--gl-green)]">Organization portal</p>
-        <h1 className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">No challenges yet</h1>
-        <p className="mt-2 text-[var(--gl-ink-muted)]">Approved community challenges for your organization will appear here.</p>
-      </section>
+      <div className="space-y-5">
+        <section className="rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-8 text-center shadow-[var(--gl-shadow-sm)]">
+          <div className="mx-auto mb-5 flex h-28 w-28 items-center justify-center rounded-full bg-[var(--gl-green-soft)] ring-1 ring-[var(--gl-green-ring)]">
+            <Image src="/bella-stage-2.png" alt="GreenLoop companion turtle" width={104} height={104} className="h-24 w-24 object-contain" />
+          </div>
+          <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--gl-green)]">Organization portal</p>
+          <h1 className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">Create your first challenge</h1>
+          <p className="mt-2 text-[var(--gl-ink-muted)]">Choose public discovery or private participant access from the start.</p>
+          <button type="button" onClick={() => setShowCreate(true)} className="mt-5 rounded-[var(--gl-radius)] bg-[var(--gl-green)] px-5 py-2.5 text-sm font-semibold text-white">New challenge</button>
+        </section>
+        {showCreate ? <OrganizationChallengeCreatePanel onCancel={() => setShowCreate(false)} onCreated={async () => { setShowCreate(false); await loadChallenges(); }} /> : null}
+      </div>
     );
   }
 
@@ -187,6 +279,9 @@ export function OrganizationChallengeWorkspace() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setShowCreate((current) => !current)} className="inline-flex items-center gap-2 rounded-[var(--gl-radius)] bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white shadow-[var(--gl-shadow-sm)]">
+              <UserPlus className="h-4 w-4" /> New challenge
+            </button>
             <button type="button" onClick={loadChallenges} className="inline-flex items-center gap-2 rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] transition-colors hover:bg-[var(--gl-bg-cream)]">
               <RefreshCcw className="h-4 w-4" /> Refresh
             </button>
@@ -202,6 +297,8 @@ export function OrganizationChallengeWorkspace() {
         {message ? <div className="mt-4 rounded-[var(--gl-radius)] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div> : null}
         {error ? <div className="mt-4 rounded-[var(--gl-radius)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
       </section>
+
+      {showCreate ? <OrganizationChallengeCreatePanel onCancel={() => setShowCreate(false)} onCreated={async () => { setShowCreate(false); await loadChallenges(); }} /> : null}
 
       {challenges.length > 1 ? (
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -254,6 +351,42 @@ export function OrganizationChallengeWorkspace() {
             </div>
           </section>
 
+          <section className="rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-6 shadow-[var(--gl-shadow-sm)]">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--gl-green-soft)] text-[var(--gl-green)]"><Users className="h-4 w-4" /></span>
+                  <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Participants</h2>
+                </div>
+                <p className="mt-2 text-sm text-[var(--gl-ink-muted)]">{selected.visibility === "private" ? "Private challenge access and requests." : "People who joined this public challenge."}</p>
+              </div>
+              {selected.visibility === "private" && selected.allowDirectInvites ? (
+                <div className="flex w-full max-w-xl flex-col gap-2 sm:flex-row">
+                  <textarea value={inviteEmails} onChange={(event) => setInviteEmails(event.target.value)} rows={2} placeholder={"Name, name@example.com\nanother@example.com"} className="min-h-20 flex-1 rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+                  <button type="button" onClick={inviteParticipants} disabled={!inviteEmails.trim() || participantAction === "invite"} className="inline-flex items-center justify-center gap-2 rounded-[var(--gl-radius)] bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                    <UserPlus className="h-4 w-4" /> {participantAction === "invite" ? "Inviting..." : "Invite"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-5 overflow-x-auto rounded-[var(--gl-radius)] border border-[var(--gl-hairline)]">
+              <table className="min-w-[720px] w-full text-left text-sm">
+                <thead className="bg-[var(--gl-bg-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]"><tr><th className="px-4 py-3">Participant</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Approved recycles</th><th className="px-4 py-3">Action</th></tr></thead>
+                <tbody>
+                  {participants.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No participants yet.</td></tr> : participants.map((participant) => (
+                    <tr key={participant.id} className="border-t border-[var(--gl-hairline)]">
+                      <td className="px-4 py-3"><div className="font-semibold text-[var(--gl-ink)]">{participant.displayName || participant.email || "Pending user"}</div>{participant.displayName && participant.email ? <div className="text-xs text-[var(--gl-ink-muted)]">{participant.email}</div> : null}</td>
+                      <td className="px-4 py-3 capitalize text-[var(--gl-ink-soft)]">{participant.status}</td>
+                      <td className="px-4 py-3 font-semibold text-[var(--gl-ink)]">{formatNumber(participant.approvedRecycles)}</td>
+                      <td className="px-4 py-3"><div className="flex gap-2">{participant.status === "requested" ? <><button type="button" onClick={() => decideParticipant(participant.id, "approved")} className="rounded-lg bg-[var(--gl-green)] px-3 py-1.5 font-semibold text-white">Approve</button><button type="button" onClick={() => decideParticipant(participant.id, "rejected")} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-1.5 font-semibold">Reject</button></> : null}{participant.status === "approved" ? <button type="button" onClick={() => decideParticipant(participant.id, "removed")} className="rounded-lg border border-red-200 px-3 py-1.5 font-semibold text-red-700">Remove</button> : null}</div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section className="rounded-[var(--gl-radius)] border border-red-200 bg-red-50 p-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-start gap-3">
@@ -273,5 +406,70 @@ export function OrganizationChallengeWorkspace() {
         </>
       ) : null}
     </div>
+  );
+}
+
+function OrganizationChallengeCreatePanel({ onCancel, onCreated }: { onCancel: () => void; onCreated: () => Promise<void> }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [allowJoinRequests, setAllowJoinRequests] = useState(false);
+  const [allowDirectInvites, setAllowDirectInvites] = useState(false);
+  const [requiredCount, setRequiredCount] = useState("100");
+  const [bonusPoints, setBonusPoints] = useState("0");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = getToken();
+    if (!token) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch("/organization/challenges", {
+        token,
+        method: "POST",
+        body: {
+          title,
+          description,
+          challengeType: "community",
+          visibility,
+          allowJoinRequests: visibility === "private" && allowJoinRequests,
+          allowDirectInvites: visibility === "private" && allowDirectInvites,
+          leaderboardEnabled: true,
+          targetKind: "any",
+          requiredCount: Number(requiredCount),
+          bonusPoints: Number(bonusPoints || 0),
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: new Date(endsAt).toISOString(),
+        },
+      });
+      await onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create challenge");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-6 shadow-[var(--gl-shadow-sm)]">
+      <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--gl-green)]">New challenge</p><h2 className="mt-1 text-2xl font-semibold text-[var(--gl-ink)]">Set the participation rules</h2></div><button type="button" onClick={onCancel} className="text-sm font-semibold text-[var(--gl-ink-muted)]">Close</button></div>
+      {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <label className="md:col-span-2"><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">Title</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>
+        <label className="md:col-span-2"><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">Description</span><textarea required rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>
+        <label><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">Access</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as "public" | "private")} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2"><option value="public">Public - anyone can join</option><option value="private">Private - controlled access</option></select></label>
+        <label><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">Shared recycle target</span><input required min="1" type="number" value={requiredCount} onChange={(event) => setRequiredCount(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>
+        {visibility === "private" ? <div className="space-y-3 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-bg-cream)] p-4 md:col-span-2"><label className="flex gap-3 text-sm"><input type="checkbox" checked={allowJoinRequests} onChange={(event) => setAllowJoinRequests(event.target.checked)} className="h-4 w-4 accent-[var(--gl-green)]" /><span><strong className="block">Approve join requests</strong>Let users ask to join.</span></label><label className="flex gap-3 text-sm"><input type="checkbox" checked={allowDirectInvites} onChange={(event) => setAllowDirectInvites(event.target.checked)} className="h-4 w-4 accent-[var(--gl-green)]" /><span><strong className="block">Invite participants</strong>Add emails after creation.</span></label></div> : null}
+        <label><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>
+        <label><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>
+        <label><span className="mb-1 block text-sm font-semibold text-[var(--gl-ink)]">EcoPoints per participant</span><input min="0" type="number" value={bonusPoints} onChange={(event) => setBonusPoints(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>
+      </div>
+      <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onCancel} className="rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold">Cancel</button><button disabled={saving} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Creating..." : "Create challenge"}</button></div>
+    </form>
   );
 }

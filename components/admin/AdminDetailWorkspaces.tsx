@@ -28,6 +28,21 @@ function formatDate(value?: unknown) {
   return Number.isNaN(date.getTime()) ? text : date.toLocaleString();
 }
 
+function parseParticipantInvites(value: string) {
+  const byEmail = new Map<string, { email: string; displayName?: string }>();
+  for (const line of value.split(/[\n;]+/).map((item) => item.trim()).filter(Boolean)) {
+    const parts = line.split(",").map((item) => item.trim()).filter(Boolean);
+    if (parts.length >= 2 && !parts[0].includes("@") && parts[1].includes("@")) {
+      byEmail.set(parts[1].toLowerCase(), { email: parts[1], displayName: parts[0] });
+      continue;
+    }
+    for (const email of parts.filter((item) => item.includes("@"))) {
+      byEmail.set(email.toLowerCase(), { email });
+    }
+  }
+  return Array.from(byEmail.values());
+}
+
 export function AdminUserDetailWorkspace({ id }: { id: string }) {
   const router = useRouter();
   const [data, setData] = useState<AnyRecord | null>(null);
@@ -319,6 +334,9 @@ export function AdminRewardDetailWorkspace({ id }: { id: string }) {
 export function AdminChallengeDetailWorkspace({ id }: { id: string }) {
   const router = useRouter();
   const [challenge, setChallenge] = useState<AnyRecord | null>(null);
+  const [participants, setParticipants] = useState<AnyRecord[]>([]);
+  const [inviteEmails, setInviteEmails] = useState("");
+  const [participantActionId, setParticipantActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -328,8 +346,12 @@ export function AdminChallengeDetailWorkspace({ id }: { id: string }) {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiFetch("/admin/challenges", { token });
+      const [result, participantResult] = await Promise.all([
+        apiFetch("/admin/challenges", { token }),
+        apiFetch(`/admin/challenges/${id}/participants`, { token }),
+      ]);
       setChallenge(normalizeList<AnyRecord>(result, "challenges").find((item) => String(item.id) === id) || null);
+      setParticipants(normalizeList<AnyRecord>(participantResult, "participants"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load challenge detail");
     } finally {
@@ -349,6 +371,48 @@ export function AdminChallengeDetailWorkspace({ id }: { id: string }) {
         ? challenge?.targetFormatType
         : challenge?.targetBrandKey || challenge?.brand_key;
 
+  async function inviteParticipants() {
+    const token = getToken();
+    if (!token) return router.replace("/login");
+    const invitees = parseParticipantInvites(inviteEmails);
+    if (!invitees.length) return;
+
+    setParticipantActionId("invite");
+    setError(null);
+    try {
+      await apiFetch(`/admin/challenges/${id}/invitations`, {
+        token,
+        method: "POST",
+        body: { participants: invitees },
+      });
+      setInviteEmails("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to invite participants");
+    } finally {
+      setParticipantActionId(null);
+    }
+  }
+
+  async function decideParticipant(participantId: string, status: "approved" | "rejected" | "removed") {
+    const token = getToken();
+    if (!token) return router.replace("/login");
+    setParticipantActionId(`${participantId}-${status}`);
+    setError(null);
+    try {
+      await apiFetch(`/admin/challenges/${id}/participants/${participantId}`, {
+        token,
+        method: "PATCH",
+        body: { status },
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update participant");
+    } finally {
+      setParticipantActionId(null);
+    }
+  }
+
   return (
     <Frame title={String(challenge?.title || "Challenge Detail")} eyebrow="Challenges" description="Challenge detail workspace for target, type, progress, reward, schedule, and status." error={error} backHref="/admin/challenges">
       <div className="grid gap-4 md:grid-cols-4">
@@ -361,11 +425,57 @@ export function AdminChallengeDetailWorkspace({ id }: { id: string }) {
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <Info label="Type" value={type} />
+          <Info label="Access" value={challenge?.visibility || "public"} />
           <Info label="Target" value={target || "-"} />
           <Info label="Completion reward" value={challenge?.completionRewardTitle || challenge?.completion_reward_title || "-"} />
           <Info label="Status" value={challenge?.active ? "active" : "inactive"} />
           <Info label="Starts" value={formatDate(challenge?.starts_at)} />
           <Info label="Ends" value={formatDate(challenge?.ends_at)} />
+        </div>
+      </section>
+      {challenge?.visibility === "private" ? (
+        <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Participant access</h2>
+              <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">Invite people or review requests. Emails are never shown on public leaderboards.</p>
+            </div>
+            {challenge?.allowDirectInvites || challenge?.allow_direct_invites ? (
+              <div className="flex w-full max-w-xl flex-col gap-2 sm:flex-row">
+                <textarea value={inviteEmails} onChange={(event) => setInviteEmails(event.target.value)} rows={2} placeholder={"Name, name@example.com\nanother@example.com"} className="min-h-20 flex-1 rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+                <button type="button" onClick={inviteParticipants} disabled={!inviteEmails.trim() || participantActionId === "invite"} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                  {participantActionId === "invite" ? "Inviting..." : "Invite"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+        <div className="border-b border-[var(--gl-hairline)] p-4">
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Participants</h2>
+          <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">{participants.length.toLocaleString()} access records</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[760px] w-full text-left text-sm">
+            <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
+              <tr><th className="px-4 py-2.5">Participant</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Approved recycles</th><th className="px-4 py-2.5">Actions</th></tr>
+            </thead>
+            <tbody>
+              {participants.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No participants yet.</td></tr> : participants.map((participant) => {
+                const participantId = String(participant.id || "");
+                const status = String(participant.status || "invited");
+                return (
+                  <tr key={participantId} className="border-t border-[var(--gl-card-cream)]">
+                    <td className="px-4 py-2.5"><div className="font-semibold text-[var(--gl-ink)]">{String(participant.displayName || participant.email || "Pending user")}</div>{participant.displayName && participant.email ? <div className="text-xs text-[var(--gl-ink-muted)]">{String(participant.email)}</div> : null}</td>
+                    <td className="px-4 py-2.5 capitalize text-[var(--gl-ink-soft)]">{status}</td>
+                    <td className="px-4 py-2.5 font-semibold text-[var(--gl-ink)]">{Number(participant.approvedRecycles || 0).toLocaleString()}</td>
+                    <td className="px-4 py-2.5"><div className="flex gap-2">{status === "requested" ? <><button type="button" onClick={() => decideParticipant(participantId, "approved")} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-white">Approve</button><button type="button" onClick={() => decideParticipant(participantId, "rejected")} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5">Reject</button></> : null}{status === "approved" ? <button type="button" onClick={() => decideParticipant(participantId, "removed")} className="rounded-md border border-red-200 px-3 py-1.5 text-red-700">Remove</button> : null}</div></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </section>
     </Frame>

@@ -30,6 +30,10 @@ type PlatformReport = {
     uniqueConsumers?: number;
     ecoPointsIssued?: number;
   };
+  cityDiagnostics?: {
+    eventCityMissingUnits?: number;
+    unresolvedCityUnits?: number;
+  };
   geoBreakdown?: { city?: string | null; units?: number; consumers?: number }[];
   events?: PlatformEvent[];
 };
@@ -156,10 +160,14 @@ const adminOverviewCopy = {
     },
     cities: {
       title: "Top cities",
-      subtitle: "By recycled units",
+      subtitle: "Top city-attributed units",
       loading: "Loading city activity...",
       empty: "No city data available.",
       unknown: "Unknown city",
+      otherCities: "Other cities",
+      noCity: "No city recorded",
+      breakdownNote: "City totals are split between the top 5 named cities, other named cities, and scans without city data.",
+      diagnostics: (raw: string, unresolved: string) => `${raw} units have blank event-city data; ${unresolved} remain unresolved after fallback.`,
       units: "units",
     },
     modulesTitle: "Operational modules",
@@ -219,10 +227,14 @@ const adminOverviewCopy = {
     },
     cities: {
       title: "Ciudades principales",
-      subtitle: "Por unidades recicladas",
+      subtitle: "Unidades principales atribuidas a ciudad",
       loading: "Cargando actividad por ciudad...",
       empty: "No hay datos de ciudad disponibles.",
       unknown: "Ciudad desconocida",
+      otherCities: "Otras ciudades",
+      noCity: "Sin ciudad registrada",
+      breakdownNote: "Los totales se dividen entre las 5 ciudades principales, otras ciudades y escaneos sin datos de ciudad.",
+      diagnostics: (raw: string, unresolved: string) => `${raw} unidades tienen ciudad vacía en el evento; ${unresolved} siguen sin resolverse tras el fallback.`,
       units: "unidades",
     },
     modulesTitle: "Módulos operativos",
@@ -338,12 +350,28 @@ export function AdminOverviewWorkspace() {
     };
   }, [data]);
 
-  const topCities = [...(data.platform?.geoBreakdown ?? [])]
-    .sort((a, b) => Number(b.units || 0) - Number(a.units || 0))
-    .slice(0, 5);
+  const geoRows = [...(data.platform?.geoBreakdown ?? [])]
+    .sort((a, b) => Number(b.units || 0) - Number(a.units || 0));
+  const namedCityRows = geoRows.filter((city) => String(city.city || "").trim().length > 0);
+  const blankCityUnits = geoRows
+    .filter((city) => String(city.city || "").trim().length === 0)
+    .reduce((sum, city) => sum + Number(city.units || 0), 0);
+  const topCities = namedCityRows.slice(0, 5);
 
   const recentEvents = (data.platform?.events ?? []).slice(0, 8);
-  const maxCityUnits = Math.max(...topCities.map((city) => Number(city.units || 0)), 1);
+  const namedCityUnits = namedCityRows.reduce((sum, city) => sum + Number(city.units || 0), 0);
+  const additionalCityUnits = namedCityRows.slice(5).reduce((sum, city) => sum + Number(city.units || 0), 0);
+  const reportedGeoUnits = namedCityUnits + blankCityUnits;
+  const unreportedGeoUnits = Math.max(0, kpis.totalUnits - reportedGeoUnits);
+  const noCityUnits = blankCityUnits + unreportedGeoUnits;
+  const eventCityMissingUnits = Number(data.platform?.cityDiagnostics?.eventCityMissingUnits || 0);
+  const unresolvedCityUnits = Number(data.platform?.cityDiagnostics?.unresolvedCityUnits || 0);
+  const cityRows = [
+    ...topCities,
+    ...(additionalCityUnits > 0 ? [{ city: copy.cities.otherCities, units: additionalCityUnits, consumers: 0 }] : []),
+    ...(noCityUnits > 0 ? [{ city: copy.cities.noCity, units: noCityUnits, consumers: 0 }] : []),
+  ];
+  const maxCityUnits = Math.max(...cityRows.map((city) => Number(city.units || 0)), 1);
 
   // Calm GreenLoop two-tone: brand green for most metrics, amber for the
   // reward / currency metrics (EcoPoints, Rewards, Unlocks).
@@ -488,11 +516,11 @@ export function AdminOverviewWorkspace() {
             <div className="mt-4 space-y-3">
               {loading ? (
                 <p className="text-sm text-[var(--gl-ink-muted)]">{copy.cities.loading}</p>
-              ) : topCities.length === 0 ? (
+              ) : cityRows.length === 0 ? (
                 <p className="text-sm text-[var(--gl-ink-muted)]">{copy.cities.empty}</p>
               ) : (
-                topCities.map((city) => (
-                  <div key={city.city || "unknown"} className="rounded-xl bg-[var(--gl-card-cream)] px-3 py-3 text-sm">
+                cityRows.map((city, index) => (
+                  <div key={`${city.city || "unknown"}-${index}`} className="rounded-xl bg-[var(--gl-card-cream)] px-3 py-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-medium text-[var(--gl-ink)]">{city.city || copy.cities.unknown}</span>
                       <span className="shrink-0 text-[var(--gl-ink-muted)]">{formatNumber(city.units, language)} {copy.cities.units}</span>
@@ -507,6 +535,20 @@ export function AdminOverviewWorkspace() {
                 ))
               )}
             </div>
+            {!loading && (additionalCityUnits > 0 || noCityUnits > 0) ? (
+              <p className="mt-3 text-xs leading-5 text-[var(--gl-ink-muted)]">
+                {copy.cities.breakdownNote}
+              </p>
+            ) : null}
+            {!loading && eventCityMissingUnits > 0 ? (
+              <p className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-5 ${
+                unresolvedCityUnits > 0
+                  ? "border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"
+                  : "border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
+              }`}>
+                {copy.cities.diagnostics(formatNumber(eventCityMissingUnits, language), formatNumber(unresolvedCityUnits, language))}
+              </p>
+            ) : null}
           </section>
 
           <section className="rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-[var(--gl-shadow-sm)]">

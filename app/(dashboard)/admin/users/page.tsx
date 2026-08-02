@@ -89,11 +89,71 @@ type ActivityFiltersState = {
   to: string;
 };
 
+type UserTableFiltersState = {
+  name: string;
+  email: string;
+  role: string;
+  minWallet: string;
+  minRewards: string;
+  minRecyclingEvents: string;
+  minUnits: string;
+  signedUpFrom: string;
+  signedUpTo: string;
+  lastActivityFrom: string;
+  lastActivityTo: string;
+  status: string;
+};
+
+const emptyUserTableFilters: UserTableFiltersState = {
+  name: "",
+  email: "",
+  role: "",
+  minWallet: "",
+  minRewards: "",
+  minRecyclingEvents: "",
+  minUnits: "",
+  signedUpFrom: "",
+  signedUpTo: "",
+  lastActivityFrom: "",
+  lastActivityTo: "",
+  status: "",
+};
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+}
+
+function isDateOnOrAfter(value: string | null | undefined, dateFilter: string) {
+  if (!dateFilter) return true;
+  if (!value) return false;
+  const valueTime = new Date(value).getTime();
+  const filterTime = new Date(`${dateFilter}T00:00:00`).getTime();
+  return !Number.isNaN(valueTime) && !Number.isNaN(filterTime) && valueTime >= filterTime;
+}
+
+function isDateOnOrBefore(value: string | null | undefined, dateFilter: string) {
+  if (!dateFilter) return true;
+  if (!value) return false;
+  const valueTime = new Date(value).getTime();
+  const filterTime = new Date(`${dateFilter}T23:59:59`).getTime();
+  return !Number.isNaN(valueTime) && !Number.isNaN(filterTime) && valueTime <= filterTime;
+}
+
+function meetsMinimum(value: number | null | undefined, minimum: string) {
+  if (!minimum) return true;
+  const parsed = Number(minimum);
+  if (Number.isNaN(parsed)) return true;
+  return Number(value || 0) >= parsed;
 }
 
 function csvCell(value: unknown) {
@@ -136,6 +196,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [search, setSearch] = useState("");
+  const [userTableFilters, setUserTableFilters] = useState<UserTableFiltersState>(emptyUserTableFilters);
   const [selectedUser, setSelectedUser] = useState<UserActivityResponse | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -144,6 +205,8 @@ export default function AdminUsersPage() {
   const [ecoPointsToAdd, setEcoPointsToAdd] = useState("");
   const [removingEcoPoints, setRemovingEcoPoints] = useState(false);
   const [ecoPointsToRemove, setEcoPointsToRemove] = useState("");
+  const [manualPassword, setManualPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
   const [resettingAvatarUserId, setResettingAvatarUserId] = useState<string | null>(null);
   const [removingChallengeId, setRemovingChallengeId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditUserFormState>({
@@ -207,12 +270,37 @@ export default function AdminUsersPage() {
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
     return users.filter((user) =>
-      !query ||
+      (!query ||
         [user.display_name, user.email, user.role, formatUserPlatform(user), getUserAppVersion(user)]
           .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query))
+          .some((value) => String(value).toLowerCase().includes(query))) &&
+      (!userTableFilters.name.trim() ||
+        user.display_name.toLowerCase().includes(userTableFilters.name.trim().toLowerCase())) &&
+      (!userTableFilters.email.trim() ||
+        user.email.toLowerCase().includes(userTableFilters.email.trim().toLowerCase())) &&
+      (!userTableFilters.role || user.role === userTableFilters.role) &&
+      meetsMinimum(user.wallet_points, userTableFilters.minWallet) &&
+      meetsMinimum(user.redeemed_rewards_count ?? 0, userTableFilters.minRewards) &&
+      meetsMinimum(user.recycling_events_count, userTableFilters.minRecyclingEvents) &&
+      meetsMinimum(user.recycled_units_count, userTableFilters.minUnits) &&
+      isDateOnOrAfter(user.created_at, userTableFilters.signedUpFrom) &&
+      isDateOnOrBefore(user.created_at, userTableFilters.signedUpTo) &&
+      isDateOnOrAfter(user.last_activity_at, userTableFilters.lastActivityFrom) &&
+      isDateOnOrBefore(user.last_activity_at, userTableFilters.lastActivityTo) &&
+      (!userTableFilters.status ||
+        (userTableFilters.status === "active" && !user.deactivated_at) ||
+        (userTableFilters.status === "deactivated" && Boolean(user.deactivated_at)))
     );
-  }, [search, users]);
+  }, [search, userTableFilters, users]);
+
+  const activeUserTableFilterCount = useMemo(
+    () => Object.values(userTableFilters).filter((value) => value.trim()).length,
+    [userTableFilters]
+  );
+
+  function updateUserTableFilter<K extends keyof UserTableFiltersState>(key: K, value: UserTableFiltersState[K]) {
+    setUserTableFilters((current) => ({ ...current, [key]: value }));
+  }
 
   async function loadUserActivity(userId: string, filters?: ActivityFiltersState) {
     const token = getToken();
@@ -240,6 +328,7 @@ export default function AdminUsersPage() {
       });
       setEcoPointsToAdd("");
       setEcoPointsToRemove("");
+      setManualPassword("");
       setActivityFilters(nextFilters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load user activity");
@@ -427,6 +516,41 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function changeUserPassword() {
+    if (!selectedUser) return;
+
+    if (manualPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Set a new password for ${selectedUser.user.display_name || selectedUser.user.email}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setSavingPassword(true);
+      setError(null);
+      await apiFetch(`/admin/users/${selectedUser.user.id}/password`, {
+        token,
+        method: "PATCH",
+        body: { password: manualPassword },
+      });
+      setManualPassword("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to change password");
+    } finally {
+      setSavingPassword(false);
+    }
+  }
+
   function exportVisibleUsers() {
     const headers = [
       "display_name",
@@ -552,12 +676,74 @@ export default function AdminUsersPage() {
         </label>
       </div>
 
+      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Table filters</h2>
+            <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+              Filter by name, email, role, points, rewards, recycling totals, signup date, last activity, and status.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUserTableFilters(emptyUserTableFilters)}
+            disabled={activeUserTableFilterCount === 0}
+            className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Reset filters{activeUserTableFilterCount ? ` (${activeUserTableFilterCount})` : ""}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <FilterText label="Name" value={userTableFilters.name} onChange={(value) => updateUserTableFilter("name", value)} placeholder="Display name" />
+          <FilterText label="Email" value={userTableFilters.email} onChange={(value) => updateUserTableFilter("email", value)} placeholder="Email address" />
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Role</span>
+            <select
+              value={userTableFilters.role}
+              onChange={(event) => updateUserTableFilter("role", event.target.value)}
+              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            >
+              <option value="">All roles</option>
+              <option value="user">user</option>
+              <option value="partner">partner</option>
+              <option value="brand_admin">brand_admin</option>
+              <option value="organization">organization</option>
+              <option value="admin">admin</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Status</span>
+            <select
+              value={userTableFilters.status}
+              onChange={(event) => updateUserTableFilter("status", event.target.value)}
+              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="deactivated">Deactivated</option>
+            </select>
+          </label>
+          <FilterText label="Min wallet" type="number" value={userTableFilters.minWallet} onChange={(value) => updateUserTableFilter("minWallet", value)} placeholder="0" />
+          <FilterText label="Min rewards" type="number" value={userTableFilters.minRewards} onChange={(value) => updateUserTableFilter("minRewards", value)} placeholder="0" />
+          <FilterText label="Min recycling events" type="number" value={userTableFilters.minRecyclingEvents} onChange={(value) => updateUserTableFilter("minRecyclingEvents", value)} placeholder="0" />
+          <FilterText label="Min units" type="number" value={userTableFilters.minUnits} onChange={(value) => updateUserTableFilter("minUnits", value)} placeholder="0" />
+          <FilterText label="Signed up from" type="date" value={userTableFilters.signedUpFrom} onChange={(value) => updateUserTableFilter("signedUpFrom", value)} />
+          <FilterText label="Signed up to" type="date" value={userTableFilters.signedUpTo} onChange={(value) => updateUserTableFilter("signedUpTo", value)} />
+          <FilterText label="Last activity from" type="date" value={userTableFilters.lastActivityFrom} onChange={(value) => updateUserTableFilter("lastActivityFrom", value)} />
+          <FilterText label="Last activity to" type="date" value={userTableFilters.lastActivityTo} onChange={(value) => updateUserTableFilter("lastActivityTo", value)} />
+        </div>
+        <p className="mt-3 text-xs text-[var(--gl-ink-muted)]">
+          Showing {filteredUsers.length.toLocaleString()} of {users.length.toLocaleString()} users.
+        </p>
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <section className="overflow-x-auto rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-          <table className="min-w-[980px] w-full border-collapse text-left">
+          <table className="min-w-[1120px] w-full border-collapse text-left">
             <thead className="bg-[var(--gl-card-cream)]">
               <tr className="border-b border-[var(--gl-hairline)]">
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Name</th>
+                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Signed Up</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Role</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Wallet</th>
                 <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Rewards</th>
@@ -572,7 +758,7 @@ export default function AdminUsersPage() {
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[var(--gl-ink-muted)]">
+                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-[var(--gl-ink-muted)]">
                     No users found.
                   </td>
                 </tr>
@@ -599,6 +785,7 @@ export default function AdminUsersPage() {
                         ) : null}
                       </div>
                     </td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]" title={formatDateTime(user.created_at)}>{formatDate(user.created_at)}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.role}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.wallet_points}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.redeemed_rewards_count ?? 0}</td>
@@ -924,6 +1111,7 @@ export default function AdminUsersPage() {
                       <option value="user">user</option>
                       <option value="partner">partner</option>
                       <option value="brand_admin">brand_admin</option>
+                      <option value="organization">organization</option>
                       <option value="admin">admin</option>
                     </select>
                   </label>
@@ -952,6 +1140,38 @@ export default function AdminUsersPage() {
                     className="w-full rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingEdit ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)]/70 p-3.5">
+                <div className="mb-2.5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-amber-ink)]">
+                    Manual Password
+                  </h3>
+                  <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+                    Set a new login password for this user. Use this only when support needs to recover account access.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">New password</span>
+                    <input
+                      type="password"
+                      value={manualPassword}
+                      onChange={(e) => setManualPassword(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                      autoComplete="new-password"
+                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={changeUserPassword}
+                    disabled={savingPassword || manualPassword.length < 8}
+                    className="w-full rounded-md bg-[var(--gl-amber-ink)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-amber-ink)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingPassword ? "Saving password..." : "Set New Password"}
                   </button>
                 </div>
               </div>
@@ -1133,5 +1353,36 @@ export default function AdminUsersPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function FilterText({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "number" | "date";
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
+        {label}
+      </span>
+      <input
+        type={type}
+        min={type === "number" ? "0" : undefined}
+        step={type === "number" ? "1" : undefined}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+      />
+    </label>
   );
 }

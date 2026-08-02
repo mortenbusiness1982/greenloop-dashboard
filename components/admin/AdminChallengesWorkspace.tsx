@@ -9,6 +9,7 @@ import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type ChallengeType = "personal" | "global" | "community";
 type TargetKind = "brand" | "material" | "format" | "any";
+type ChallengeVisibility = "public" | "private";
 type CertificateRecipientType =
   | "school"
   | "restaurant"
@@ -24,6 +25,13 @@ type Challenge = {
   brand_key?: string | null;
   challenge_type?: ChallengeType | null;
   challengeType?: ChallengeType | null;
+  visibility?: ChallengeVisibility | null;
+  allow_join_requests?: boolean | null;
+  allowJoinRequests?: boolean | null;
+  allow_direct_invites?: boolean | null;
+  allowDirectInvites?: boolean | null;
+  leaderboard_enabled?: boolean | null;
+  leaderboardEnabled?: boolean | null;
   target_kind?: TargetKind | null;
   target_brand_key?: string | null;
   target_material_type?: string | null;
@@ -53,6 +61,12 @@ type Challenge = {
   certificateEnabled?: boolean | null;
   certificate_generated_at?: string | null;
   certificateGeneratedAt?: string | null;
+  owner_user_id?: string | null;
+  ownerUserId?: string | null;
+  owner_display_name?: string | null;
+  ownerDisplayName?: string | null;
+  owner_email?: string | null;
+  ownerEmail?: string | null;
 };
 
 type CertificateDraft = {
@@ -148,8 +162,19 @@ type Brand = {
   name: string;
 };
 
+type AdminChallengeOwner = {
+  id: string;
+  display_name?: string | null;
+  email?: string | null;
+  role?: string | null;
+};
+
 type ChallengeForm = {
   challengeType: ChallengeType;
+  visibility: ChallengeVisibility;
+  allowJoinRequests: boolean;
+  allowDirectInvites: boolean;
+  leaderboardEnabled: boolean;
   targetKind: TargetKind;
   brand_key: string;
   targetBrandKey: string;
@@ -160,12 +185,17 @@ type ChallengeForm = {
   required_count: string;
   bonus_points: string;
   completionRewardId: string;
+  ownerUserId: string;
   starts_at: string;
   ends_at: string;
 };
 
 const emptyForm: ChallengeForm = {
   challengeType: "personal",
+  visibility: "public",
+  allowJoinRequests: false,
+  allowDirectInvites: false,
+  leaderboardEnabled: true,
   targetKind: "brand",
   brand_key: "",
   targetBrandKey: "",
@@ -176,6 +206,7 @@ const emptyForm: ChallengeForm = {
   required_count: "",
   bonus_points: "",
   completionRewardId: "",
+  ownerUserId: "",
   starts_at: "",
   ends_at: "",
 };
@@ -197,6 +228,10 @@ function normalizeChallenge(raw: Challenge): Challenge {
     ...raw,
     challenge_type: challengeType,
     challengeType,
+    visibility: raw.visibility || "public",
+    allowJoinRequests: raw.allowJoinRequests ?? raw.allow_join_requests ?? false,
+    allowDirectInvites: raw.allowDirectInvites ?? raw.allow_direct_invites ?? false,
+    leaderboardEnabled: raw.leaderboardEnabled ?? raw.leaderboard_enabled ?? true,
     targetKind: raw.targetKind ?? raw.target_kind ?? "brand",
     targetBrandKey: raw.targetBrandKey ?? raw.target_brand_key ?? raw.brand_key ?? "",
     targetMaterialType: raw.targetMaterialType ?? raw.target_material_type ?? "",
@@ -208,6 +243,9 @@ function normalizeChallenge(raw: Challenge): Challenge {
     certificateRecipientType: raw.certificateRecipientType ?? raw.certificate_recipient_type ?? null,
     certificateEnabled: raw.certificateEnabled ?? raw.certificate_enabled ?? false,
     certificateGeneratedAt: raw.certificateGeneratedAt ?? raw.certificate_generated_at ?? null,
+    ownerUserId: raw.ownerUserId ?? raw.owner_user_id ?? null,
+    ownerDisplayName: raw.ownerDisplayName ?? raw.owner_display_name ?? null,
+    ownerEmail: raw.ownerEmail ?? raw.owner_email ?? null,
   };
 }
 
@@ -368,6 +406,13 @@ function safeFilename(value: string) {
     .slice(0, 80) || "impact-certificate";
 }
 
+function formatOwnerLabel(owner: AdminChallengeOwner) {
+  const name = owner.display_name?.trim();
+  const email = owner.email?.trim();
+  if (name && email) return `${name} (${email})`;
+  return name || email || owner.id;
+}
+
 export function AdminChallengesWorkspace() {
   const router = useRouter();
   const { language } = useDashboardLanguage();
@@ -375,6 +420,7 @@ export function AdminChallengesWorkspace() {
   const [challengeRequests, setChallengeRequests] = useState<ChallengeRequest[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [owners, setOwners] = useState<AdminChallengeOwner[]>([]);
   const [form, setForm] = useState<ChallengeForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const [query, setQuery] = useState("");
@@ -402,11 +448,12 @@ export function AdminChallengesWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [challengeResult, requestResult, rewardResult, brandResult] = await Promise.all([
+      const [challengeResult, requestResult, rewardResult, brandResult, userResult] = await Promise.all([
         apiFetch("/admin/challenges", { token }),
         apiFetch("/admin/challenge-requests", { token }),
         apiFetch("/admin/rewards", { token }),
         apiFetch("/admin/brands", { token }),
+        apiFetch("/admin/users", { token }),
       ]);
       const normalizedChallenges = normalizeList<Challenge>(challengeResult, ["challenges", "data"]).map(normalizeChallenge);
       const normalizedRequests = normalizeList<ChallengeRequest>(requestResult, ["requests", "data"]).map(normalizeChallengeRequest);
@@ -428,6 +475,7 @@ export function AdminChallengesWorkspace() {
       );
       setRewards(normalizeList<Reward>(rewardResult, ["rewards", "data"]));
       setBrands(normalizeList<Brand>(brandResult, ["brands", "data"]));
+      setOwners(normalizeList<AdminChallengeOwner>(userResult, ["users", "data"]));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load challenges");
     } finally {
@@ -514,6 +562,10 @@ export function AdminChallengesWorkspace() {
     setEditingId(challenge.id);
     setForm({
       challengeType: challenge.challengeType || "personal",
+      visibility: challenge.visibility || "public",
+      allowJoinRequests: Boolean(challenge.allowJoinRequests),
+      allowDirectInvites: Boolean(challenge.allowDirectInvites),
+      leaderboardEnabled: challenge.leaderboardEnabled !== false,
       targetKind: challenge.targetKind || "brand",
       brand_key: challenge.brand_key || challenge.targetBrandKey || "",
       targetBrandKey: challenge.targetBrandKey || challenge.brand_key || "",
@@ -524,9 +576,11 @@ export function AdminChallengesWorkspace() {
       required_count: String(challenge.required_count ?? ""),
       bonus_points: String(challenge.bonus_points ?? ""),
       completionRewardId: challenge.completionRewardId || "",
+      ownerUserId: challenge.ownerUserId || "",
       starts_at: toDateTimeInput(challenge.starts_at),
       ends_at: toDateTimeInput(challenge.ends_at),
     });
+    setActiveSection("all");
   }
 
   function resetForm() {
@@ -571,6 +625,10 @@ export function AdminChallengesWorkspace() {
       const targetBrand = (form.targetBrandKey || form.brand_key).trim();
       const payload = {
         challengeType: form.challengeType,
+        visibility: form.visibility,
+        allowJoinRequests: form.visibility === "private" && form.allowJoinRequests,
+        allowDirectInvites: form.visibility === "private" && form.allowDirectInvites,
+        leaderboardEnabled: form.leaderboardEnabled,
         targetKind: form.targetKind,
         ...(form.targetKind === "brand" ? { brand_key: targetBrand, targetBrandKey: targetBrand } : {}),
         ...(form.targetKind === "material" ? { targetMaterialType: form.targetMaterialType } : {}),
@@ -580,6 +638,7 @@ export function AdminChallengesWorkspace() {
         required_count: requiredCount,
         bonus_points: bonusPoints,
         completionRewardId: form.completionRewardId || null,
+        ownerUserId: form.ownerUserId || null,
         starts_at: dateTimeInputToIso(form.starts_at),
         ends_at: dateTimeInputToIso(form.ends_at),
       };
@@ -1276,6 +1335,13 @@ export function AdminChallengesWorkspace() {
                         >
                           {certificateActionId === `save-${id}` ? "Saving..." : "Save certificate settings"}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(challenge)}
+                          className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white"
+                        >
+                          Edit target, owner, and description
+                        </button>
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
                           <button
                             type="button"
@@ -1361,7 +1427,7 @@ export function AdminChallengesWorkspace() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-[1080px] w-full text-left text-sm">
+            <table className="min-w-[1180px] w-full text-left text-sm">
               <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
                 <tr>
                   <th className="px-4 py-2.5">Challenge</th>
@@ -1370,6 +1436,7 @@ export function AdminChallengesWorkspace() {
                   <th className="px-4 py-2.5">Required</th>
                   <th className="px-4 py-2.5">Progress</th>
                   <th className="px-4 py-2.5">Bonus</th>
+                  <th className="px-4 py-2.5">Owner</th>
                   <th className="px-4 py-2.5">Reward</th>
                   <th className="px-4 py-2.5">Dates</th>
                   <th className="px-4 py-2.5">Status</th>
@@ -1378,9 +1445,9 @@ export function AdminChallengesWorkspace() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">Loading challenges...</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">Loading challenges...</td></tr>
                 ) : filteredChallenges.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No challenges match the current filters.</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No challenges match the current filters.</td></tr>
                 ) : (
                   filteredChallenges.map((challenge) => (
                     <tr key={challenge.id} className="border-t border-[var(--gl-card-cream)] align-top hover:bg-[var(--gl-card-cream)]/70">
@@ -1388,7 +1455,10 @@ export function AdminChallengesWorkspace() {
                         <div className="font-semibold text-[var(--gl-ink)]">{challenge.title}</div>
                         <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{challenge.description || "No description"}</div>
                       </td>
-                      <td className="px-4 py-2.5"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span></td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span>
+                        <div className="mt-1 text-xs font-semibold capitalize text-[var(--gl-ink-muted)]">{challenge.visibility || "public"}</div>
+                      </td>
                       <td className="px-4 py-2.5">
                         <div className="capitalize text-[var(--gl-ink-muted)]">{challenge.targetKind || "brand"}</div>
                         <div className="font-medium text-[var(--gl-ink-soft)]">{getTargetValue(challenge) || "-"}</div>
@@ -1396,6 +1466,14 @@ export function AdminChallengesWorkspace() {
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.required_count}</td>
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"}</td>
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points}</td>
+                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">
+                        <div className="max-w-[180px] truncate font-medium text-[var(--gl-ink)]" title={challenge.ownerEmail || undefined}>
+                          {challenge.ownerDisplayName || challenge.ownerEmail || "-"}
+                        </div>
+                        {challenge.ownerDisplayName && challenge.ownerEmail ? (
+                          <div className="max-w-[180px] truncate text-xs text-[var(--gl-ink-muted)]">{challenge.ownerEmail}</div>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.completionRewardTitle || "-"}</td>
                       <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">
                         <div>{formatDateTime(challenge.starts_at)}</div>
@@ -1443,7 +1521,7 @@ export function AdminChallengesWorkspace() {
           <div className="space-y-4">
             {editingId ? (
               <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-4 py-2.5 text-xs leading-5 text-[var(--gl-amber-ink)]">
-                You are editing an existing challenge. Changing the type here converts this challenge and keeps its current title, description, target, dates, and reward. Use New challenge to start with an empty form.
+                You are editing an existing challenge, including live/ongoing challenges. Changes to target, description, owner, dates, and reward are saved in place and existing participant progress is kept.
               </div>
             ) : null}
             <Select
@@ -1462,6 +1540,36 @@ export function AdminChallengesWorkspace() {
               <option value="community">Community</option>
             </Select>
             <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-4 py-2.5 text-xs leading-5 text-[var(--gl-ink-muted)]">{challengeSummary(form.challengeType)}</div>
+            <Select
+              label="Who can participate"
+              value={form.visibility}
+              onChange={(value) => setForm((current) => ({
+                ...current,
+                visibility: value as ChallengeVisibility,
+                allowJoinRequests: value === "private" ? current.allowJoinRequests : false,
+                allowDirectInvites: value === "private" ? current.allowDirectInvites : false,
+              }))}
+            >
+              <option value="public">Public - anyone can discover and join</option>
+              <option value="private">Private - approval or invitation required</option>
+            </Select>
+            {form.visibility === "private" ? (
+              <div className="space-y-3 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+                <p className="text-sm font-semibold text-[var(--gl-ink)]">Private access</p>
+                <label className="flex items-start gap-3 text-sm text-[var(--gl-ink-soft)]">
+                  <input type="checkbox" checked={form.allowJoinRequests} onChange={(event) => setForm((current) => ({ ...current, allowJoinRequests: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[var(--gl-green)]" />
+                  <span><strong className="block text-[var(--gl-ink)]">Approve join requests</strong>Users can ask to join and wait for an organizer decision.</span>
+                </label>
+                <label className="flex items-start gap-3 text-sm text-[var(--gl-ink-soft)]">
+                  <input type="checkbox" checked={form.allowDirectInvites} onChange={(event) => setForm((current) => ({ ...current, allowDirectInvites: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[var(--gl-green)]" />
+                  <span><strong className="block text-[var(--gl-ink)]">Invite participants</strong>Add registered users or email invitations after creating the challenge.</span>
+                </label>
+              </div>
+            ) : null}
+            <label className="flex items-start gap-3 rounded-lg border border-[var(--gl-hairline)] p-4 text-sm text-[var(--gl-ink-soft)]">
+              <input type="checkbox" checked={form.leaderboardEnabled} onChange={(event) => setForm((current) => ({ ...current, leaderboardEnabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[var(--gl-green)]" />
+              <span><strong className="block text-[var(--gl-ink)]">Challenge leaderboard</strong>Show approved recycling contributions and each participant's position.</span>
+            </label>
             <Select label="Target type" value={form.targetKind} onChange={(value) => setForm((current) => ({ ...current, targetKind: value as TargetKind }))}>
               <option value="any">Any recycled item</option>
               <option value="brand">Brand</option>
@@ -1497,6 +1605,14 @@ export function AdminChallengesWorkspace() {
             ) : null}
             <Field label="Title" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} required />
             <Textarea label="Description" value={form.description} onChange={(value) => setForm((current) => ({ ...current, description: value }))} required />
+            <Select label="Challenge owner" value={form.ownerUserId} onChange={(value) => setForm((current) => ({ ...current, ownerUserId: value }))}>
+              <option value="">No owner assigned</option>
+              {owners.map((owner) => (
+                <option key={owner.id} value={owner.id}>
+                  {formatOwnerLabel(owner)}
+                </option>
+              ))}
+            </Select>
             <Select label="Unlock reward on completion" value={form.completionRewardId} onChange={(value) => setForm((current) => ({ ...current, completionRewardId: value }))}>
               <option value="">No completion reward</option>
               <optgroup label="Recommended: Challenge Rewards">
