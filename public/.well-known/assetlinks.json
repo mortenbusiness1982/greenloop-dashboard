@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mortenodam.greenloopapp",
+      "sha256_cert_fingerprints": [
+        "15:FB:D5:EC:A6:5A:4B:55:E0:7B:FF:1D:E6:52:34:D7:8D:8F:97:E7:CE:14:5C:42:FB:60:78:4B:22:55:2D:7F"
+      ]
+    }
+  }
+]
