@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { ChallengeInvitationTools } from "@/components/challenges/ChallengeInvitationTools";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -450,6 +451,9 @@ export function AdminChallengeDetailWorkspace({ id }: { id: string }) {
             ) : null}
           </div>
         </section>
+      ) : null}
+      {challenge?.visibility === "private" && (challenge?.allowDirectInvites || challenge?.allow_direct_invites) ? (
+        <ChallengeInvitationTools challengeId={id} basePath="/admin/challenges" />
       ) : null}
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
         <div className="border-b border-[var(--gl-hairline)] p-4">

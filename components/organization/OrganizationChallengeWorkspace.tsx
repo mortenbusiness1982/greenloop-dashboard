@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Download, Flag, Leaf, RefreshCcw, Target, Trash2, UserPlus, Users } from "lucide-react";
 import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { ChallengeInvitationTools } from "@/components/challenges/ChallengeInvitationTools";
 
 type OrganizationChallenge = {
   id: string;
@@ -370,6 +371,10 @@ export function OrganizationChallengeWorkspace() {
               ) : null}
             </div>
 
+            {selected.visibility === "private" && selected.allowDirectInvites ? (
+              <ChallengeInvitationTools challengeId={selected.id} basePath="/organization/challenges" />
+            ) : null}
+
             <div className="mt-5 overflow-x-auto rounded-[var(--gl-radius)] border border-[var(--gl-hairline)]">
               <table className="min-w-[720px] w-full text-left text-sm">
                 <thead className="bg-[var(--gl-bg-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]"><tr><th className="px-4 py-3">Participant</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Approved recycles</th><th className="px-4 py-3">Action</th></tr></thead>
@@ -386,6 +391,8 @@ export function OrganizationChallengeWorkspace() {
               </table>
             </div>
           </section>
+
+          <OrganizationTeamsWorkspace />
 
           <section className="rounded-[var(--gl-radius)] border border-red-200 bg-red-50 p-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -406,6 +413,107 @@ export function OrganizationChallengeWorkspace() {
         </>
       ) : null}
     </div>
+  );
+}
+
+type OrganizationTeam = {
+  id: string;
+  name: string;
+  active: boolean;
+  members: number;
+};
+
+function OrganizationTeamsWorkspace() {
+  const [teams, setTeams] = useState<OrganizationTeam[]>([]);
+  const [teamName, setTeamName] = useState("");
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [memberEmails, setMemberEmails] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function loadTeams() {
+    const token = getToken();
+    if (!token) return;
+    const response = await apiFetch<{ teams: OrganizationTeam[] }>("/organization/teams", { token });
+    setTeams(response.teams || []);
+    setSelectedTeamId((current) => current || response.teams?.[0]?.id || "");
+  }
+
+  useEffect(() => {
+    void loadTeams();
+  }, []);
+
+  async function createTeam() {
+    const token = getToken();
+    if (!token || !teamName.trim()) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await apiFetch<{ team: OrganizationTeam }>("/organization/teams", {
+        token,
+        method: "POST",
+        body: { name: teamName.trim() },
+      });
+      setTeamName("");
+      setSelectedTeamId(response.team.id);
+      setNotice(`${response.team.name} created.`);
+      await loadTeams();
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "Could not create team");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addMembers() {
+    const token = getToken();
+    if (!token || !selectedTeamId) return;
+    const emails = Array.from(new Set(memberEmails.split(/[\s,;]+/).map((email) => email.trim().toLowerCase()).filter((email) => email.includes("@"))));
+    if (!emails.length) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await apiFetch<{ addedCount: number }>(`/organization/teams/${selectedTeamId}/members`, {
+        token,
+        method: "POST",
+        body: { emails },
+      });
+      setMemberEmails("");
+      setNotice(`${response.addedCount} organization members added to the team.`);
+      await loadTeams();
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "Could not add team members");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-6 shadow-[var(--gl-shadow-sm)]">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--gl-green-soft)] text-[var(--gl-green)]"><Users className="h-4 w-4" /></span>
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Leaderboard teams</h2>
+          <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">Group organization members into teams for the shared team ranking.</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="flex gap-2">
+          <input value={teamName} onChange={(event) => setTeamName(event.target.value)} placeholder="Team name" className="min-w-0 flex-1 rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+          <button type="button" onClick={createTeam} disabled={busy || !teamName.trim()} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Create</button>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <select value={selectedTeamId} onChange={(event) => setSelectedTeamId(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
+            <option value="">Choose team</option>
+            {teams.map((team) => <option key={team.id} value={team.id}>{team.name} ({team.members})</option>)}
+          </select>
+          <input value={memberEmails} onChange={(event) => setMemberEmails(event.target.value)} placeholder="Member emails" className="min-w-0 flex-1 rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+          <button type="button" onClick={addMembers} disabled={busy || !selectedTeamId || !memberEmails.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] disabled:opacity-50"><UserPlus className="h-4 w-4" /> Add</button>
+        </div>
+      </div>
+      {notice ? <p className="mt-3 text-sm font-medium text-[var(--gl-ink-muted)]">{notice}</p> : null}
+      {teams.length ? <div className="mt-4 flex flex-wrap gap-2">{teams.map((team) => <span key={team.id} className="rounded-full bg-[var(--gl-bg-cream)] px-3 py-1.5 text-sm font-semibold text-[var(--gl-ink)]">{team.name} · {team.members}</span>)}</div> : null}
+    </section>
   );
 }
 

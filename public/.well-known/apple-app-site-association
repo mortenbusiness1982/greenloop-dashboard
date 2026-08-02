@@ -1,0 +1,18 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "RVHRRW729X.com.mortenodam.greenloopapp",
+          "RVHRRW729X.com.mortenodam.greenloopapp.dev"
+        ],
+        "components": [
+          {
+            "/": "/challenge-invite/*",
+            "comment": "Open GreenLoop challenge invitations in the app"
+          }
+        ]
+      }
+    ]
+  }
+}

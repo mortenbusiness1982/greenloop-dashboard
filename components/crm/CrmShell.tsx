@@ -21,6 +21,7 @@ import {
   Settings,
   Store,
   TicketCheck,
+  Trophy,
   Users,
   X,
 } from "lucide-react";
@@ -50,6 +51,7 @@ type NavItemKey =
   | "recyclingActivity"
   | "moderation"
   | "challenges"
+  | "leaderboards"
   | "rewards"
   | "outreach"
   | "products"
@@ -116,7 +118,8 @@ const shellCopy: Record<DashboardLanguage, {
       users: "Users",
       recyclingActivity: "Recycling Activity",
       moderation: "Moderation",
-      challenges: "Challenges",
+    challenges: "Challenges",
+    leaderboards: "Leaderboards",
       rewards: "Rewards",
       outreach: "Outreach",
       products: "Products",
@@ -181,7 +184,8 @@ const shellCopy: Record<DashboardLanguage, {
       users: "Usuarios",
       recyclingActivity: "Actividad de reciclaje",
       moderation: "Moderación",
-      challenges: "Retos",
+    challenges: "Retos",
+    leaderboards: "Clasificaciones",
       rewards: "Recompensas",
       outreach: "Prospección",
       products: "Productos",
@@ -233,6 +237,7 @@ const navigation: Record<Exclude<DashboardRole, "user">, NavGroup[]> = {
         { key: "recyclingActivity", href: "/admin/activity", icon: Activity },
         { key: "moderation", href: "/admin/moderation", icon: ClipboardCheck },
         { key: "challenges", href: "/admin/challenges", icon: Flag },
+        { key: "leaderboards", href: "/admin/leaderboards", icon: Trophy },
         { key: "rewards", href: "/admin/rewards", icon: Gift },
         { key: "outreach", href: "/admin/outreach", icon: Send },
       ],

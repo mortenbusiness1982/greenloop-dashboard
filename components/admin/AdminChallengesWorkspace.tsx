@@ -1568,7 +1568,7 @@ export function AdminChallengesWorkspace() {
             ) : null}
             <label className="flex items-start gap-3 rounded-lg border border-[var(--gl-hairline)] p-4 text-sm text-[var(--gl-ink-soft)]">
               <input type="checkbox" checked={form.leaderboardEnabled} onChange={(event) => setForm((current) => ({ ...current, leaderboardEnabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[var(--gl-green)]" />
-              <span><strong className="block text-[var(--gl-ink)]">Challenge leaderboard</strong>Show approved recycling contributions and each participant's position.</span>
+              <span><strong className="block text-[var(--gl-ink)]">Challenge leaderboard</strong>Show approved recycling contributions and each participant&apos;s position.</span>
             </label>
             <Select label="Target type" value={form.targetKind} onChange={(value) => setForm((current) => ({ ...current, targetKind: value as TargetKind }))}>
               <option value="any">Any recycled item</option>
