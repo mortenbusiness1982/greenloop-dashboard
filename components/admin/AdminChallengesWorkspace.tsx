@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { apiFetch, apiFetchBlob } from "@/lib/api";
+import { apiFetch, apiFetchBlob, apiUpload } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
@@ -42,6 +42,8 @@ type Challenge = {
   targetFormatType?: string;
   title: string;
   description?: string | null;
+  hero_image_url?: string | null;
+  heroImageUrl?: string | null;
   required_count: number;
   bonus_points: number;
   shared_progress_count?: number;
@@ -121,6 +123,8 @@ type ChallengeRequest = {
   end_date?: string | null;
   endDate?: string | null;
   description?: string | null;
+  hero_image_url?: string | null;
+  heroImageUrl?: string | null;
   contact_name?: string | null;
   contactName?: string | null;
   contact_email?: string | null;
@@ -188,6 +192,7 @@ type ChallengeForm = {
   ownerUserId: string;
   starts_at: string;
   ends_at: string;
+  heroImageUrl: string;
 };
 
 const emptyForm: ChallengeForm = {
@@ -209,7 +214,25 @@ const emptyForm: ChallengeForm = {
   ownerUserId: "",
   starts_at: "",
   ends_at: "",
+  heroImageUrl: "",
 };
+
+const challengeImagePresets = [
+  {
+    label: "GreenLoop community",
+    url: "https://greenloop-api.onrender.com/assets/greenloop-email-turtle.png",
+  },
+  {
+    label: "GreenLoop mark",
+    url: "https://greenloop-api.onrender.com/assets/greenloop-mark.png",
+  },
+];
+
+function getDefaultChallengeImageUrl(challengeType: ChallengeType) {
+  return challengeType === "community"
+    ? challengeImagePresets[0].url
+    : challengeImagePresets[1].url;
+}
 
 function normalizeList<T>(value: unknown, keys: string[]): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -246,6 +269,7 @@ function normalizeChallenge(raw: Challenge): Challenge {
     ownerUserId: raw.ownerUserId ?? raw.owner_user_id ?? null,
     ownerDisplayName: raw.ownerDisplayName ?? raw.owner_display_name ?? null,
     ownerEmail: raw.ownerEmail ?? raw.owner_email ?? null,
+    heroImageUrl: raw.heroImageUrl ?? raw.hero_image_url ?? null,
   };
 }
 
@@ -258,6 +282,7 @@ function normalizeChallengeRequest(raw: ChallengeRequest): ChallengeRequest {
     targetItems: raw.targetItems ?? raw.target_items ?? 0,
     startDate: raw.startDate ?? raw.start_date ?? null,
     endDate: raw.endDate ?? raw.end_date ?? null,
+    heroImageUrl: raw.heroImageUrl ?? raw.hero_image_url ?? null,
     contactName: raw.contactName ?? raw.contact_name ?? null,
     contactEmail: raw.contactEmail ?? raw.contact_email ?? null,
     sponsorName: raw.sponsorName ?? raw.sponsor_name ?? null,
@@ -427,6 +452,8 @@ export function AdminChallengesWorkspace() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingChallengeImage, setUploadingChallengeImage] = useState(false);
+  const [challengeImageError, setChallengeImageError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [certificateDrafts, setCertificateDrafts] = useState<Record<string, CertificateDraft>>({});
   const [certificateActionId, setCertificateActionId] = useState<string | null>(null);
@@ -579,13 +606,83 @@ export function AdminChallengesWorkspace() {
       ownerUserId: challenge.ownerUserId || "",
       starts_at: toDateTimeInput(challenge.starts_at),
       ends_at: toDateTimeInput(challenge.ends_at),
+      heroImageUrl: challenge.heroImageUrl || "",
     });
+    setChallengeImageError(null);
     setActiveSection("all");
   }
 
   function resetForm() {
     setEditingId(null);
     setForm(emptyForm);
+    setChallengeImageError(null);
+  }
+
+  async function persistChallengeImage(nextImageUrl: string) {
+    if (!editingId) return;
+    const token = getToken();
+    if (!token) {
+      setChallengeImageError("Please log in again before updating.");
+      return;
+    }
+
+    await apiFetch(`/admin/challenges/${editingId}`, {
+      token,
+      method: "PATCH",
+      body: { heroImageUrl: nextImageUrl },
+    });
+    await loadData();
+  }
+
+  async function handleChallengeImageUpload(file: File | undefined) {
+    if (!file) return;
+    const token = getToken();
+    if (!token) {
+      setChallengeImageError("Please log in again before uploading.");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setChallengeImageError("Please choose an image file.");
+      return;
+    }
+
+    setUploadingChallengeImage(true);
+    setChallengeImageError(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const result = await apiUpload<{ url?: string }>("/uploads/photo", { token, body });
+      if (!result.url) {
+        throw new Error("Upload did not return an image URL.");
+      }
+      setForm((current) => ({ ...current, heroImageUrl: result.url || "" }));
+      await persistChallengeImage(result.url);
+    } catch (err) {
+      setChallengeImageError(err instanceof Error ? err.message : "Image upload failed.");
+    } finally {
+      setUploadingChallengeImage(false);
+    }
+  }
+
+  async function handleChallengeImageSelect(imageUrl: string) {
+    setChallengeImageError(null);
+    setForm((current) => ({ ...current, heroImageUrl: imageUrl }));
+    try {
+      await persistChallengeImage(imageUrl);
+    } catch (err) {
+      setChallengeImageError(err instanceof Error ? err.message : "Unable to save selected image.");
+    }
+  }
+
+  async function handleChallengeImageClear() {
+    const defaultImageUrl = getDefaultChallengeImageUrl(form.challengeType);
+    setChallengeImageError(null);
+    setForm((current) => ({ ...current, heroImageUrl: defaultImageUrl }));
+    try {
+      await persistChallengeImage(defaultImageUrl);
+    } catch (err) {
+      setChallengeImageError(err instanceof Error ? err.message : "Unable to restore the default image.");
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -639,6 +736,7 @@ export function AdminChallengesWorkspace() {
         bonus_points: bonusPoints,
         completionRewardId: form.completionRewardId || null,
         ownerUserId: form.ownerUserId || null,
+        heroImageUrl: form.heroImageUrl || getDefaultChallengeImageUrl(form.challengeType),
         starts_at: dateTimeInputToIso(form.starts_at),
         ends_at: dateTimeInputToIso(form.ends_at),
       };
@@ -1065,6 +1163,18 @@ export function AdminChallengesWorkspace() {
                         </div>
                         <p className="mt-1 text-sm font-medium text-[var(--gl-ink-soft)]">{request.communityName}</p>
                         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{request.description || "No description provided."}</p>
+                        {request.heroImageUrl ? (
+                          <div className="mt-3 flex items-center gap-3 rounded-lg border border-[var(--gl-hairline)] bg-white p-2">
+                            <div className="h-20 w-28 shrink-0 overflow-hidden rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={request.heroImageUrl} alt="" className="h-full w-full object-cover" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-[var(--gl-ink)]">Requested image</p>
+                              <p className="truncate text-xs text-[var(--gl-ink-muted)]">{request.heroImageUrl}</p>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="text-sm text-[var(--gl-ink-muted)] md:text-right">
                         <div>Created {formatDateTime(request.createdAt)}</div>
@@ -1452,8 +1562,18 @@ export function AdminChallengesWorkspace() {
                   filteredChallenges.map((challenge) => (
                     <tr key={challenge.id} className="border-t border-[var(--gl-card-cream)] align-top hover:bg-[var(--gl-card-cream)]/70">
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold text-[var(--gl-ink)]">{challenge.title}</div>
-                        <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{challenge.description || "No description"}</div>
+                        <div className="flex gap-3">
+                          {challenge.heroImageUrl ? (
+                            <div className="h-12 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--gl-hairline)] bg-white">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={challenge.heroImageUrl} alt="" className="h-full w-full object-cover" />
+                            </div>
+                          ) : null}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-[var(--gl-ink)]">{challenge.title}</div>
+                            <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{challenge.description || "No description"}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span>
@@ -1605,6 +1725,16 @@ export function AdminChallengesWorkspace() {
             ) : null}
             <Field label="Title" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} required />
             <Textarea label="Description" value={form.description} onChange={(value) => setForm((current) => ({ ...current, description: value }))} required />
+            <ChallengeImageField
+              challengeType={form.challengeType}
+              imageUrl={form.heroImageUrl}
+              uploading={uploadingChallengeImage}
+              error={challengeImageError}
+              presets={challengeImagePresets}
+              onUpload={handleChallengeImageUpload}
+              onSelect={handleChallengeImageSelect}
+              onClear={handleChallengeImageClear}
+            />
             <Select label="Challenge owner" value={form.ownerUserId} onChange={(value) => setForm((current) => ({ ...current, ownerUserId: value }))}>
               <option value="">No owner assigned</option>
               {owners.map((owner) => (
@@ -1655,6 +1785,97 @@ function getTargetValue(challenge: Challenge) {
   if (challenge.targetKind === "material") return challenge.targetMaterialType || "";
   if (challenge.targetKind === "format") return challenge.targetFormatType || "";
   return challenge.targetBrandKey || challenge.brand_key || "";
+}
+
+function ChallengeImageField({
+  challengeType,
+  imageUrl,
+  uploading,
+  error,
+  presets,
+  onUpload,
+  onSelect,
+  onClear,
+}: {
+  challengeType: ChallengeType;
+  imageUrl: string;
+  uploading: boolean;
+  error: string | null;
+  presets: Array<{ label: string; url: string }>;
+  onUpload: (file: File | undefined) => void;
+  onSelect: (imageUrl: string) => void;
+  onClear: () => void;
+}) {
+  const uploadCopy =
+    challengeType === "community"
+      ? "Upload a community photo from the organiser, or let GreenLoop choose one of the preset images."
+      : "Upload or choose a GreenLoop image for this personal/global challenge card.";
+
+  return (
+    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[var(--gl-ink)]">Challenge image</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--gl-ink-muted)]">{uploadCopy}</p>
+        </div>
+        {imageUrl ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-lg border border-[var(--gl-hairline-strong)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:border-[var(--gl-green)] hover:text-[var(--gl-green-deep)]"
+          >
+            Use default image
+          </button>
+        ) : null}
+      </div>
+
+      {imageUrl ? (
+        <div className="mt-3 flex items-center gap-3 rounded-lg border border-[var(--gl-hairline)] bg-white p-2">
+          <div className="h-20 w-28 shrink-0 overflow-hidden rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[var(--gl-ink)]">Selected image</p>
+            <p className="truncate text-xs text-[var(--gl-ink-muted)]">{imageUrl}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-[var(--gl-hairline-strong)] bg-white px-3 py-4 text-center text-sm font-semibold text-[var(--gl-green-deep)] transition hover:border-[var(--gl-green)] hover:bg-[var(--gl-green-soft)]">
+          {uploading ? "Uploading image..." : imageUrl ? "Upload different image" : "Upload image"}
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            className="sr-only"
+            onChange={(event) => {
+              onUpload(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        <div className="grid gap-2">
+          {presets.map((preset) => (
+            <button
+              key={preset.url}
+              type="button"
+              onClick={() => onSelect(preset.url)}
+              className="flex items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-left text-xs font-semibold text-[var(--gl-ink-soft)] hover:border-[var(--gl-green)] hover:text-[var(--gl-green-deep)]"
+            >
+              <span className="h-7 w-9 shrink-0 overflow-hidden rounded border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={preset.url} alt="" className="h-full w-full object-cover" />
+              </span>
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error ? <p className="mt-2 text-xs font-semibold text-red-600">{error}</p> : null}
+    </div>
+  );
 }
 
 function Kpi({ label, value }: { label: string; value: number }) {
