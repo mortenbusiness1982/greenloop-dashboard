@@ -472,13 +472,29 @@ export function AdminChallengesWorkspace() {
   useEffect(() => {
     if (activeSection !== "all" || !pendingEditorFocus) return;
     const timer = window.setTimeout(() => {
-      document
-        .getElementById(pendingEditorFocus === "image" ? "challenge-image-editor" : "challenge-editor")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (pendingEditorFocus === "image") {
+        document.getElementById("challenge-image-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        document.getElementById("challenge-editor")?.scrollTo({ top: 0, behavior: "smooth" });
+      }
       setPendingEditorFocus(null);
     }, 50);
     return () => window.clearTimeout(timer);
   }, [activeSection, editingId, pendingEditorFocus]);
+
+  useEffect(() => {
+    if (!editingId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") resetForm();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [editingId]);
 
   const loadData = useCallback(async () => {
     const token = getToken();
@@ -633,6 +649,7 @@ export function AdminChallengesWorkspace() {
     setForm(emptyForm);
     setChallengeImagePrompt("");
     setChallengeImageError(null);
+    setPendingEditorFocus(null);
   }
 
   async function persistChallengeImage(nextImageUrl: string) {
@@ -1613,7 +1630,19 @@ export function AdminChallengesWorkspace() {
                   <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No challenges match the current filters.</td></tr>
                 ) : (
                   filteredChallenges.map((challenge) => (
-                    <tr key={challenge.id} className="border-t border-[var(--gl-card-cream)] align-top hover:bg-[var(--gl-card-cream)]/70">
+                    <tr
+                      key={challenge.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => startEdit(challenge)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          startEdit(challenge);
+                        }
+                      }}
+                      className="cursor-pointer border-t border-[var(--gl-card-cream)] align-top transition hover:bg-[var(--gl-card-cream)]/70 focus:bg-[var(--gl-green-soft)] focus:outline-none"
+                    >
                       <td className="px-4 py-2.5">
                         <div className="flex gap-3">
                           {challenge.heroImageUrl ? (
@@ -1665,7 +1694,7 @@ export function AdminChallengesWorkspace() {
                           );
                         })()}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5" onClick={(event) => event.stopPropagation()}>
                         <div className="flex flex-wrap gap-2">
                           <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
                           <button onClick={() => startEdit(challenge)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
@@ -1684,13 +1713,37 @@ export function AdminChallengesWorkspace() {
           </div>
         </section>
 
-        <form id="challenge-editor" onSubmit={handleSubmit} className="scroll-mt-6 rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+        {editingId ? (
+          <button
+            type="button"
+            aria-label="Close challenge editor"
+            onClick={resetForm}
+            className="fixed inset-0 z-40 cursor-default bg-[var(--gl-ink)]/45 backdrop-blur-[2px]"
+          />
+        ) : null}
+        <form
+          id="challenge-editor"
+          onSubmit={handleSubmit}
+          className={
+            editingId
+              ? "fixed inset-y-4 left-1/2 z-50 w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[var(--gl-hairline)] bg-white p-5 shadow-2xl"
+              : "scroll-mt-6 rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm"
+          }
+        >
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{editingId ? "Edit challenge" : "Create challenge"}</h2>
-              <p className="text-sm text-[var(--gl-ink-muted)]">Target, timing, progress, and reward</p>
+              <p className="text-sm text-[var(--gl-ink-muted)]">{editingId ? form.title : "Target, timing, progress, and reward"}</p>
             </div>
-            {editingId ? <button type="button" onClick={resetForm} className="text-sm font-semibold text-[var(--gl-ink-muted)] hover:text-[var(--gl-ink)]">New challenge</button> : null}
+            {editingId ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] hover:border-[var(--gl-green)]"
+              >
+                Close
+              </button>
+            ) : null}
           </div>
           <div className="space-y-4">
             {editingId ? (
