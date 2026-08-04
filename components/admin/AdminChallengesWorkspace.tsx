@@ -466,7 +466,19 @@ export function AdminChallengesWorkspace() {
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [requestMessage, setRequestMessage] = useState<CertificateStatusMessage | null>(null);
   const [activeSection, setActiveSection] = useState<ChallengeWorkspaceSection>("requests");
+  const [pendingEditorFocus, setPendingEditorFocus] = useState<"form" | "image" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeSection !== "all" || !pendingEditorFocus) return;
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(pendingEditorFocus === "image" ? "challenge-image-editor" : "challenge-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingEditorFocus(null);
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [activeSection, editingId, pendingEditorFocus]);
 
   const loadData = useCallback(async () => {
     const token = getToken();
@@ -612,12 +624,8 @@ export function AdminChallengesWorkspace() {
     });
     setChallengeImagePrompt("");
     setChallengeImageError(null);
+    setPendingEditorFocus(focusImage ? "image" : "form");
     setActiveSection("all");
-    window.setTimeout(() => {
-      document
-        .getElementById(focusImage ? "challenge-image-editor" : "challenge-editor")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
   }
 
   function resetForm() {
