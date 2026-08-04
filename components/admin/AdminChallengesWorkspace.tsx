@@ -587,7 +587,7 @@ export function AdminChallengesWorkspace() {
     [communityChallenges.length, filteredChallenges.length, requestKpis.pending]
   );
 
-  function startEdit(challenge: Challenge) {
+  function startEdit(challenge: Challenge, focusImage = false) {
     setEditingId(challenge.id);
     setForm({
       challengeType: challenge.challengeType || "personal",
@@ -613,6 +613,11 @@ export function AdminChallengesWorkspace() {
     setChallengeImagePrompt("");
     setChallengeImageError(null);
     setActiveSection("all");
+    window.setTimeout(() => {
+      document
+        .getElementById(focusImage ? "challenge-image-editor" : "challenge-editor")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   }
 
   function resetForm() {
@@ -1656,6 +1661,7 @@ export function AdminChallengesWorkspace() {
                         <div className="flex flex-wrap gap-2">
                           <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
                           <button onClick={() => startEdit(challenge)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
+                          <button onClick={() => startEdit(challenge, true)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-green-deep)] hover:border-[var(--gl-green)] hover:bg-[var(--gl-green-soft)]">Change image</button>
                           <button onClick={() => toggleChallenge(challenge.id)} disabled={actionId === `toggle-${challenge.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-white disabled:opacity-60">Toggle</button>
                           <button onClick={() => deleteChallenge(challenge)} disabled={actionId === `delete-${challenge.id}`} className="rounded-md bg-red-600 px-3 py-1.5 text-white disabled:opacity-60">
                             {actionId === `delete-${challenge.id}` ? "Deleting..." : "Delete"}
@@ -1670,7 +1676,7 @@ export function AdminChallengesWorkspace() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
+        <form id="challenge-editor" onSubmit={handleSubmit} className="scroll-mt-6 rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{editingId ? "Edit challenge" : "Create challenge"}</h2>
@@ -1864,7 +1870,7 @@ function ChallengeImageField({
       : "Upload or choose a GreenLoop image for this personal/global challenge card.";
 
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+    <div id="challenge-image-editor" className="scroll-mt-6 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-[var(--gl-ink)]">Challenge image</p>
