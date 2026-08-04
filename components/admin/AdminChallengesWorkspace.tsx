@@ -453,6 +453,8 @@ export function AdminChallengesWorkspace() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingChallengeImage, setUploadingChallengeImage] = useState(false);
+  const [generatingChallengeImage, setGeneratingChallengeImage] = useState(false);
+  const [challengeImagePrompt, setChallengeImagePrompt] = useState("");
   const [challengeImageError, setChallengeImageError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [certificateDrafts, setCertificateDrafts] = useState<Record<string, CertificateDraft>>({});
@@ -608,6 +610,7 @@ export function AdminChallengesWorkspace() {
       ends_at: toDateTimeInput(challenge.ends_at),
       heroImageUrl: challenge.heroImageUrl || "",
     });
+    setChallengeImagePrompt("");
     setChallengeImageError(null);
     setActiveSection("all");
   }
@@ -615,6 +618,7 @@ export function AdminChallengesWorkspace() {
   function resetForm() {
     setEditingId(null);
     setForm(emptyForm);
+    setChallengeImagePrompt("");
     setChallengeImageError(null);
   }
 
@@ -671,6 +675,42 @@ export function AdminChallengesWorkspace() {
       await persistChallengeImage(imageUrl);
     } catch (err) {
       setChallengeImageError(err instanceof Error ? err.message : "Unable to save selected image.");
+    }
+  }
+
+  async function handleChallengeImageGenerate() {
+    const prompt = challengeImagePrompt.trim();
+    if (prompt.length < 8) {
+      setChallengeImageError("Describe the image you want in at least 8 characters.");
+      return;
+    }
+    const token = getToken();
+    if (!token) {
+      setChallengeImageError("Please log in again before generating an image.");
+      return;
+    }
+
+    setGeneratingChallengeImage(true);
+    setChallengeImageError(null);
+    try {
+      const result = await apiFetch<{ url?: string }>("/admin/challenges/generate-image", {
+        token,
+        method: "POST",
+        body: {
+          prompt,
+          challengeTitle: form.title.trim() || undefined,
+          challengeType: form.challengeType,
+        },
+      });
+      if (!result.url) {
+        throw new Error("Image generation did not return an image URL.");
+      }
+      setForm((current) => ({ ...current, heroImageUrl: result.url || "" }));
+      await persistChallengeImage(result.url);
+    } catch (err) {
+      setChallengeImageError(err instanceof Error ? err.message : "Unable to generate the image.");
+    } finally {
+      setGeneratingChallengeImage(false);
     }
   }
 
@@ -1729,9 +1769,13 @@ export function AdminChallengesWorkspace() {
               challengeType={form.challengeType}
               imageUrl={form.heroImageUrl}
               uploading={uploadingChallengeImage}
+              generating={generatingChallengeImage}
+              generationPrompt={challengeImagePrompt}
               error={challengeImageError}
               presets={challengeImagePresets}
               onUpload={handleChallengeImageUpload}
+              onGenerationPromptChange={setChallengeImagePrompt}
+              onGenerate={handleChallengeImageGenerate}
               onSelect={handleChallengeImageSelect}
               onClear={handleChallengeImageClear}
             />
@@ -1791,18 +1835,26 @@ function ChallengeImageField({
   challengeType,
   imageUrl,
   uploading,
+  generating,
+  generationPrompt,
   error,
   presets,
   onUpload,
+  onGenerationPromptChange,
+  onGenerate,
   onSelect,
   onClear,
 }: {
   challengeType: ChallengeType;
   imageUrl: string;
   uploading: boolean;
+  generating: boolean;
+  generationPrompt: string;
   error: string | null;
   presets: Array<{ label: string; url: string }>;
   onUpload: (file: File | undefined) => void;
+  onGenerationPromptChange: (value: string) => void;
+  onGenerate: () => void;
   onSelect: (imageUrl: string) => void;
   onClear: () => void;
 }) {
@@ -1842,13 +1894,43 @@ function ChallengeImageField({
         </div>
       ) : null}
 
+      <div className="mt-3 rounded-lg border border-[var(--gl-hairline)] bg-white p-3">
+        <label htmlFor="challenge-image-prompt" className="text-sm font-semibold text-[var(--gl-ink)]">
+          Generate with AI
+        </label>
+        <p className="mt-1 text-xs leading-5 text-[var(--gl-ink-muted)]">
+          Describe the scene. GreenLoop will create a landscape image without words or logos.
+        </p>
+        <textarea
+          id="challenge-image-prompt"
+          value={generationPrompt}
+          maxLength={800}
+          rows={3}
+          disabled={generating || uploading}
+          onChange={(event) => onGenerationPromptChange(event.target.value)}
+          placeholder="Example: Families and children recycling together during a sunny community event by the sea"
+          className="mt-3 w-full resize-y rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition placeholder:text-[var(--gl-ink-muted)] focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-xs text-[var(--gl-ink-muted)]">{generationPrompt.length}/800</span>
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={generating || uploading || generationPrompt.trim().length < 8}
+            className="rounded-lg bg-[var(--gl-green-deep)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--gl-green)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {generating ? "Generating image..." : "Generate image"}
+          </button>
+        </div>
+      </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-[var(--gl-hairline-strong)] bg-white px-3 py-4 text-center text-sm font-semibold text-[var(--gl-green-deep)] transition hover:border-[var(--gl-green)] hover:bg-[var(--gl-green-soft)]">
           {uploading ? "Uploading image..." : imageUrl ? "Upload different image" : "Upload image"}
           <input
             type="file"
             accept="image/*"
-            disabled={uploading}
+            disabled={uploading || generating}
             className="sr-only"
             onChange={(event) => {
               onUpload(event.target.files?.[0]);
