@@ -125,6 +125,11 @@ type ChallengeRequest = {
   description?: string | null;
   hero_image_url?: string | null;
   heroImageUrl?: string | null;
+  visibility?: ChallengeVisibility | null;
+  allow_join_requests?: boolean | null;
+  allowJoinRequests?: boolean | null;
+  allow_direct_invites?: boolean | null;
+  allowDirectInvites?: boolean | null;
   contact_name?: string | null;
   contactName?: string | null;
   contact_email?: string | null;
@@ -1252,8 +1257,14 @@ export function AdminChallengesWorkspace() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-4">
+                    <div className="grid gap-3 md:grid-cols-5">
                       <CertificateMetric label="Type" value={String(request.communityType || "other").replace(/_/g, " ")} />
+                      <CertificateMetric
+                        label="Access"
+                        value={request.visibility === "private"
+                          ? `Private${request.allowJoinRequests ? " · requests allowed" : " · invite only"}`
+                          : "Public"}
+                      />
                       <CertificateMetric label="Target items" value={formatNumber(Number(request.targetItems || 0))} />
                       <CertificateMetric label="Start" value={formatDateTime(request.startDate)} />
                       <CertificateMetric label="End" value={formatDateTime(request.endDate)} />
