@@ -1,8 +1,6 @@
 import { ImageResponse } from "next/og";
 import { API_BASE } from "@/lib/api";
 
-const FALLBACK_IMAGE_URL = "https://greenloop-api.onrender.com/assets/greenloop-email-turtle.png";
-
 type InvitationPreview = {
   challenge?: {
     title?: string | null;
@@ -16,7 +14,7 @@ type PreviewRouteProps = {
   params: Promise<{ token: string }>;
 };
 
-export async function GET(_request: Request, { params }: PreviewRouteProps) {
+export async function GET(request: Request, { params }: PreviewRouteProps) {
   const { token } = await params;
   let invitation: InvitationPreview | null = null;
 
@@ -35,7 +33,7 @@ export async function GET(_request: Request, { params }: PreviewRouteProps) {
 
   const title = invitation?.challenge?.title?.trim() || "Join a GreenLoop challenge";
   const organizer = invitation?.challenge?.organizationName?.trim() || "GreenLoop community";
-  const imageUrl = invitation?.challenge?.heroImageUrl || FALLBACK_IMAGE_URL;
+  const imageUrl = invitation?.challenge?.heroImageUrl || `${new URL(request.url).origin}/bella-stage-2.png`;
 
   return new ImageResponse(
     (
@@ -65,7 +63,7 @@ export async function GET(_request: Request, { params }: PreviewRouteProps) {
             <div style={{ marginTop: 26, fontSize: 58, lineHeight: 1.05, fontWeight: 800 }}>
               {title}
             </div>
-            <div style={{ marginTop: 24, color: "#55756c", fontSize: 28, lineHeight: 1.3 }}>
+            <div style={{ marginTop: 24, color: "#55756c", fontSize: 28, lineHeight: 1.3, display: "flex" }}>
               {organizer} invited you to recycle together.
             </div>
           </div>
