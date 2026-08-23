@@ -46,6 +46,8 @@ type Reward = {
   expires_in_hours?: number | null;
   acquisition_mode?: "redeem" | "challenge_completion";
   visible_in_wallet_catalog?: boolean;
+  available_worldwide?: boolean;
+  eligible_country_codes?: string[];
   inventory_total?: number;
   inventory_available?: number;
 };
@@ -89,6 +91,8 @@ type RewardForm = {
   terms_text: string;
   starts_at: string;
   ends_at: string;
+  available_worldwide: boolean;
+  eligible_country_codes: string;
 };
 
 const emptyForm: RewardForm = {
@@ -124,6 +128,8 @@ const emptyForm: RewardForm = {
   terms_text: "",
   starts_at: "",
   ends_at: "",
+  available_worldwide: false,
+  eligible_country_codes: "ES",
 };
 
 function normalizeList<T>(value: unknown, keys: string[]): T[] {
@@ -166,6 +172,8 @@ function normalizeReward(raw: Reward): Reward {
     expires_in_hours: raw.expires_in_hours ?? raw.unlock_duration_hours ?? 24,
     acquisition_mode: raw.acquisition_mode ?? "redeem",
     visible_in_wallet_catalog: raw.visible_in_wallet_catalog ?? raw.acquisition_mode !== "challenge_completion",
+    available_worldwide: raw.available_worldwide ?? raw.acquisition_mode === "challenge_completion",
+    eligible_country_codes: Array.isArray(raw.eligible_country_codes) ? raw.eligible_country_codes : ["ES"],
   };
 }
 
@@ -276,6 +284,8 @@ export function AdminRewardsWorkspace() {
       terms_text: "",
       starts_at: toDateTimeInput(reward.starts_at),
       ends_at: toDateTimeInput(reward.ends_at),
+      available_worldwide: Boolean(reward.available_worldwide),
+      eligible_country_codes: (reward.eligible_country_codes || ["ES"]).join(", "),
     });
   }
 
@@ -329,6 +339,10 @@ export function AdminRewardsWorkspace() {
         instructions: form.instructions || null,
         acquisition_mode: form.acquisition_mode,
         visible_in_wallet_catalog: !isChallengeReward,
+        available_worldwide: isChallengeReward ? true : form.available_worldwide,
+        eligible_country_codes: isChallengeReward || form.available_worldwide
+          ? []
+          : Array.from(new Set(form.eligible_country_codes.split(/[\s,;]+/).map((code) => code.trim().toUpperCase()).filter(Boolean))),
       };
 
       const saved = await apiFetch<{ id?: string | number; reward?: Reward }>(
@@ -721,6 +735,14 @@ function RewardFormPanel({
         </FormSection>
 
         <FormSection title="Visibility">
+          <label className="flex items-center gap-2 text-sm font-medium text-[var(--gl-ink-soft)]">
+            <input type="checkbox" checked={form.available_worldwide} onChange={(event) => setForm((current) => ({ ...current, available_worldwide: event.target.checked }))} className="h-4 w-4 rounded border-[var(--gl-hairline-strong)] text-[var(--gl-green)] focus:ring-[var(--gl-green-ring)]" />
+            Available worldwide
+          </label>
+          {!form.available_worldwide ? (
+            <Field label="Eligible countries" value={form.eligible_country_codes} onChange={(value) => setForm((current) => ({ ...current, eligible_country_codes: value }))} placeholder="ES, FR, DE" />
+          ) : null}
+          <p className="text-xs leading-5 text-[var(--gl-ink-muted)]">Use two-letter country codes. Existing TradeDoubler rewards should remain ES only.</p>
           <Select label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value as RewardForm["status"] }))}>
             <option value="draft">Draft</option>
             <option value="active">Active</option>
