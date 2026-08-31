@@ -1451,13 +1451,13 @@ export function AdminOutreachWorkspace() {
 
   return (
     <div className="w-full min-w-0 space-y-5">
-      <section className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.eyebrow}</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">{c.title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{c.description}</p>
         </div>
-        <div className="flex max-w-full flex-wrap gap-2 xl:max-w-[620px] xl:justify-end">
+        <div className="flex max-w-full flex-wrap gap-2 lg:max-w-[620px] lg:justify-end">
           <button
             className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--gl-green-deep)]"
             onClick={startNewDraft}
@@ -1485,7 +1485,7 @@ export function AdminOutreachWorkspace() {
       </section>
 
       <section className="mb-5 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm font-semibold text-[var(--gl-ink)]">
             {compactSummary([
               `${counts.drafted} ${c.kpis.drafted.toLowerCase()}`,
@@ -1496,7 +1496,7 @@ export function AdminOutreachWorkspace() {
               counts.failed ? `${counts.failed} ${c.kpis.failed.toLowerCase()}` : null,
             ])}
           </p>
-          <div className="flex flex-wrap gap-2 xl:justify-end">
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             <button
               className="whitespace-nowrap rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
