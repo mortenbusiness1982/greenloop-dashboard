@@ -536,7 +536,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
       )}
 
       <div className="w-full min-w-0 max-w-none">
-        <header className="sticky top-0 z-30 flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6">
+        <header className="relative z-30 flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6 lg:sticky lg:top-0">
           <div className="flex min-w-0 items-center gap-3">
             <button
               className="rounded-md p-2 text-[var(--gl-ink-muted)] hover:bg-[var(--gl-card-cream)] hover:text-[var(--gl-ink)] lg:hidden"

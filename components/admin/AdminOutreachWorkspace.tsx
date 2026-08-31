@@ -1451,15 +1451,15 @@ export function AdminOutreachWorkspace() {
 
   return (
     <div className="w-full min-w-0 max-w-none space-y-5">
-      <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="mb-5 flex flex-col gap-4 sm:mb-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.eyebrow}</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">{c.title}</h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--gl-ink)] sm:text-3xl">{c.title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{c.description}</p>
         </div>
-        <div className="flex max-w-full flex-wrap gap-2 lg:max-w-[620px] lg:justify-end">
+        <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:max-w-full sm:flex-wrap lg:max-w-[620px] lg:justify-end">
           <button
-            className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--gl-green-deep)]"
+            className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--gl-green-deep)] sm:px-4"
             onClick={startNewDraft}
             disabled={Boolean(action)}
             type="button"
@@ -1467,7 +1467,7 @@ export function AdminOutreachWorkspace() {
             {c.actions.newDraft}
           </button>
           <button
-            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
+            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)] sm:px-4"
             onClick={loadEmails}
             disabled={loading || Boolean(action)}
             type="button"
@@ -1475,7 +1475,7 @@ export function AdminOutreachWorkspace() {
             {c.actions.reload}
           </button>
           <button
-            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)]"
+            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)] sm:px-4"
             onClick={() => setSentArchiveOpen(true)}
             type="button"
           >
@@ -1496,9 +1496,9 @@ export function AdminOutreachWorkspace() {
               counts.failed ? `${counts.failed} ${c.kpis.failed.toLowerCase()}` : null,
             ])}
           </p>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
             <button
-              className="whitespace-nowrap rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full whitespace-nowrap rounded-lg border border-[var(--gl-coral)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-coral-ink)] shadow-sm hover:bg-[var(--gl-coral-soft)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               type="button"
               onClick={deleteAllVisibleUnsent}
               disabled={Boolean(action) || !listEmails.some((email) => email.status !== "sending" && email.status !== "deleted" && email.status !== "sent")}
@@ -1506,7 +1506,7 @@ export function AdminOutreachWorkspace() {
               {action === "deleteAll" ? "..." : c.actions.deleteAll}
             </button>
             <button
-              className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               type="button"
               onClick={approveAllVisibleDrafts}
               disabled={Boolean(action) || !listEmails.some((email) => ["drafted", "saved_for_later"].includes(email.status))}
@@ -1514,7 +1514,7 @@ export function AdminOutreachWorkspace() {
               {action === "approveAll" ? "..." : c.actions.approveAll}
             </button>
             <button
-              className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="col-span-2 inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] shadow-sm hover:bg-[var(--gl-green-soft)] disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1 sm:w-auto"
               type="button"
               onClick={selectAllReady}
               disabled={Boolean(action) || readyEmails.length === 0}
@@ -1550,7 +1550,7 @@ export function AdminOutreachWorkspace() {
         </div>
       </section>
 
-      <section className="mb-5 flex flex-wrap gap-2 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3 shadow-sm">
+      <section className="mb-5 flex gap-2 overflow-x-auto rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {[
           ["drafted", c.list.bucketDrafts, counts.drafted],
           ["approved", c.list.bucketReady, counts.approved],
@@ -1563,7 +1563,7 @@ export function AdminOutreachWorkspace() {
             key={status}
             type="button"
             onClick={() => setStatusFilter(String(status))}
-            className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition ${
               statusFilter === status
                 ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
                 : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
@@ -1575,7 +1575,7 @@ export function AdminOutreachWorkspace() {
         <button
           type="button"
           onClick={() => setStatusFilter("")}
-          className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
+          className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition ${
             statusFilter === ""
               ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
               : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
