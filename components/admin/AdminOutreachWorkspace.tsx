@@ -1450,7 +1450,7 @@ export function AdminOutreachWorkspace() {
   const disabled = Boolean(action) || detailLoading || (!isCreating && (!selected || ["sent", "sending", "deleted"].includes(selected.status)));
 
   return (
-    <div className="space-y-5">
+    <div className="w-full min-w-0 space-y-5">
       <section className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.eyebrow}</p>

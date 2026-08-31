@@ -519,7 +519,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--gl-bg-cream)] text-[var(--gl-ink)]">
+    <div className="min-h-screen w-full bg-[var(--gl-bg-cream)] text-[var(--gl-ink)]">
       <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:block">{sidebar}</div>
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -532,8 +532,8 @@ export function CrmShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6">
+      <div className="min-w-0 w-full lg:pl-72">
+        <header className="sticky top-0 z-30 flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               className="rounded-md p-2 text-[var(--gl-ink-muted)] hover:bg-[var(--gl-card-cream)] hover:text-[var(--gl-ink)] lg:hidden"
@@ -597,7 +597,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-4rem)] p-4 md:p-6">{children}</main>
+        <main className="min-h-[calc(100vh-4rem)] w-full min-w-0 p-4 md:p-6">{children}</main>
       </div>
     </div>
   );
