@@ -519,7 +519,10 @@ export function CrmShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen w-full bg-[var(--gl-bg-cream)] text-[var(--gl-ink)] lg:grid lg:grid-cols-[18rem_minmax(0,1fr)]">
+    <div
+      className="min-h-screen bg-[var(--gl-bg-cream)] text-[var(--gl-ink)] lg:grid lg:grid-cols-[18rem_minmax(0,1fr)]"
+      style={{ width: "100vw", maxWidth: "none", marginLeft: "calc(50% - 50vw)" }}
+    >
       <div className="hidden lg:sticky lg:top-0 lg:block lg:h-screen">{sidebar}</div>
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
