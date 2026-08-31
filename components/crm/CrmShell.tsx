@@ -532,7 +532,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="min-w-0 w-full lg:pl-72">
+      <div className="w-full min-w-0 max-w-none lg:ml-72 lg:w-[calc(100%_-_18rem)]">
         <header className="sticky top-0 z-30 flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -597,7 +597,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-4rem)] w-full min-w-0 p-4 md:p-6">{children}</main>
+        <main className="min-h-[calc(100vh-4rem)] w-full min-w-0 max-w-none p-4 md:p-6">{children}</main>
       </div>
     </div>
   );
