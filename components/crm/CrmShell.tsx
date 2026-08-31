@@ -519,8 +519,8 @@ export function CrmShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen w-full bg-[var(--gl-bg-cream)] text-[var(--gl-ink)]">
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:block">{sidebar}</div>
+    <div className="min-h-screen w-full bg-[var(--gl-bg-cream)] text-[var(--gl-ink)] lg:grid lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <div className="hidden lg:sticky lg:top-0 lg:block lg:h-screen">{sidebar}</div>
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
@@ -532,7 +532,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="w-full min-w-0 max-w-none lg:ml-72 lg:w-[calc(100%_-_18rem)]">
+      <div className="w-full min-w-0 max-w-none">
         <header className="sticky top-0 z-30 flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
