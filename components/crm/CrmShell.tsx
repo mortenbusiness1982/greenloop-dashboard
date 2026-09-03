@@ -7,6 +7,7 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
+  BrainCircuit,
   Building2,
   ClipboardCheck,
   Flag,
@@ -55,6 +56,7 @@ type NavItemKey =
   | "rewards"
   | "outreach"
   | "products"
+  | "recyclingIntelligence"
   | "brands"
   | "partners"
   | "binsMaps"
@@ -123,6 +125,7 @@ const shellCopy: Record<DashboardLanguage, {
       rewards: "Rewards",
       outreach: "Outreach",
       products: "Products",
+      recyclingIntelligence: "Recycling Intelligence",
       brands: "Brands",
       partners: "Partners",
       binsMaps: "Bins & Maps",
@@ -189,6 +192,7 @@ const shellCopy: Record<DashboardLanguage, {
       rewards: "Recompensas",
       outreach: "Prospección",
       products: "Productos",
+      recyclingIntelligence: "Inteligencia de reciclaje",
       brands: "Marcas",
       partners: "Socios",
       binsMaps: "Contenedores y mapas",
@@ -246,6 +250,7 @@ const navigation: Record<Exclude<DashboardRole, "user">, NavGroup[]> = {
       key: "network",
       items: [
         { key: "products", href: "/admin/products", icon: Package },
+        { key: "recyclingIntelligence", href: "/admin/recycling-intelligence", icon: BrainCircuit },
         { key: "brands", href: "/admin/brands", icon: Building2 },
         { key: "partners", href: "/admin/partners", icon: Store },
         { key: "binsMaps", href: "/admin/maps", icon: Map },
@@ -337,6 +342,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     rewards: "rewards",
     outreach: "outreach",
     products: "products",
+    "recycling-intelligence": "recycling intelligence",
     brands: "brands",
     partners: "partners",
     maps: "maps",
@@ -362,6 +368,7 @@ const pathSegmentLabels: Record<DashboardLanguage, Record<string, string>> = {
     rewards: "recompensas",
     outreach: "prospección",
     products: "productos",
+    "recycling-intelligence": "inteligencia de reciclaje",
     brands: "marcas",
     partners: "socios",
     maps: "mapas",
