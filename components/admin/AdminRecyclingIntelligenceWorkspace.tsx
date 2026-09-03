@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   AlertTriangle,
   BrainCircuit,
@@ -62,6 +63,8 @@ type QueueProduct = {
   confidence?: number | null;
   verificationStatus?: string | null;
   imageUrl?: string | null;
+  evidenceId?: string | null;
+  evidenceStatus?: string | null;
   lastEnrichmentStatus?: string | null;
   lastErrorCode?: string | null;
   lastEnrichmentAt?: string | null;
@@ -122,6 +125,7 @@ const copy = {
     saved: "Controls saved.",
     batchDone: (processed: number, classified: number) => `Processed ${processed}; classified ${classified}.`,
     verifiedDone: "Classification verified.",
+    rejectEvidence: "Reject photo",
   },
   es: {
     eyebrow: "Inteligencia de catálogo",
@@ -174,6 +178,7 @@ const copy = {
     saved: "Controles guardados.",
     batchDone: (processed: number, classified: number) => `Procesados ${processed}; clasificados ${classified}.`,
     verifiedDone: "Clasificación verificada.",
+    rejectEvidence: "Rechazar foto",
   },
 } as const;
 
@@ -337,6 +342,25 @@ export function AdminRecyclingIntelligenceWorkspace() {
     }
   }
 
+  async function rejectEvidence(product: QueueProduct) {
+    const token = getToken();
+    if (!token || !product.evidenceId) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await apiFetch(`/admin/recycling-intelligence/products/${product.id}/evidence/${product.evidenceId}/reject`, {
+        token,
+        method: "POST",
+        body: {},
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadError);
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function createRule() {
     const token = getToken();
     if (!token || !ruleProduct?.materialType || !ruleProduct.packagingForm) return;
@@ -443,11 +467,11 @@ export function AdminRecyclingIntelligenceWorkspace() {
           <div className="relative max-w-md"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gl-ink-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} className="w-full rounded-lg border border-[var(--gl-hairline)] py-2 pl-9 pr-3 text-sm" /></div>
         </div>
         <div className="overflow-x-auto"><table className="min-w-[1050px] w-full text-left text-sm"><thead className="bg-[var(--gl-card-cream)] text-xs uppercase text-[var(--gl-ink-muted)]"><tr><th className="px-4 py-3">{t.product}</th><th className="px-4 py-3">{t.state}</th><th className="px-4 py-3">{t.evidence}</th><th className="px-4 py-3">{t.attempts}</th><th className="px-4 py-3 text-right">{t.scans}</th><th className="px-4 py-3">{t.actions}</th></tr></thead>
-          <tbody>{loading ? <MessageRow text={t.loading} /> : products.length === 0 ? <MessageRow text={t.empty} /> : products.map((product) => <tr key={product.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]/70"><td className="px-4 py-3"><p className="font-semibold">{product.name || product.ean || "Unknown"}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.brandName || "-"} · {product.ean || "-"}</p></td><td className="px-4 py-3"><StateBadge state={product.state} /></td><td className="px-4 py-3"><p className="font-medium">{product.materialType || "-"} {product.packagingForm ? `· ${product.packagingForm}` : ""}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.sourceType || "No evidence"}{product.confidence != null ? ` · ${Math.round(product.confidence * 100)}%` : ""}</p></td><td className="px-4 py-3"><p>{product.lastEnrichmentStatus || "Never attempted"}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.lastErrorCode || formatDate(product.lastEnrichmentAt, language)}</p></td><td className="px-4 py-3 text-right font-semibold">{product.scanCount}</td><td className="px-4 py-3"><div className="flex gap-2">{["unclassified", "failed"].includes(product.state) ? <button type="button" disabled={working} onClick={() => void retryProduct(product)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{t.retry}</button> : null}{product.verificationStatus !== "verified" && product.state !== "processing" ? <button type="button" onClick={() => openReview(product)} className="rounded-md bg-[var(--gl-green-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-green-deep)]">{t.edit}</button> : null}{product.state === "rule_missing" ? <button type="button" onClick={() => setRuleProduct(product)} className="rounded-md bg-[var(--gl-amber-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-amber-ink)]">{t.addRule}</button> : null}</div></td></tr>)}</tbody>
+          <tbody>{loading ? <MessageRow text={t.loading} /> : products.length === 0 ? <MessageRow text={t.empty} /> : products.map((product) => <tr key={product.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]/70"><td className="px-4 py-3"><div className="flex min-w-0 items-center gap-3">{product.imageUrl ? <a href={product.imageUrl} target="_blank" rel="noreferrer" className="shrink-0"><Image unoptimized src={product.imageUrl} alt="Submitted packaging" width={56} height={56} className="size-14 rounded-md border border-[var(--gl-hairline)] object-cover" /></a> : null}<div className="min-w-0"><p className="font-semibold">{product.name || product.ean || "Unknown"}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.brandName || "-"} · {product.ean || "-"}</p>{product.evidenceStatus ? <p className="mt-1 text-xs font-semibold text-[var(--gl-green)]">User photo · {product.evidenceStatus}</p> : null}</div></div></td><td className="px-4 py-3"><StateBadge state={product.state} /></td><td className="px-4 py-3"><p className="font-medium">{product.materialType || "-"} {product.packagingForm ? `· ${product.packagingForm}` : ""}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.sourceType || (product.imageUrl ? "User packaging photo" : "No evidence")}{product.confidence != null ? ` · ${Math.round(product.confidence * 100)}%` : ""}</p></td><td className="px-4 py-3"><p>{product.lastEnrichmentStatus || "Never attempted"}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.lastErrorCode || formatDate(product.lastEnrichmentAt, language)}</p></td><td className="px-4 py-3 text-right font-semibold">{product.scanCount}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{["unclassified", "failed"].includes(product.state) ? <button type="button" disabled={working} onClick={() => void retryProduct(product)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{t.retry}</button> : null}{product.verificationStatus !== "verified" && product.state !== "processing" ? <button type="button" onClick={() => openReview(product)} className="rounded-md bg-[var(--gl-green-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-green-deep)]">{t.edit}</button> : null}{product.evidenceStatus === "review" && product.evidenceId ? <button type="button" disabled={working} onClick={() => void rejectEvidence(product)} className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50">{t.rejectEvidence}</button> : null}{product.state === "rule_missing" ? <button type="button" onClick={() => setRuleProduct(product)} className="rounded-md bg-[var(--gl-amber-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-amber-ink)]">{t.addRule}</button> : null}</div></td></tr>)}</tbody>
         </table></div>
       </section>
 
-      {editing ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"><h2 className="text-xl font-semibold">{editing.name || editing.ean}</h2><p className="mt-1 text-sm text-[var(--gl-ink-muted)]">Confirm or correct the physical packaging. This marks the result as GreenLoop verified.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><SelectField label="Material" value={editMaterial} values={materials} onChange={setEditMaterial} /><SelectField label="Packaging form" value={editForm} values={forms} onChange={setEditForm} /></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold">{t.cancel}</button><button type="button" disabled={working} onClick={() => void verifyProduct()} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{t.verify}</button></div></div></div> : null}
+      {editing ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"><h2 className="text-xl font-semibold">{editing.name || editing.ean}</h2><p className="mt-1 text-sm text-[var(--gl-ink-muted)]">Confirm or correct the physical packaging. This marks the result as GreenLoop verified.</p>{editing.imageUrl ? <a href={editing.imageUrl} target="_blank" rel="noreferrer" className="relative mt-4 block h-56 overflow-hidden rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]"><Image unoptimized fill sizes="480px" src={editing.imageUrl} alt="Packaging submitted by a user" className="object-contain" /></a> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2"><SelectField label="Material" value={editMaterial} values={materials} onChange={setEditMaterial} /><SelectField label="Packaging form" value={editForm} values={forms} onChange={setEditForm} /></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold">{t.cancel}</button><button type="button" disabled={working} onClick={() => void verifyProduct()} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{t.verify}</button></div></div></div> : null}
       {ruleProduct ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-lg bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"><Waypoints size={20} /></span><div><h2 className="text-xl font-semibold">{t.createRule}</h2><p className="text-sm text-[var(--gl-ink-muted)]">ES · {ruleProduct.materialType} · {ruleProduct.packagingForm}</p></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><SelectField label={t.wasteStream} value={ruleWasteStream} values={["light_packaging", "glass_packaging", "paper_cardboard", "organics", "residual", "deposit_return", "special_collection"]} onChange={setRuleWasteStream} /><SelectField label={t.binColor} value={ruleColor} values={["yellow", "blue", "green", "brown", "gray", "orange", "red", "white", "other"]} onChange={setRuleColor} /><TextField label={t.authority} value={ruleAuthority} onChange={setRuleAuthority} /><TextField label={t.sourceUrl} value={ruleSourceUrl} onChange={setRuleSourceUrl} type="url" /></div><p className="mt-4 text-xs text-[var(--gl-ink-muted)]">Only create this rule from an official source. It will apply nationally in Spain to this material and packaging form.</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setRuleProduct(null)} className="rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold">{t.cancel}</button><button type="button" disabled={working || ruleAuthority.trim().length < 2 || !/^https:\/\//i.test(ruleSourceUrl)} onClick={() => void createRule()} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{t.createRule}</button></div></div></div> : null}
     </div>
   );
