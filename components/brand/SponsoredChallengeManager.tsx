@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { Megaphone, Plus, Trash2 } from "lucide-react";
@@ -21,6 +21,8 @@ export function SponsoredChallengeManager({ products }: { products: Product[] })
   const [targetKind, setTargetKind] = useState("brand");
   const [selected, setSelected] = useState<string[]>([]);
   const [rewardType, setRewardType] = useState("link_only");
+  const submitting = useRef(false);
+  const pendingSubmission = useRef<{ fingerprint: string; requestId: string } | null>(null);
 
   const load = useCallback(async () => {
     const token = getToken();
@@ -32,13 +34,15 @@ export function SponsoredChallengeManager({ products }: { products: Product[] })
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current) return;
     const token = getToken();
     if (!token) return;
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    submitting.current = true;
     setBusy(true); setMessage(null);
     try {
-      await apiFetch("/brand/challenges", {
-        token, method: "POST", body: {
+      const body = {
           title: data.get("title"), description: data.get("description"),
           heroImageUrl: data.get("heroImageUrl") || null,
           visibility: data.get("visibility"), targetKind,
@@ -54,12 +58,21 @@ export function SponsoredChallengeManager({ products }: { products: Product[] })
             affiliateUrl: data.get("affiliateUrl"), promoCode: data.get("promoCode") || undefined,
             unlockDurationHours: Number(data.get("duration") || 72), instructions: data.get("instructions"),
           },
-        },
+      };
+      const fingerprint = JSON.stringify(body);
+      if (pendingSubmission.current?.fingerprint !== fingerprint) {
+        pendingSubmission.current = { fingerprint, requestId: crypto.randomUUID() };
+      }
+      await apiFetch("/brand/challenges", {
+        token, method: "POST", body: { ...body, requestId: pendingSubmission.current.requestId },
       });
-      event.currentTarget.reset(); setSelected([]); setOpen(false);
-      setMessage("Submitted for GreenLoop review."); await load();
+      pendingSubmission.current = null;
+      form.reset(); setSelected([]); setOpen(false);
+      setMessage("Submitted for GreenLoop review.");
+      try { await load(); }
+      catch { setMessage("Submitted for GreenLoop review. Refresh to see the updated list."); }
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to submit challenge"); }
-    finally { setBusy(false); }
+    finally { submitting.current = false; setBusy(false); }
   }
 
   async function remove(id: string) {
@@ -71,7 +84,7 @@ export function SponsoredChallengeManager({ products }: { products: Product[] })
   return <section className="space-y-4">
     <div className="flex items-center justify-between border-b border-[var(--gl-hairline)] pb-4">
       <div><h2 className="text-xl font-bold text-[var(--gl-ink)]">Sponsored challenges</h2><p className="text-sm text-[var(--gl-ink-muted)]">Invite recyclers to complete an earned brand journey.</p></div>
-      <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 py-2 font-semibold text-white"><Plus size={18}/>Create challenge</button>
+      <button disabled={busy} onClick={() => setOpen(v => !v)} className="flex items-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 py-2 font-semibold text-white disabled:opacity-50"><Plus size={18}/>Create challenge</button>
     </div>
     {message ? <p className="rounded-lg bg-[var(--gl-card-cream)] px-4 py-3 text-sm text-[var(--gl-ink)]">{message}</p> : null}
     {open ? <form onSubmit={submit} className="space-y-5 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
