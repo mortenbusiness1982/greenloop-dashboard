@@ -1,56 +1,91 @@
 'use client';
-import {createMetadataApplication,reviewedFields} from '@/lib/curationApplication';
 import {useEffect,useRef,useState} from 'react';
-import {X,ExternalLink,Image as ImageIcon,RefreshCw} from 'lucide-react';
-import {createReviewSession} from '@/lib/curationReviewSession';
-import {API_BASE,apiFetch} from '@/lib/api';
+import {Check,X,ExternalLink,RefreshCw,ImageOff} from 'lucide-react';
+import {apiFetch} from '@/lib/api';
 import {getToken} from '@/lib/auth';
-import {ReviewData,ReviewTarget,safeSource,usefulName,reviewLabels,reviewState} from '@/lib/curationReview';
-const words={en:{close:'Close review',title:'Product review',current:'Current record',reviewed:'Record at review',proposal:'Proposed change',source:'Evidence and sources',photo:'Current photo',none:'No photo available',missing:'Not established',loading:'Loading review…',unavailable:'Detailed evidence is not available yet. The review-data service must be deployed and this saved research synced. Your product has not changed.',failed:'Could not load this review. Try again.',reload:'Try again',stale:'New evidence is available. This open review has been preserved; reload before making a decision.',loadNew:'Load latest evidence',stage:'This is a saved proposal, not a published change. Only eligible fields can be applied after review.',noAction:'No safe product update is available for this finding. Open the evidence or photo below; the existing record stays unchanged.',noSources:'No authoritative source was established.',noLinks:'Only source names were recorded in this older batch. Full links are unavailable.',unverified:'Identity not independently established',name:'Name',brand:'Brand',packaging:'Packaging components',reason:'What needs attention',photosFailed:'Photo unavailable. Access or image quality needs checking.',view:'View photo',noResearch:'No research result has been saved for this product. No automatic retry is confirmed.',date:'Research recorded',readonly:'View only'},es:{close:'Cerrar revisión',title:'Revisión del producto',current:'Registro actual',reviewed:'Registro al revisar',proposal:'Cambio propuesto',source:'Evidencia y fuentes',photo:'Foto actual',none:'No hay foto disponible',missing:'Sin confirmar',loading:'Cargando revisión…',unavailable:'La evidencia detallada aún no está disponible. Falta desplegar el servicio de revisión y sincronizar esta investigación guardada. El producto no ha cambiado.',failed:'No se pudo cargar la revisión. Inténtalo de nuevo.',reload:'Reintentar',stale:'Hay evidencia nueva. Se conserva esta revisión; actualiza antes de decidir.',loadNew:'Cargar evidencia actual',stage:'Es una propuesta guardada, no un cambio publicado. Solo los campos elegibles se pueden aplicar tras revisarlos.',noAction:'No hay una actualización segura disponible. Abre la evidencia o la foto; el registro se mantiene sin cambios.',noSources:'No se ha confirmado una fuente autorizada.',noLinks:'Este lote anterior solo guardó nombres de fuentes. Los enlaces completos no están disponibles.',unverified:'Identidad sin confirmar de forma independiente',name:'Nombre',brand:'Marca',packaging:'Componentes del envase',reason:'Qué falta resolver',photosFailed:'Foto no disponible. Es necesario revisar el acceso o la calidad.',view:'Ver foto',noResearch:'No hay investigación guardada para este producto. No hay un reintento automático confirmado.',date:'Investigación registrada',readonly:'Solo consulta'}};
-const spanishValues:Record<string,string>={aluminium:'aluminio',aluminum:'aluminio',plastic:'plástico',glass:'vidrio',cardboard:'cartón',paper:'papel',composite:'compuesto',steel:'acero',unknown:'sin confirmar',can:'lata',bottle:'botella',carton:'envase de cartón',box:'caja',jar:'tarro',film:'película',bag:'bolsa',tray:'bandeja'};
-export function Photo({photo,language,thumbnail=false}:{photo:ReviewData['images'][number];language:'en'|'es';thumbnail?:boolean}){
- const [src,setSrc]=useState<string|null>(null),[failed,setFailed]=useState(false);
- useEffect(()=>{let objectUrl:string|undefined;const c=new AbortController();const timer=setTimeout(()=>{setFailed(true);c.abort();},25000);setFailed(false);setSrc(null);
- async function load(){
-  if(photo.authenticated){if(!/^\/admin\/recycling-intelligence\/products\/[a-f0-9-]{36}\/evidence\/[a-f0-9-]{36}\/photo$/.test(photo.url))throw Error();
-   const token=getToken();if(!token)throw Error();const r=await fetch(API_BASE+photo.url,{headers:{Authorization:`Bearer ${token}`},signal:c.signal,cache:'no-store',redirect:'error'});if(!r.ok||!/^image\/(jpeg|png|webp)$/.test(r.headers.get('content-type')||''))throw Error();if(Number(r.headers.get('content-length')||0)>20*1024*1024)throw Error();const reader=r.body?.getReader();if(!reader)throw Error();const chunks:Uint8Array<ArrayBuffer>[]=[];let size=0;while(true){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>20*1024*1024){await reader.cancel();throw Error();}chunks.push(new Uint8Array(part.value));}const blob=new Blob(chunks,{type:r.headers.get('content-type')!});objectUrl=URL.createObjectURL(blob);if(!c.signal.aborted)setSrc(objectUrl);
-  }else{const published=/^\/published-product-images\/[a-f0-9-]{36}\/[a-f0-9]{64}\.png$/.test(photo.url);if(!published&&!(safeSource(photo.url)&&new URL(photo.url).hostname==='images.openfoodfacts.org'))throw Error();setSrc(published?API_BASE+photo.url:photo.url);}
- }
- void load().catch(()=>{if(!c.signal.aborted)setFailed(true);}).finally(()=>clearTimeout(timer));return()=>{clearTimeout(timer);c.abort();if(objectUrl)URL.revokeObjectURL(objectUrl);};
- },[photo.url,photo.authenticated]);
- if(thumbnail)return failed?<span aria-label={words[language].photosFailed}>—</span>:src?<img src={src} alt={words[language].photo} referrerPolicy='no-referrer' onError={()=>setFailed(true)} className='h-16 w-16 shrink-0 rounded object-contain'/>:<span className='h-16 w-16 shrink-0' aria-label={words[language].loading}/>;
- return failed?<p>{words[language].photosFailed}</p>:src?<a href={src} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='block'><img src={src} alt={words[language].photo} referrerPolicy='no-referrer' onError={()=>setFailed(true)} className='max-h-64 max-w-full rounded object-contain'/><span className='mt-2 inline-flex min-h-11 items-center gap-2 text-sm text-emerald-800'><ImageIcon size={16}/>{words[language].view}</span></a>:<p>{words[language].loading}</p>;
-}
+import {createMetadataApplication,reviewedFields} from '@/lib/curationApplication';
+import {createReviewSession} from '@/lib/curationReviewSession';
+import {ReviewData,ReviewTarget,safeSource,usefulName} from '@/lib/curationReview';
+import {Photo} from './ProductReviewPhoto';
+export {Photo} from './ProductReviewPhoto';
+type ManualPermission={expectedRevision:string;evidenceFingerprint:string;packetDigest:string|null;rejected:boolean};
+type Data=ReviewData&{manualReview?:ManualPermission};
+const forms=[['bottle','Bottle','Botella'],['can','Can','Lata'],['jar','Jar','Tarro'],['carton','Carton','Brik'],['box','Box','Caja'],['tray','Tray','Bandeja'],['wrapper','Wrapper','Envoltorio'],['bag','Bag','Bolsa'],['cup','Cup / pot','Vaso / tarrina'],['container','Container','Recipiente'],['other','Other','Otro']];
+const materials=[['plastic','Plastic','Plástico'],['glass','Glass','Vidrio'],['paper','Paper','Papel'],['cardboard','Cardboard','Cartón'],['metal','Metal','Metal'],['aluminium','Aluminium','Aluminio'],['steel','Steel','Acero'],['composite','Mixed layers','Multicapa'],['pet','PET','PET'],['hdpe','HDPE','HDPE'],['ldpe','LDPE','LDPE'],['pp','PP','PP'],['ps','PS','PS'],['compostable','Compostable','Compostable'],['other','Other','Otro']];
+const roles=[['primary','Main packaging','Envase principal'],['secondary','Outer packaging','Envase exterior'],['cap','Cap','Tapón'],['lid','Lid','Tapa'],['label','Label','Etiqueta'],['sleeve','Sleeve','Funda'],['other','Other component','Otro componente']];
+
 export function CurationReviewDialog({target,language,onClose}:{target:ReviewTarget;language:'en'|'es';onClose:()=>void}){
- const applySession=useRef<ReturnType<typeof createMetadataApplication>|null>(null);
- const [application,setApplication]=useState<string|null>(null),[applying,setApplying]=useState(false);
- const t=words[language],dialog=useRef<HTMLDialogElement>(null);const [data,setData]=useState<ReviewData|null>(null),[error,setError]=useState<string|null>(null),[newer,setNewer]=useState<ReviewData|null>(null);const session=useRef<ReturnType<typeof createReviewSession<ReviewData>>|null>(null);
+ const es=language==='es',word=(en:string,sp:string)=>es?sp:en;
+ const dialog=useRef<HTMLDialogElement>(null),session=useRef<ReturnType<typeof createReviewSession<Data>>|null>(null);
+ const app=useRef<ReturnType<typeof createMetadataApplication>|null>(null),generation=useRef(0),locked=useRef(false);
+ const [data,setData]=useState<Data|null>(null),[newer,setNewer]=useState<Data|null>(null),[error,setError]=useState(false);
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState<string|null>(null),[uncertain,setUncertain]=useState(false);
+ const [componentKey,setComponentKey]=useState(''),[role,setRole]=useState(''),[form,setForm]=useState(''),[material,setMaterial]=useState('');
  useEffect(()=>{dialog.current?.showModal();},[]);
  useEffect(()=>{
- setData(null);setNewer(null);setError(null);setApplication(null);setApplying(false);applySession.current?.invalidate();applySession.current=createMetadataApplication((path,options)=>apiFetch(path,{...options,token:getToken()||undefined}));
- const current=createReviewSession<ReviewData>(async(signal)=>{
-  const result=await apiFetch<ReviewData>('/admin/recycling-intelligence/review/'+target.barcode+(target.runId?'?run='+encodeURIComponent(target.runId):''),{token:getToken()||undefined,signal,cache:'no-store'});
-  if(result.readOnly!==true||result.enrichment!==false||result.barcode!==target.barcode)throw Error('Invalid review');
-  return result;
- },state=>{setData(state.data);setNewer(state.newer);const e=state.error as {status?:number}|null;setError(e?(e.status===503||e.status===404?t.unavailable:t.failed):null);});
- session.current=current;void current.refresh();const timer=setInterval(()=>void current.refresh(),30000);
- return()=>{clearInterval(timer);current.dispose();session.current=null;applySession.current?.invalidate();};
- },[target.barcode,target.runId,t.unavailable,t.failed]);
- async function applyReviewed(){const action=data?.actions.find(a=>a.kind==='apply_metadata');if(!action||!reviewedFields(action,data?.packet?.proposals)||data?.stale||newer||applying||!applySession.current)return;setApplying(true);const active=applySession.current;const result=await active.apply(action);if('stale' in result||active!==applySession.current)return;setApplication(result.confirmed?(language==='es'?'Corrección confirmada; actualiza para verificar.':'Correction confirmed; refresh to verify.'):(language==='es'?'Resultado no confirmado. Actualiza antes de volver a decidir.':'Outcome unconfirmed. Refresh before making another decision.'));if(result.confirmed)void session.current?.refresh();setApplying(false);}
- const outcome=data?.outcome||target.outcome;const title=usefulName(data?.current.name||outcome?.name,target.barcode)||t.title;
- const section=(heading:string,current:NonNullable<ReviewData['packet']>['current'])=><section><h3 className='mb-2 font-semibold'>{heading}</h3><dl className='space-y-2 text-sm'><div><dt className='text-slate-500'>{t.name}</dt><dd>{usefulName(current.name,target.barcode)||t.missing}</dd></div><div><dt className='text-slate-500'>{t.brand}</dt><dd>{current.brand&&!/^(greenloop|unknown)$/i.test(current.brand)?current.brand:t.missing}</dd></div><div><dt className='text-slate-500'>{t.packaging}</dt><dd>{current.packaging.length?current.packaging.map(c=><p key={c.key}>{c.role==='primary'?(language==='es'?'Envase principal':'Primary packaging'):c.role==='secondary'?(language==='es'?'Envase exterior':'Outer packaging'):c.role.replaceAll('_',' ')} · {language==='es'?(spanishValues[c.material]||c.material.replaceAll('_',' ')):c.material.replaceAll('_',' ')} / {language==='es'?(spanishValues[c.form]||c.form.replaceAll('_',' ')):c.form.replaceAll('_',' ')}</p>):t.missing}</dd></div></dl></section>;
- return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby='curation-review-title' className='m-auto max-h-[94dvh] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-xl bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/40'>
- <header className='sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white p-4'><div className='min-w-0'><h2 id='curation-review-title' className='break-words text-lg font-semibold'>{title}</h2><p className='text-sm text-slate-500'>{target.barcode} · {data?.actions.length?(language==='es'?'Revisión autorizada':'Authorized review'):t.readonly}</p></div><button autoFocus onClick={onClose} aria-label={t.close} className='flex h-11 w-11 shrink-0 items-center justify-center rounded hover:bg-slate-100'><X size={22}/></button></header>
- <div className='space-y-6 p-4'><p className='text-sm font-semibold text-amber-800'>{reviewLabels[language][reviewState(outcome)]}</p>
- {newer||data?.stale?<div role='alert' className='rounded bg-amber-50 p-3 text-sm'>{t.stale}{newer?<button className='mt-2 flex min-h-11 items-center gap-2 font-semibold' onClick={()=>{applySession.current?.invalidate();applySession.current=createMetadataApplication((path,options)=>apiFetch(path,{...options,token:getToken()||undefined}));setApplication(null);setApplying(false);session.current?.acceptLatest();}}><RefreshCw size={16}/>{t.loadNew}</button>:null}</div>:null}
- {error?<p role='alert' className='text-sm'>{error} <button className='min-h-11 underline' onClick={()=>void session.current?.refresh()}>{t.reload}</button></p>:!data?<p>{t.loading}</p>:null}
- <section><h3 className='font-semibold'>{t.reason}</h3><p className='mt-2 break-words text-sm leading-relaxed'>{outcome?.reason||t.noResearch}</p></section>
- {data?<><div className='grid gap-5 sm:grid-cols-2'>{section(t.current,data.current)}{data.packet?section(t.reviewed,data.packet.current):null}</div>
- {data.packet?.proposals.length?<section id='curation-proposal'><h3 className='font-semibold'>{t.proposal}</h3>{data.packet.proposals.map((p,i)=><div key={i} className='my-2 border-l-2 border-emerald-600 pl-3 text-sm'><p className='text-slate-500'>{p.field==='brand'?t.brand:t.name}</p><p className='font-semibold'>{p.value}</p></div>)}<p className='text-sm text-slate-600'>{data.actions.length?(language==='es'?'Propuesta guardada, aún sin publicar.':'Saved proposal, not yet published.'):t.stage}</p></section>:<p className='text-sm text-slate-600'>{t.noAction}</p>}
- {data.packet?.visualProposals?.length?<section><h3 className='font-semibold'>{language==='es'?'Propuestas visuales — sin publicar':'Visual proposals — unpublished'}</h3>{data.packet.visualProposals.map((p,i)=><div key={i} className='my-2 border-l-2 border-amber-500 pl-3 text-sm'><p>{p.componentKey||p.field}: {p.value||p.materialType}</p><p>{p.materialStatus==='likely'?(language==='es'?'Material probable, no verificado':'Likely material, not verified'):(language==='es'?'Texto visible en la etiqueta':'Visible label text')}</p><p>{p.visualEvidence||p.labelTranscription}</p></div>)}<p className='text-sm'>{language==='es'?'La orientación local y la publicación requieren revisión separada.':'Local guidance and publication require separate review.'}</p></section>:null}
- {data.visualGuidance?.length?<section><h3 className='font-semibold'>{language==='es'?'Orientación propuesta por componente':'Proposed component guidance'}</h3>{data.visualGuidance.map(g=><p key={g.componentKey} className='text-sm'>{g.componentKey.replaceAll('_',' ')}: {g.guidance.status==='likely'?(language==='es'?'Probable':'Likely'):g.guidance.status} {g.guidance.container?.color?(language==='es'?({blue:'azul',yellow:'amarillo',green:'verde'}[g.guidance.container.color]||g.guidance.container.color):g.guidance.container.color):''} {g.guidance.instructionCode==='flatten_if_possible'?(language==='es'?'— Aplana si es posible':'— Flatten if possible'):''}</p>)}</section>:null}
- {reviewedFields(data.actions.find(a=>a.kind==='apply_metadata'),data.packet?.proposals)&&!data.stale&&!newer?<button disabled={applying||!!application} onClick={()=>void applyReviewed()} className='min-h-11 rounded bg-emerald-800 px-4 text-white'>{language==='es'?'Aplicar campos elegibles: ':'Apply eligible fields: '}{data.actions.find(a=>a.kind==='apply_metadata')?.fields?.map(f=>f==='name'?t.name:t.brand).join(', ')}</button>:null}{application?<p role='status'>{application}</p>:null}
- <section><h3 className='mb-2 font-semibold'>{t.photo}</h3>{data.images.length?data.images.map(p=><Photo key={data.revision+':'+p.url} photo={p} language={language}/>):<p className='text-sm text-slate-500'>{t.none}</p>}</section>
- <section><h3 className='font-semibold'>{t.source}</h3>{data.packet?.sources.length?data.packet.sources.map(s=><div key={s.id} className='mt-3 border-b pb-3 text-sm'>{safeSource(s.url)?<a href={s.url} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='inline-flex min-h-11 max-w-full items-start gap-2 break-all py-2 text-emerald-800 underline'><ExternalLink size={16} className='mt-1 shrink-0'/>{s.url}</a>:<p>{t.noLinks}</p>}<p>{s.identityExcerpt}</p><p className='mt-1 text-slate-500'>{s.trustReason}</p>{!s.independentlyVerified?<p>{t.unverified}</p>:null}</div>):<p className='mt-2 text-sm text-slate-500'>{outcome?.provenance.length?t.noLinks:t.noSources}</p>}</section></>:null}
- </div></dialog>;
+  ++generation.current;locked.current=false;setData(null);setNewer(null);setError(false);setMessage(null);setBusy(false);setUncertain(false);setComponentKey('');setRole('');setForm('');setMaterial('');
+  app.current=createMetadataApplication((path,options)=>apiFetch(path,{...options,token:getToken()||undefined}));
+  const active=createReviewSession<Data>(async signal=>{
+   const value=await apiFetch<Data>('/admin/recycling-intelligence/review/'+target.barcode+(target.runId?'?run='+encodeURIComponent(target.runId):''),{token:getToken()||undefined,signal,cache:'no-store'});
+   if(value.readOnly!==true||value.enrichment!==false||value.barcode!==target.barcode)throw Error();return value;
+  },state=>{setData(state.data);setNewer(state.newer);setError(!!state.error);});
+  session.current=active;void active.refresh();const interval=setInterval(()=>void active.refresh(),30000);
+  return()=>{++generation.current;active.dispose();clearInterval(interval);app.current?.invalidate();};
+ },[target.barcode,target.runId]);
+ const blocked=busy||uncertain||!!newer;
+ const action=data?.actions.find(a=>a.kind==='apply_metadata');
+ const fields=data?.stale?null:reviewedFields(action,data?.packet?.proposals);
+ const approveLabel=fields?.length===1?(fields[0]==='name'?word('Approve name','Aprobar nombre'):word('Approve brand','Aprobar marca')):word('Approve changes','Aprobar cambios');
+ function latest(){++generation.current;locked.current=false;app.current?.invalidate();app.current=createMetadataApplication((p,o)=>apiFetch(p,{...o,token:getToken()||undefined}));setMessage(null);setUncertain(false);setBusy(false);setComponentKey('');setRole('');setForm('');setMaterial('');session.current?.acceptLatest();}
+ async function perform(operation:()=>Promise<boolean>){
+  if(blocked||locked.current)return;locked.current=true;setBusy(true);const version=generation.current;
+  let success=false;try{success=await operation();}catch{}
+  if(version!==generation.current)return;
+  setBusy(false);setUncertain(true);setMessage(success?word('Saved.','Guardado.'):word('Save not confirmed. Reload the record before retrying.','Guardado sin confirmar. Recarga el registro antes de reintentar.'));void session.current?.refresh();
+ }
+ function decide(decision:'approve_packaging'|'reject_proposal'){
+  const permission=data?.manualReview;if(!permission)return;
+  void perform(async()=>{
+   const response=await apiFetch<{saved:boolean}>('/admin/recycling-intelligence/review/'+target.barcode+'/decision',{method:'POST',token:getToken()||undefined,signal:AbortSignal.timeout(20000),body:{requestId:crypto.randomUUID(),expectedRevision:permission.expectedRevision,evidenceFingerprint:permission.evidenceFingerprint,packetDigest:permission.packetDigest,decision,...(decision==='approve_packaging'?{component:{key:componentKey||role,role,form,material}}:{})}});
+   return response.saved===true;
+  });
+ }
+ function chooseComponent(key:string){setComponentKey(key);const c=data?.current.packaging.find(c=>c.key===key);setRole(c?.role||'');setForm(c?.form||'');setMaterial(c?.material||'');}
+ const select=(label:string,value:string,change:(v:string)=>void,options:string[][])=><label className='block text-sm font-medium'>{label}<select disabled={blocked} value={value} onChange={e=>change(e.target.value)} className='mt-1 min-h-11 w-full rounded border border-stone-300 bg-white px-3'><option value=''>{word('Select…','Seleccionar…')}</option>{options.map(o=><option key={o[0]} value={o[0]}>{o[es?2:1]}</option>)}</select></label>;
+ const title=usefulName(data?.current.name||target.outcome?.name,target.barcode)||word('Product review','Revisar producto');
+ return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby='curation-review-title' className='m-auto max-h-[94dvh] w-[calc(100%-1rem)] max-w-3xl overflow-y-auto rounded-lg bg-[#faf9f4] p-0 text-stone-900 shadow-xl backdrop:bg-black/40'>
+  <header className='sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-[#faf9f4] p-4'><div className='min-w-0'><h2 id='curation-review-title' className='break-words text-lg font-semibold'>{title}</h2><p className='text-sm text-stone-500'>{target.barcode}{data?.current.brand?' · '+data.current.brand:''}</p></div><button autoFocus onClick={onClose} aria-label={word('Close review','Cerrar revisión')} className='flex h-11 w-11 shrink-0 items-center justify-center rounded hover:bg-stone-200'><X size={22}/></button></header>
+  <div className='space-y-5 p-4'>
+   {error?<p role='alert'>{word('Could not load this product.','No se pudo cargar el producto.')} <button className='min-h-11 underline' onClick={()=>void session.current?.refresh()}>{word('Retry','Reintentar')}</button></p>:!data?<p role='status'>{word('Loading product…','Cargando producto…')}</p>:null}
+   {newer?<div role='alert' className='flex flex-wrap items-center gap-2 rounded bg-amber-100 p-3 text-sm'>{word('This record has changed.','Este registro ha cambiado.')}<button onClick={latest} className='inline-flex min-h-11 items-center gap-2 font-semibold'><RefreshCw size={16}/>{word('Load latest','Cargar actual')}</button></div>:null}
+   {data?<>
+    <div className='grid gap-5 sm:grid-cols-2'>
+     <section aria-label={word('Product photos','Fotos del producto')} className='space-y-2'>{data.images.length?data.images.map(p=><Photo key={p.url} photo={p} language={language}/>):<div className='flex h-64 flex-col items-center justify-center gap-2 rounded bg-stone-100 text-stone-500'><ImageOff size={32}/><p>{word('No photo available','No hay foto disponible')}</p></div>}</section>
+     <div className='space-y-5'>
+      {data.packet?.proposals.length?<section><h3 className='mb-2 font-semibold'>{word('Suggested changes','Cambios propuestos')}</h3>{data.packet.proposals.map(p=><div key={p.field} className='border-b py-2 text-sm'><span className='text-stone-500'>{p.field==='brand'?word('Brand','Marca'):word('Name','Nombre')}</span><p className='font-semibold'>{p.value}</p></div>)}
+       {data.manualReview?.rejected?<p className='mt-3 text-sm'>{word('Proposal rejected. Current values kept.','Propuesta rechazada. Se mantienen los valores actuales.')}</p>:<div className='mt-3 flex flex-wrap gap-2'>{fields&&action?<button disabled={blocked} onClick={()=>void perform(async()=>{const r=await app.current!.apply(action);return 'confirmed' in r&&r.confirmed;})} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{approveLabel}</button>:null}{data.manualReview?.packetDigest?<button disabled={blocked} onClick={()=>decide('reject_proposal')} className='inline-flex min-h-11 items-center gap-2 rounded border border-stone-400 px-4 disabled:opacity-50'><X size={18}/>{word('Reject','Rechazar')}</button>:null}</div>}
+       {!fields&&!data.manualReview?.rejected?<p className='mt-2 text-sm text-stone-600'>{word('These changes are not enabled for application.','Estos cambios no están habilitados para aplicar.')}</p>:null}
+      </section>:null}
+      <section><h3 className='mb-3 font-semibold'>{word('Packaging','Envase')}</h3>
+       {data.manualReview?<div className='space-y-3'>
+        {data.current.packaging.length?select(word('Component','Componente'),componentKey,chooseComponent,data.current.packaging.map(c=>[c.key,c.key.replaceAll('_',' '),c.key.replaceAll('_',' ')])):null}
+        {!componentKey?select(word('Part','Parte'),role,setRole,roles):null}
+        {select(word('Packaging type','Tipo de envase'),form,setForm,forms)}
+        {select(word('Material','Material'),material,setMaterial,materials)}
+        <button disabled={blocked||!role||!form||!material||data.current.packaging.length>0&&!componentKey} onClick={()=>decide('approve_packaging')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{word('Save packaging','Guardar envase')}</button>
+        <p className='text-xs text-stone-500'>{word('Applies to this component only. Does not publish a photo.','Solo este componente. No publica ninguna foto.')}</p>
+       </div>:<p className='text-sm'>{data.current.packaging.map(c=>`${c.form} · ${c.material}`).join(', ')||word('Not classified','Sin clasificar')}<span className='mt-2 block text-stone-500'>{word('Packaging editing is not available on this server yet.','La edición del envase aún no está disponible en este servidor.')}</span></p>}
+      </section>
+      {message?<p role='status' className='text-sm font-medium'>{message}</p>:null}
+     </div>
+    </div>
+    <details className='border-t pt-3'><summary className='min-h-11 cursor-pointer font-medium'>{word('Evidence and history','Evidencia e historial')}</summary>
+     <p className='mb-3 text-sm'>{data.outcome?.reason||target.outcome?.reason||word('No research notes.','Sin notas de investigación.')}</p>
+     {data.packet?.visualProposals?.map((p,i)=><p key={i} className='mb-2 text-sm'>{p.componentKey||p.field}: {p.value||p.materialType} · {word('Suggested, not verified','Propuesto, no verificado')}<br/>{p.visualEvidence||p.labelTranscription}</p>)}
+     {data.packet?.sources.map(s=><div key={s.id} className='border-b py-2 text-sm'>{safeSource(s.url)?<a href={s.url} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='inline-flex min-h-11 max-w-full items-center gap-2 break-all text-emerald-800 underline'><ExternalLink size={16}/>{new URL(s.url).hostname}</a>:null}<p>{s.identityExcerpt}</p></div>)}
+     {data.packet?<p className='mt-3 text-xs text-stone-500'>{word('Previously recorded name','Nombre anterior')}: {data.packet.current.name||'—'} · {data.packet.current.brand||'—'}</p>:null}
+    </details>
+   </>:null}
+  </div>
+ </dialog>;
 }
