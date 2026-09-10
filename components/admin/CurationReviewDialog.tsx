@@ -7,6 +7,7 @@ import {createMetadataApplication,reviewedFields} from '@/lib/curationApplicatio
 import {createReviewSession} from '@/lib/curationReviewSession';
 import {ReviewData,ReviewTarget,safeSource,usefulName} from '@/lib/curationReview';
 import {Photo} from './ProductReviewPhoto';
+import {initialPackaging,barcodeResearchLinks} from '@/lib/packagingReview';
 export {Photo} from './ProductReviewPhoto';
 type ManualPermission={expectedRevision:string;evidenceFingerprint:string;packetDigest:string|null;rejected:boolean};
 type Data=ReviewData&{manualReview?:ManualPermission};
@@ -21,8 +22,11 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
  const [data,setData]=useState<Data|null>(null),[newer,setNewer]=useState<Data|null>(null),[error,setError]=useState(false);
  const [busy,setBusy]=useState(false),[message,setMessage]=useState<string|null>(null),[uncertain,setUncertain]=useState(false);
  const [componentKey,setComponentKey]=useState(''),[role,setRole]=useState(''),[form,setForm]=useState(''),[material,setMaterial]=useState('');
+ const [editing,setEditing]=useState(false);
+ const initialized=useRef<string|null>(null);
  useEffect(()=>{dialog.current?.showModal();},[]);
  useEffect(()=>{
+  initialized.current=null;
   ++generation.current;locked.current=false;setData(null);setNewer(null);setError(false);setMessage(null);setBusy(false);setUncertain(false);setComponentKey('');setRole('');setForm('');setMaterial('');
   app.current=createMetadataApplication((path,options)=>apiFetch(path,{...options,token:getToken()||undefined}));
   const active=createReviewSession<Data>(async signal=>{
@@ -32,6 +36,15 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
   session.current=active;void active.refresh();const interval=setInterval(()=>void active.refresh(),30000);
   return()=>{++generation.current;active.dispose();clearInterval(interval);app.current?.invalidate();};
  },[target.barcode,target.runId]);
+ useEffect(()=>{
+  if(!data)return;
+  const key=target.barcode+':'+data.revision;
+  if(initialized.current===key)return;
+  initialized.current=key;
+  const c=initialPackaging(data.current.packaging);
+  setComponentKey(c.key);setRole(c.role);setForm(c.form);setMaterial(c.material);
+  setEditing(!c.form||!c.material||c.material==='other');
+ },[data,target.barcode]);
  const blocked=busy||uncertain||!!newer;
  const action=data?.actions.find(a=>a.kind==='apply_metadata');
  const fields=data?.stale?null:reviewedFields(action,data?.packet?.proposals);
@@ -50,7 +63,8 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
    return response.saved===true;
   });
  }
- function chooseComponent(key:string){setComponentKey(key);const c=data?.current.packaging.find(c=>c.key===key);setRole(c?.role||'');setForm(c?.form||'');setMaterial(c?.material||'');}
+ function chooseComponent(key:string){setComponentKey(key);const c=data?.current.packaging.find(c=>c.key===key);setRole(c?.role||'');setForm(c?.form||'');setMaterial(c?.material||'');setEditing(!c?.form||!c?.material||c.material==='other');}
+ const labelFor=(options:string[][],value:string)=>options.find(o=>o[0]===value)?.[es?2:1]||value;
  const select=(label:string,value:string,change:(v:string)=>void,options:string[][])=><label className='block text-sm font-medium'>{label}<select disabled={blocked} value={value} onChange={e=>change(e.target.value)} className='mt-1 min-h-11 w-full rounded border border-stone-300 bg-white px-3'><option value=''>{word('Select…','Seleccionar…')}</option>{options.map(o=><option key={o[0]} value={o[0]}>{o[es?2:1]}</option>)}</select></label>;
  const title=usefulName(data?.current.name||target.outcome?.name,target.barcode)||word('Product review','Revisar producto');
  return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby='curation-review-title' className='m-auto max-h-[94dvh] w-[calc(100%-1rem)] max-w-3xl overflow-y-auto rounded-lg bg-[#faf9f4] p-0 text-stone-900 shadow-xl backdrop:bg-black/40'>
@@ -68,15 +82,18 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
       </section>:null}
       <section><h3 className='mb-3 font-semibold'>{word('Packaging','Envase')}</h3>
        {data.manualReview?<div className='space-y-3'>
-        {data.current.packaging.length?select(word('Component','Componente'),componentKey,chooseComponent,data.current.packaging.map(c=>[c.key,c.key.replaceAll('_',' '),c.key.replaceAll('_',' ')])):null}
-        {!componentKey?select(word('Part','Parte'),role,setRole,roles):null}
-        {select(word('Packaging type','Tipo de envase'),form,setForm,forms)}
-        {select(word('Material','Material'),material,setMaterial,materials)}
-        <button disabled={blocked||!role||!form||!material||data.current.packaging.length>0&&!componentKey} onClick={()=>decide('approve_packaging')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{word('Save packaging','Guardar envase')}</button>
-        <p className='text-xs text-stone-500'>{word('Applies to this component only. Does not publish a photo.','Solo este componente. No publica ninguna foto.')}</p>
+        {data.current.packaging.length>1?select(word('Packaging part','Parte del envase'),componentKey,chooseComponent,data.current.packaging.map(c=>[c.key,labelFor(roles,c.role)+' · '+c.key.replaceAll('_',' '),labelFor(roles,c.role)+' · '+c.key.replaceAll('_',' ')])):<p className='text-sm text-stone-500'>{labelFor(roles,role)}</p>}
+        {!editing?<div><p className='font-semibold'>{labelFor(forms,form)} · {labelFor(materials,material)}</p><p className='mt-1 text-xs text-stone-500'>{word('Currently recorded','Datos actuales')}</p><button disabled={blocked} onClick={()=>setEditing(true)} className='min-h-11 text-sm font-semibold text-emerald-800 underline'>{word('Change','Cambiar')}</button></div>:<>
+         {!componentKey?<details><summary className='cursor-pointer text-sm'>{word('Change packaging part','Cambiar parte del envase')}</summary>{select(word('Part','Parte'),role,setRole,roles)}</details>:null}
+         {select(word('Packaging type','Tipo de envase'),form,setForm,forms)}
+         {select(word('Material','Material'),material,setMaterial,materials)}
+        </>}
+        <button disabled={blocked||!role||!form||!material||data.current.packaging.length>0&&!componentKey} onClick={()=>decide('approve_packaging')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{editing?word('Save packaging','Guardar envase'):word('Confirm packaging','Confirmar envase')}</button>
+        <p className='text-xs text-stone-500'>{word('This packaging part only.','Solo esta parte del envase.')}</p>
        </div>:<p className='text-sm'>{data.current.packaging.map(c=>`${c.form} · ${c.material}`).join(', ')||word('Not classified','Sin clasificar')}<span className='mt-2 block text-stone-500'>{word('Packaging editing is not available on this server yet.','La edición del envase aún no está disponible en este servidor.')}</span></p>}
       </section>
       {message?<p role='status' className='text-sm font-medium'>{message}</p>:null}
+      {!usefulName(data.current.name,target.barcode)||!data.current.brand||!data.images.length?<section className='border-t pt-3'><h3 className='text-sm font-semibold'>{word('Find product information','Buscar información del producto')}</h3><div className='flex flex-wrap gap-3'>{barcodeResearchLinks(target.barcode).map(link=><a key={link.label} href={link.url} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='inline-flex min-h-11 items-center gap-1 text-sm text-emerald-800 underline'><ExternalLink size={15}/>{link.label==='Web'?word('Search barcode','Buscar código'):link.label}</a>)}</div></section>:null}
      </div>
     </div>
     <details className='border-t pt-3'><summary className='min-h-11 cursor-pointer font-medium'>{word('Evidence and history','Evidencia e historial')}</summary>

@@ -1,4 +1,5 @@
 "use client";
+import {queueNeed} from '@/lib/packagingReview';
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -580,7 +581,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           {queue.data?.products.map((p) => (
             <li key={p.id}>
               <button onClick={()=>openReview({barcode:p.ean})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
-                <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{p.lastErrorCode==='PRODUCT_METADATA_UNAVAILABLE'?(language==='es'?'Faltan datos fiables del producto':'Reliable product details are missing'):p.state==='failed'?(language==='es'?'La investigación necesita atención':'Research needs attention'):p.state==='processing'?(language==='es'?'Investigación en curso':'Research in progress'):(language==='es'?'Abrir evidencia disponible':'Open available evidence')}</span></span><ChevronRight size={20} className="shrink-0"/>
+                <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{queueNeed(p,language==='es')}</span></span><ChevronRight size={20} className="shrink-0"/>
               </button>
             </li>
           ))}

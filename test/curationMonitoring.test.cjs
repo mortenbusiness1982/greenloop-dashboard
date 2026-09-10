@@ -1,6 +1,22 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),Module=require('node:module'),ts=require('typescript');
 function load(file,mocks={}){const m=new Module(file,module);m.require=id=>id in mocks?mocks[id]:require(id);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,file);return m.exports;}
 const {createRefreshController}=load('lib/refreshController.ts'),{validateHistory}=load('lib/curationMonitoring.ts');
+const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
+test('review starts from recorded primary packaging, never invents material',()=>{
+ const cap={key:'cap',role:'cap',form:'other',material:'plastic'},bottle={key:'main',role:'primary',form:'bottle',material:'glass'};
+ assert.deepEqual(initialPackaging([cap,bottle]),bottle);assert.deepEqual(initialPackaging([cap]),cap);
+ assert.deepEqual(initialPackaging([]),{key:'',role:'primary',form:'',material:''});
+});
+test('barcode research links use exact digits and reject unsafe input',()=>{
+ assert.equal(barcodeResearchLinks('8414100381785').length,2);
+ assert.equal(new URL(barcodeResearchLinks('8414100381785')[0].url).searchParams.get('q'),'"8414100381785"');
+ assert.deepEqual(barcodeResearchLinks('1234<script>'),[]);
+});
+test('queue labels reflect current gaps instead of historical metadata errors',()=>{
+ const p={name:'Kofu wall light',ean:'3276007147575',brandName:'Unknown',materialType:null,packagingForm:null,state:'under_review'};
+ assert.equal(queueNeed(p),'Packaging needed');assert.equal(queueNeed({...p,name:p.ean}),'Name needed');
+ assert.equal(queueNeed({...p,materialType:'cardboard',packagingForm:'box'}),'Brand needed');
+});
 function environment(){const w=new EventTarget(),d=new EventTarget();d.visibilityState='visible';const timers=new Map();let id=0;w.setTimeout=fn=>{timers.set(++id,fn);return id;};w.clearTimeout=n=>timers.delete(n);w.setInterval=fn=>{timers.set(++id,fn);return id;};w.clearInterval=n=>timers.delete(n);return {window:w,document:d,timers};}
 test('manual refresh coalesces overlapping requests and preserves last success on failure',async()=>{const env=environment(),states=[],values=[];let resolve,calls=0;const c=createRefreshController(()=>{calls++;return new Promise(r=>resolve=r);},v=>values.push(v),s=>states.push(s),env);const a=c.refresh();await c.refresh();assert.equal(calls,1);resolve('first');await a;assert.deepEqual(values,['first']);assert.ok(states.at(-1).lastUpdated);c.dispose();assert.equal(env.timers.size,0);});
 test('poll, focus, visible and online events refresh; hidden and disposed do not',async()=>{const env=environment();let calls=0;const c=createRefreshController(async()=>++calls,()=>{},()=>{},env);await c.refresh();env.document.visibilityState='hidden';env.window.dispatchEvent(new Event('focus'));assert.equal(calls,1);env.document.visibilityState='visible';env.window.dispatchEvent(new Event('online'));await new Promise(setImmediate);assert.equal(calls,2);[...env.timers.values()][0]();await new Promise(setImmediate);assert.equal(calls,3);env.document.dispatchEvent(new Event('visibilitychange'));await new Promise(setImmediate);assert.equal(calls,4);c.dispose();env.window.dispatchEvent(new Event('focus'));assert.equal(calls,4);});
