@@ -2,9 +2,10 @@ import type {ReviewData} from './curationReview';
 
 export type ProposalProgress='pending'|'recorded'|'rejected'|'unavailable';
 // Compare persisted values, not the immutable outcome recorded when the batch ran.
-export function proposalProgress(data:ReviewData&{manualReview?:{rejected:boolean}}):ProposalProgress{
+export function proposalProgress(data:ReviewData&{manualReview?:{rejected:boolean;completed?:boolean}}):ProposalProgress{
  if(data.readOnly!==true||data.enrichment!==false||!data.packet)return 'unavailable';
  if(data.manualReview?.rejected)return 'rejected';
+ if(typeof data.manualReview?.completed==='boolean')return data.manualReview.completed?'recorded':'pending';
  const proposals=[...data.packet.proposals,...(data.packet.visualProposals||[])];
  if(!proposals.length)return 'pending';
  const matches=proposals.every(p=>{

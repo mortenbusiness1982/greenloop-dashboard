@@ -6,6 +6,8 @@ const {proposalProgress}=load('lib/proposalProgress.ts');
 test('pending proposals reconcile against persisted values across reloads',()=>{
  const data={readOnly:true,enrichment:false,current:{name:'Saved name',brand:'Saved brand',packaging:[]},packet:{proposals:[{field:'name',value:'Saved name'},{field:'brand',value:'Saved brand'}]}};
  assert.equal(proposalProgress(data),'recorded');
+ assert.equal(proposalProgress({...data,manualReview:{rejected:false,completed:false}}),'pending');
+ assert.equal(proposalProgress({...data,current:{...data.current,name:'Human alternative'},manualReview:{rejected:false,completed:true}}),'recorded');
  assert.equal(proposalProgress({...data,current:{...data.current,brand:'Old brand'}}),'pending');
  assert.equal(proposalProgress({...data,manualReview:{rejected:true}}),'rejected');
  assert.equal(proposalProgress({...data,packet:null}),'unavailable');
