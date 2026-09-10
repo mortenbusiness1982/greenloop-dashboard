@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {X,ExternalLink,Image as ImageIcon,RefreshCw} from 'lucide-react';
+import {createReviewSession} from '@/lib/curationReviewSession';
 import {API_BASE,apiFetch} from '@/lib/api';
 import {getToken} from '@/lib/auth';
 import {ReviewData,ReviewTarget,safeSource,usefulName,reviewLabels,reviewState} from '@/lib/curationReview';
@@ -19,23 +20,29 @@ function Photo({photo,language}:{photo:ReviewData['images'][number];language:'en
  return failed?<p>{words[language].photosFailed}</p>:src?<a href={src} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='block'><img src={src} alt={words[language].photo} referrerPolicy='no-referrer' onError={()=>setFailed(true)} className='max-h-64 max-w-full rounded object-contain'/><span className='mt-2 inline-flex min-h-11 items-center gap-2 text-sm text-emerald-800'><ImageIcon size={16}/>{words[language].view}</span></a>:<p>{words[language].loading}</p>;
 }
 export function CurationReviewDialog({target,language,onClose}:{target:ReviewTarget;language:'en'|'es';onClose:()=>void}){
- const t=words[language],dialog=useRef<HTMLDialogElement>(null);const [data,setData]=useState<ReviewData|null>(null),[error,setError]=useState<string|null>(null),[newer,setNewer]=useState<ReviewData|null>(null),[retry,setRetry]=useState(0);const held=useRef<ReviewData|null>(null);
+ const t=words[language],dialog=useRef<HTMLDialogElement>(null);const [data,setData]=useState<ReviewData|null>(null),[error,setError]=useState<string|null>(null),[newer,setNewer]=useState<ReviewData|null>(null);const session=useRef<ReturnType<typeof createReviewSession<ReviewData>>|null>(null);
  useEffect(()=>{dialog.current?.showModal();},[]);
- useEffect(()=>{const c=new AbortController();let running=false;held.current=null;setData(null);setNewer(null);setError(null);
- const load=async()=>{if(running)return;running=true;try{const result=await apiFetch<ReviewData>('/admin/recycling-intelligence/review/'+target.barcode+(target.runId?'?run='+encodeURIComponent(target.runId):''),{token:getToken()||undefined,signal:c.signal,cache:'no-store'});if(result.readOnly!==true||result.enrichment!==false||result.barcode!==target.barcode)throw Error('invalid');if(c.signal.aborted)return;if(!held.current){held.current=result;setData(result);}else if(result.revision!==held.current.revision){setNewer(result);}setError(null);}catch(e){if(!c.signal.aborted)setError((e as {status?:number}).status===503||(e as {status?:number}).status===404?t.unavailable:t.failed);}finally{running=false;}};
- void load();const timer=setInterval(()=>void load(),30000);return()=>{c.abort();clearInterval(timer);};
- },[target.barcode,target.runId,retry,t.unavailable,t.failed]);
+ useEffect(()=>{
+ setData(null);setNewer(null);setError(null);
+ const current=createReviewSession<ReviewData>(async(signal)=>{
+  const result=await apiFetch<ReviewData>('/admin/recycling-intelligence/review/'+target.barcode+(target.runId?'?run='+encodeURIComponent(target.runId):''),{token:getToken()||undefined,signal,cache:'no-store'});
+  if(result.readOnly!==true||result.enrichment!==false||result.barcode!==target.barcode)throw Error('Invalid review');
+  return result;
+ },state=>{setData(state.data);setNewer(state.newer);const e=state.error as {status?:number}|null;setError(e?(e.status===503||e.status===404?t.unavailable:t.failed):null);});
+ session.current=current;void current.refresh();const timer=setInterval(()=>void current.refresh(),30000);
+ return()=>{clearInterval(timer);current.dispose();session.current=null;};
+ },[target.barcode,target.runId,t.unavailable,t.failed]);
  const outcome=data?.outcome||target.outcome;const title=usefulName(data?.current.name||outcome?.name,target.barcode)||t.title;
  const section=(heading:string,current:NonNullable<ReviewData['packet']>['current'])=><section><h3 className='mb-2 font-semibold'>{heading}</h3><dl className='space-y-2 text-sm'><div><dt className='text-slate-500'>{t.name}</dt><dd>{usefulName(current.name,target.barcode)||t.missing}</dd></div><div><dt className='text-slate-500'>{t.brand}</dt><dd>{current.brand&&!/^(greenloop|unknown)$/i.test(current.brand)?current.brand:t.missing}</dd></div><div><dt className='text-slate-500'>{t.packaging}</dt><dd>{current.packaging.length?current.packaging.map(c=><p key={c.key}>{c.role==='primary'?(language==='es'?'Envase principal':'Primary packaging'):c.role==='secondary'?(language==='es'?'Envase exterior':'Outer packaging'):c.role.replaceAll('_',' ')} · {language==='es'?(spanishValues[c.material]||c.material.replaceAll('_',' ')):c.material.replaceAll('_',' ')} / {language==='es'?(spanishValues[c.form]||c.form.replaceAll('_',' ')):c.form.replaceAll('_',' ')}</p>):t.missing}</dd></div></dl></section>;
  return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby='curation-review-title' className='m-auto max-h-[94dvh] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-xl bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/40'>
  <header className='sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white p-4'><div className='min-w-0'><h2 id='curation-review-title' className='break-words text-lg font-semibold'>{title}</h2><p className='text-sm text-slate-500'>{target.barcode} · {t.readonly}</p></div><button autoFocus onClick={onClose} aria-label={t.close} className='flex h-11 w-11 shrink-0 items-center justify-center rounded hover:bg-slate-100'><X size={22}/></button></header>
  <div className='space-y-6 p-4'><p className='text-sm font-semibold text-amber-800'>{reviewLabels[language][reviewState(outcome)]}</p>
- {newer||data?.stale?<div role='alert' className='rounded bg-amber-50 p-3 text-sm'>{t.stale}{newer?<button className='mt-2 flex min-h-11 items-center gap-2 font-semibold' onClick={()=>{held.current=newer;setData(newer);setNewer(null);}}><RefreshCw size={16}/>{t.loadNew}</button>:null}</div>:null}
- {error?<p role='alert' className='text-sm'>{error} <button className='min-h-11 underline' onClick={()=>setRetry(v=>v+1)}>{t.reload}</button></p>:!data?<p>{t.loading}</p>:null}
+ {newer||data?.stale?<div role='alert' className='rounded bg-amber-50 p-3 text-sm'>{t.stale}{newer?<button className='mt-2 flex min-h-11 items-center gap-2 font-semibold' onClick={()=>{session.current?.acceptLatest();}}><RefreshCw size={16}/>{t.loadNew}</button>:null}</div>:null}
+ {error?<p role='alert' className='text-sm'>{error} <button className='min-h-11 underline' onClick={()=>void session.current?.refresh()}>{t.reload}</button></p>:!data?<p>{t.loading}</p>:null}
  <section><h3 className='font-semibold'>{t.reason}</h3><p className='mt-2 break-words text-sm leading-relaxed'>{outcome?.reason||t.noResearch}</p></section>
  {data?<><div className='grid gap-5 sm:grid-cols-2'>{section(t.current,data.current)}{data.packet?section(t.reviewed,data.packet.current):null}</div>
  {data.packet?.proposals.length?<section id='curation-proposal'><h3 className='font-semibold'>{t.proposal}</h3>{data.packet.proposals.map((p,i)=><div key={i} className='my-2 border-l-2 border-emerald-600 pl-3 text-sm'><p className='text-slate-500'>{p.field==='brand'?t.brand:t.name}</p><p className='font-semibold'>{p.value}</p></div>)}<p className='text-sm text-slate-600'>{t.stage}</p></section>:<p className='text-sm text-slate-600'>{t.noAction}</p>}
- <section><h3 className='mb-2 font-semibold'>{t.photo}</h3>{data.images.length?data.images.map(p=><Photo key={p.url} photo={p} language={language}/>):<p className='text-sm text-slate-500'>{t.none}</p>}</section>
+ <section><h3 className='mb-2 font-semibold'>{t.photo}</h3>{data.images.length?data.images.map(p=><Photo key={data.revision+':'+p.url} photo={p} language={language}/>):<p className='text-sm text-slate-500'>{t.none}</p>}</section>
  <section><h3 className='font-semibold'>{t.source}</h3>{data.packet?.sources.length?data.packet.sources.map(s=><div key={s.id} className='mt-3 border-b pb-3 text-sm'>{safeSource(s.url)?<a href={s.url} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='inline-flex min-h-11 max-w-full items-start gap-2 break-all py-2 text-emerald-800 underline'><ExternalLink size={16} className='mt-1 shrink-0'/>{s.url}</a>:<p>{t.noLinks}</p>}<p>{s.identityExcerpt}</p><p className='mt-1 text-slate-500'>{s.trustReason}</p>{!s.independentlyVerified?<p>{t.unverified}</p>:null}</div>):<p className='mt-2 text-sm text-slate-500'>{outcome?.provenance.length?t.noLinks:t.noSources}</p>}</section></>:null}
  </div></dialog>;
 }

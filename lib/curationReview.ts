@@ -8,7 +8,7 @@ export function reviewState(p?:Pick<ProductOutcome,'outcome'|'reason'|'gaps'>|nu
  if(p?.outcome==='published')return 'published';
  if(/identity conflict|identidad.*conflicto/i.test(reason))return 'identity';
  if(/packaging conflict|material.*conflict/i.test(reason))return 'material';
- if(p?.outcome==='staged')return 'ready';
+ if(p?.outcome==='staged'||p?.outcome==='proposed_not_published')return 'ready';
  if(p?.outcome==='failed')return 'failed';
  if(/did not establish|no authoritative/i.test(reason)&&p?.gaps?.includes('photo_missing'))return 'none';
  if(p?.gaps?.some(g=>g.startsWith('photo_')))return 'photo';

@@ -24,3 +24,20 @@ test('specific review states, missing names and safe full source URLs',()=>{
  assert.equal(usefulName('8411327002745','8411327002745'),null);assert.equal(usefulName('Unknown','12345678'),null);
  assert.equal(safeSource('https://tienda.consum.es/es/p/item/1234'),true);for(const url of ['tienda.consum.es','javascript:alert(1)','https://example.com/a?signature=secret','https://user:pass@example.com/a','https://127.0.0.1/a'])assert.equal(safeSource(url),false);
 });
+
+const {createReviewSession}=load('lib/curationReviewSession.ts');
+test('detail timeout preserves evidence, releases request and allows retry without silent replacement',async()=>{
+ const timers=new Map();let timerId=0;const clock={setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
+ let calls=0,signal;const states=[];const session=createReviewSession(s=>{signal=s;calls++;return calls===2?new Promise(()=>{}):Promise.resolve({revision:String(calls),name:'Evidence '+calls});},s=>states.push(s),clock);
+ await session.refresh();assert.equal(states.at(-1).data.name,'Evidence 1');
+ const pending=session.refresh();await new Promise(setImmediate);[...timers.values()][0]();await pending;
+ assert.equal(signal.aborted,true);assert.match(states.at(-1).error.message,/timed out/);assert.equal(states.at(-1).loading,false);assert.equal(states.at(-1).data.name,'Evidence 1');
+ await session.refresh();assert.equal(calls,3);assert.equal(states.at(-1).data.name,'Evidence 1');assert.equal(states.at(-1).newer.name,'Evidence 3');session.acceptLatest();assert.equal(states.at(-1).data.name,'Evidence 3');session.dispose();assert.equal(timers.size,0);
+});
+test('detail unmount cancels a hanging request and ignores late results',async()=>{
+ let resolve,signal;const states=[];const session=createReviewSession(s=>{signal=s;return new Promise(r=>resolve=r);},s=>states.push(s));
+ const pending=session.refresh();await new Promise(setImmediate);session.dispose();const count=states.length;assert.equal(signal.aborted,true);resolve({revision:'late'});await pending;assert.equal(states.length,count);
+});
+test('both genuine unpublished proposal statuses are ready for review',()=>{
+ for(const outcome of ['staged','proposed_not_published'])assert.equal(reviewState({outcome,reason:'Saved proposal',gaps:['packaging']}),'ready');
+});
