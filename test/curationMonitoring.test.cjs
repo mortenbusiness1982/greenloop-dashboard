@@ -42,6 +42,29 @@ test('specific review states, missing names and safe full source URLs',()=>{
 });
 
 const {createReviewSession}=load('lib/curationReviewSession.ts');
+test('own saves automatically accept fresh bindings; external changes still require review',async()=>{
+ let revision='1';const states=[];const session=createReviewSession(async()=>({revision}),s=>states.push(s));
+ await session.refresh();revision='2';assert.equal(await session.refreshAfterSave(),true);
+ assert.equal(states.at(-1).data.revision,'2');assert.equal(states.at(-1).newer,null);
+ revision='3';await session.refresh();assert.equal(states.at(-1).data.revision,'2');assert.equal(states.at(-1).newer.revision,'3');session.dispose();
+});
+test('post-save read supersedes a pending old poll and ignores its late response',async()=>{
+ let calls=0,oldResolve,oldSignal;const states=[];
+ const session=createReviewSession(signal=>{calls++;if(calls===2){oldSignal=signal;return new Promise(r=>oldResolve=r);}return Promise.resolve({revision:String(calls)});},s=>states.push(s));
+ await session.refresh();const old=session.refresh();await new Promise(setImmediate);
+ assert.equal(await session.refreshAfterSave(),true);assert.equal(oldSignal.aborted,true);
+ oldResolve({revision:'2'});await old;assert.equal(states.at(-1).data.revision,'3');assert.equal(states.at(-1).newer,null);assert.equal(states.at(-1).loading,false);session.dispose();
+});
+test('failed post-save refresh preserves evidence and read-only retry recovers',async()=>{
+ let fail=false;const states=[];const session=createReviewSession(async()=>{if(fail)throw Error('offline');return {revision:'current'};},s=>states.push(s));
+ await session.refresh();fail=true;assert.equal(await session.refreshAfterSave(),false);assert.equal(states.at(-1).data.revision,'current');assert.ok(states.at(-1).error);
+ fail=false;assert.equal(await session.refreshAfterSave(),true);assert.equal(states.at(-1).error,null);session.dispose();
+});
+test('unmount during post-save refresh cannot accept a late response',async()=>{
+ let resolve;const states=[];const session=createReviewSession(()=>new Promise(r=>resolve=r),s=>states.push(s));
+ const pending=session.refreshAfterSave();await new Promise(setImmediate);session.dispose();const count=states.length;resolve({revision:'late'});
+ assert.equal(await pending,false);assert.equal(states.length,count);
+});
 test('detail timeout preserves evidence, releases request and allows retry without silent replacement',async()=>{
  const timers=new Map();let timerId=0;const clock={setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
  let calls=0,signal;const states=[];const session=createReviewSession(s=>{signal=s;calls++;return calls===2?new Promise(()=>{}):Promise.resolve({revision:String(calls),name:'Evidence '+calls});},s=>states.push(s),clock);

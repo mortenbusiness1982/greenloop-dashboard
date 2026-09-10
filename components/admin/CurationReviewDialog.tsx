@@ -51,11 +51,20 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
  const fields=data?.stale?null:reviewedFields(action,data?.packet?.proposals);
  const approveLabel=fields?.length===1?(fields[0]==='name'?word('Approve name','Aprobar nombre'):word('Approve brand','Aprobar marca')):word('Approve changes','Aprobar cambios');
  function latest(){++generation.current;locked.current=false;app.current?.invalidate();app.current=createMetadataApplication((p,o)=>apiFetch(p,{...o,token:getToken()||undefined}));setMessage(null);setUncertain(false);setBusy(false);setComponentKey('');setRole('');setForm('');setMaterial('');session.current?.acceptLatest();}
+ async function reconcile(saved:boolean){
+  const version=generation.current;setBusy(true);
+  const refreshed=await session.current?.refreshAfterSave();
+  if(version!==generation.current)return;
+  setBusy(false);setUncertain(!refreshed);locked.current=!refreshed;
+  if(refreshed){app.current?.invalidate();app.current=createMetadataApplication((p,o)=>apiFetch(p,{...o,token:getToken()||undefined}));}
+  setMessage(refreshed?(saved?word('Saved.','Guardado.'):word('Latest record loaded. Check the values before confirming.','Registro actualizado. Comprueba los valores antes de confirmar.')):word('Could not refresh the record. Retry loading before continuing.','No se pudo actualizar el registro. Reintenta la carga antes de continuar.'));
+ }
  async function perform(operation:()=>Promise<boolean>){
   if(blocked||locked.current)return;locked.current=true;setBusy(true);const version=generation.current;
   let success=false;try{success=await operation();}catch{}
   if(version!==generation.current)return;
-  setBusy(false);setUncertain(true);setMessage(success?word('Saved.','Guardado.'):word('Save not confirmed. Reload the record before retrying.','Guardado sin confirmar. Recarga el registro antes de reintentar.'));void session.current?.refresh();
+  if(success){await reconcile(true);return;}
+  setBusy(false);setUncertain(true);setMessage(word('Save not confirmed. Reload the record before retrying.','Guardado sin confirmar. Recarga el registro antes de reintentar.'));void session.current?.refresh();
  }
  function decide(decision:'approve_packaging'|'reject_proposal'|'confirm_name',name?:string){
   const permission=data?.manualReview;if(!permission)return;
@@ -94,7 +103,7 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
         <p className='text-xs text-stone-500'>{word('This packaging part only.','Solo esta parte del envase.')}</p>
        </div>:<p className='text-sm'>{data.current.packaging.map(c=>`${c.form} · ${c.material}`).join(', ')||word('Not classified','Sin clasificar')}<span className='mt-2 block text-stone-500'>{word('Packaging editing is not available on this server yet.','La edición del envase aún no está disponible en este servidor.')}</span></p>}
       </section>
-      {message?<p role='status' className='text-sm font-medium'>{message}</p>:null}
+      {message?<p role='status' className='text-sm font-medium'>{message}{uncertain?<button disabled={busy} className='ml-2 min-h-11 underline' onClick={()=>void reconcile(false)}>{word('Reload record','Recargar registro')}</button>:null}</p>:null}
       {!usefulName(data.current.name,target.barcode)||!data.current.brand||!data.images.length?<section className='border-t pt-3'><h3 className='text-sm font-semibold'>{word('Find product information','Buscar información del producto')}</h3><div className='flex flex-wrap gap-3'>{barcodeResearchLinks(target.barcode).map(link=><a key={link.label} href={link.url} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='inline-flex min-h-11 items-center gap-1 text-sm text-emerald-800 underline'><ExternalLink size={15}/>{link.label==='Web'?word('Search barcode','Buscar código'):link.label}</a>)}</div></section>:null}
      </div>
     </div>
