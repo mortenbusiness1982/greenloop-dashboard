@@ -8,6 +8,8 @@ type ApiFetchOptions = {
   token?: string;
   method?: string;
   body?: unknown;
+  signal?: AbortSignal;
+  cache?: RequestCache;
 };
 
 type ApiErrorBody = {
@@ -40,7 +42,7 @@ function clearExpiredSession(status: number, message: string) {
 }
 
 export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { token, method = "GET", body } = options;
+  const { token, method = "GET", body, signal, cache } = options;
 
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
   const headers: Record<string, string> = {
@@ -53,6 +55,8 @@ export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptio
 
   const res = await fetch(url, {
     method,
+    signal,
+    cache,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
@@ -63,7 +67,7 @@ export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptio
   if (!res.ok) {
     const message = getErrorMessage(json, `Request failed with status ${res.status}`);
     clearExpiredSession(res.status, message);
-    throw new Error(message);
+    throw Object.assign(new Error(message), { status: res.status });
   }
 
   return json as T;

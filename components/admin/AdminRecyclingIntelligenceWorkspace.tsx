@@ -1,502 +1,660 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  BrainCircuit,
-  CheckCircle2,
-  CircleGauge,
-  Download,
-  LoaderCircle,
-  Play,
   RefreshCw,
-  Save,
   Search,
-  ShieldCheck,
-  Waypoints,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
 } from "lucide-react";
 import { apiFetch, apiFetchBlob } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
-
-type QueueState = "all" | "unclassified" | "processing" | "review" | "rule_missing" | "failed" | "resolved";
-
-type Summary = {
-  countryCode: string;
-  totalProducts: number;
-  scannedProducts: number;
-  classified: number;
-  verified: number;
-  awaitingReview: number;
-  unclassified: number;
-  processing: number;
-  failed: number;
-  ruleMissing: number;
-  resolvedScannedProducts: number;
-  unresolvedScanCount: number;
-  coveragePercent: number;
-  today: { attempts: number; succeeded: number; failed: number; approximateCostUsd: number };
-};
-
-type Settings = {
-  automaticProcessingEnabled: boolean;
-  dailyAiLimit: number;
-  batchSize: number;
-  reviewConfidenceThreshold: number;
-  reportFrequency: "off" | "daily" | "weekly";
-  reportEmail: string | null;
-};
+import { createRefreshController, RefreshState } from "@/lib/refreshController";
+import {
+  HistoryPage,
+  RunRecord,
+  ProductOutcome,
+  validateHistory,
+} from "@/lib/curationMonitoring";
 
 type QueueProduct = {
   id: string;
-  ean?: string | null;
-  name?: string | null;
-  brandName?: string | null;
+  ean: string;
+  name: string | null;
+  brandName: string | null;
   scanCount: number;
-  state: Exclude<QueueState, "all">;
-  componentKey?: string | null;
-  packagingForm?: string | null;
-  materialType?: string | null;
-  sourceType?: string | null;
-  sourceReference?: string | null;
-  confidence?: number | null;
-  verificationStatus?: string | null;
-  imageUrl?: string | null;
-  evidenceId?: string | null;
-  evidenceStatus?: string | null;
-  lastEnrichmentStatus?: string | null;
-  lastErrorCode?: string | null;
-  lastEnrichmentAt?: string | null;
+  state: string;
+  materialType: string | null;
+  packagingForm: string | null;
+  verificationStatus: string | null;
+  lastErrorCode: string | null;
 };
-
-const materials = ["pet", "hdpe", "ldpe", "pp", "ps", "plastic", "aluminium", "steel", "metal", "glass", "paper", "cardboard", "composite", "compostable", "other"];
-const forms = ["bottle", "can", "jar", "carton", "box", "tray", "wrapper", "bag", "cup", "container", "other"];
-
+type QueuePage = { products: QueueProduct[]; nextOffset: number | null };
 const copy = {
   en: {
-    eyebrow: "Catalog intelligence",
     title: "Recycling Intelligence",
-    description: "Monitor packaging classification, review evidence and control how quickly GreenLoop works through unresolved scanned products.",
-    reload: "Reload",
-    export: "Download report",
-    process: "Process next batch",
-    processing: "Processing...",
-    coverage: "Resolved guidance",
-    classified: "Classified",
-    verified: "Verified",
-    review: "Awaiting review",
-    unknown: "Unclassified",
-    failures: "Failed",
-    ruleMissing: "Missing rules",
-    scannedProducts: "scanned products",
-    today: "AI attempts today",
-    settings: "Processing controls",
-    auto: "Automatic backlog processing",
-    autoHelp: "Runs every 15 minutes and prioritizes the most-scanned unresolved products.",
-    dailyLimit: "Daily AI limit",
-    batchSize: "Batch size",
-    threshold: "Review threshold",
-    save: "Save controls",
-    queue: "Classification queue",
-    queueHelp: "Products are ordered by scan impact. AI suggestions remain unverified until reviewed.",
+    description:
+      "Hourly contribution reviews and catalogue research. At most 10 products across both queues.",
+    latest: "Latest batch",
+    history: "Batch history",
+    all: "See all",
+    back: "Back",
+    refresh: "Refresh data",
+    refreshing: "Refreshing…",
+    updated: "Updated",
+    stale: "Refresh failed. Showing the last available data.",
+    waiting: "No successful refresh yet",
+    empty: "No routine batches recorded yet.",
+    unavailable:
+      "Run outcomes have not been reported. Counts and findings are unavailable.",
+    reserved: "Reserved",
+    attempted: "Attempted",
+    inspected: "Products visually reviewed",
+    unknown: "unknown",
+    published: "Published",
+    staged: "Staged proposals",
+    deferred: "Deferred",
+    failed: "Failed",
+    contribution: "User contributions",
+    catalogue: "Catalogue",
+    skipped: "Unchanged cases skipped",
+    start: "Started",
+    end: "Ended",
+    notRecorded: "Not recorded",
+    products: "Products and findings",
+    reasonMissing: "No finding recorded yet.",
+    scope:
+      "Publication covers reviewed packaging components only. Catalogue improvements remain staged until separately approved for production.",
+    queue: "Product review queue",
+    queueScope:
+      "This legacy queue describes primary packaging and pending evidence. Its state is not whole-product coverage and does not count every secondary-component publication.",
     search: "Search product, barcode or brand",
-    tabs: { all: "Needs attention", unclassified: "Unclassified", processing: "Processing", review: "Review", rule_missing: "Rule missing", failed: "Failed", resolved: "Resolved" },
-    product: "Product",
-    state: "State",
-    evidence: "Classification evidence",
-    attempts: "Last attempt",
+    details: "Details",
+    more: "More options",
+    export: "Export legacy queue",
+    previous: "Previous page",
+    next: "Next page",
+    queueEmpty: "No products match these filters.",
+    loading: "Loading…",
+    filter: "Product status",
     scans: "Scans",
-    actions: "Actions",
-    retry: "Retry",
-    edit: "Classify / review",
-    cancel: "Cancel",
-    verify: "Verify classification",
-    addRule: "Add rule",
-    createRule: "Create verified recycling rule",
-    authority: "Official authority",
-    sourceUrl: "Official source URL",
-    wasteStream: "Waste stream",
-    binColor: "Bin color",
-    ruleDone: "Recycling rule created.",
-    empty: "No products match this queue.",
-    loading: "Loading classification queue...",
-    loadError: "Unable to load recycling intelligence.",
-    saved: "Controls saved.",
-    batchDone: (processed: number, classified: number) => `Processed ${processed}; classified ${classified}.`,
-    verifiedDone: "Classification verified.",
-    rejectEvidence: "Reject photo",
-    subscriptionCandidate: "Codex curation candidate",
+    noPhoto: "No photo inspection recorded",
+    source: "Source",
+    gaps: "Gaps",
+    routine: "Routine batch",
+    timeZone: "Europe/Madrid",
+    allStates: "Needs attention",
   },
   es: {
-    eyebrow: "Inteligencia de catálogo",
     title: "Inteligencia de reciclaje",
-    description: "Supervisa la clasificación de envases, revisa evidencias y controla el procesamiento de productos escaneados sin resolver.",
-    reload: "Recargar",
-    export: "Descargar informe",
-    process: "Procesar siguiente lote",
-    processing: "Procesando...",
-    coverage: "Guía resuelta",
-    classified: "Clasificados",
-    verified: "Verificados",
-    review: "Pendientes de revisión",
-    unknown: "Sin clasificar",
-    failures: "Fallidos",
-    ruleMissing: "Reglas ausentes",
-    scannedProducts: "productos escaneados",
-    today: "Intentos de IA hoy",
-    settings: "Controles de procesamiento",
-    auto: "Procesamiento automático",
-    autoHelp: "Se ejecuta cada 15 minutos y prioriza los productos sin resolver más escaneados.",
-    dailyLimit: "Límite diario de IA",
-    batchSize: "Tamaño del lote",
-    threshold: "Umbral de revisión",
-    save: "Guardar controles",
-    queue: "Cola de clasificación",
-    queueHelp: "Los productos se ordenan por impacto. Las sugerencias de IA siguen sin verificar hasta revisarlas.",
+    description:
+      "Revisión por hora de aportaciones e investigación del catálogo. Máximo 10 productos entre ambas colas.",
+    latest: "Último lote",
+    history: "Historial de lotes",
+    all: "Ver todo",
+    back: "Volver",
+    refresh: "Actualizar datos",
+    refreshing: "Actualizando…",
+    updated: "Actualizado",
+    stale: "Falló la actualización. Se muestran los últimos datos disponibles.",
+    waiting: "Todavía no hay una actualización correcta",
+    empty: "Aún no hay lotes rutinarios registrados.",
+    unavailable:
+      "No se han comunicado los resultados del lote. Los recuentos y hallazgos no están disponibles.",
+    reserved: "Reservados",
+    attempted: "Intentados",
+    inspected: "Productos revisados visualmente",
+    unknown: "sin datos",
+    published: "Publicados",
+    staged: "Propuestas preparadas",
+    deferred: "Aplazados",
+    failed: "Fallidos",
+    contribution: "Aportaciones de usuarios",
+    catalogue: "Catálogo",
+    skipped: "Casos sin cambios omitidos",
+    start: "Inicio",
+    end: "Fin",
+    notRecorded: "Sin registrar",
+    products: "Productos y hallazgos",
+    reasonMissing: "Aún no hay un hallazgo registrado.",
+    scope:
+      "La publicación cubre solo los componentes del envase revisados. Las mejoras del catálogo quedan preparadas hasta una aprobación independiente para producción.",
+    queue: "Cola de revisión de productos",
+    queueScope:
+      "Esta cola anterior describe el envase principal y las evidencias pendientes. Su estado no representa todo el producto ni cuenta todas las publicaciones de componentes secundarios.",
     search: "Buscar producto, código o marca",
-    tabs: { all: "Requieren atención", unclassified: "Sin clasificar", processing: "Procesando", review: "Revisión", rule_missing: "Falta regla", failed: "Fallidos", resolved: "Resueltos" },
-    product: "Producto",
-    state: "Estado",
-    evidence: "Evidencia de clasificación",
-    attempts: "Último intento",
+    details: "Detalles",
+    more: "Más opciones",
+    export: "Exportar cola anterior",
+    previous: "Página anterior",
+    next: "Página siguiente",
+    queueEmpty: "No hay productos con estos filtros.",
+    loading: "Cargando…",
+    filter: "Estado del producto",
     scans: "Escaneos",
-    actions: "Acciones",
-    retry: "Reintentar",
-    edit: "Clasificar / revisar",
-    cancel: "Cancelar",
-    verify: "Verificar clasificación",
-    addRule: "Añadir regla",
-    createRule: "Crear regla de reciclaje verificada",
-    authority: "Autoridad oficial",
-    sourceUrl: "URL de fuente oficial",
-    wasteStream: "Flujo de residuos",
-    binColor: "Color del contenedor",
-    ruleDone: "Regla de reciclaje creada.",
-    empty: "No hay productos en esta cola.",
-    loading: "Cargando cola de clasificación...",
-    loadError: "No se pudo cargar la inteligencia de reciclaje.",
-    saved: "Controles guardados.",
-    batchDone: (processed: number, classified: number) => `Procesados ${processed}; clasificados ${classified}.`,
-    verifiedDone: "Clasificación verificada.",
-    rejectEvidence: "Rechazar foto",
-    subscriptionCandidate: "Candidato de curación de Codex",
+    noPhoto: "No se ha registrado inspección de fotos",
+    source: "Fuente",
+    gaps: "Carencias",
+    routine: "Lote rutinario",
+    timeZone: "Europe/Madrid",
+    allStates: "Requieren atención",
   },
-} as const;
+};
+const labels: Record<string, [string, string]> = {
+  unknown: ["Not recorded", "Sin registrar"],
+  selecting: ["Selecting", "Seleccionando"],
+  review: ["Under review", "En revisión"],
+  recovered_review: ["Recovered review", "Revisión recuperada"],
+  blocked: ["Needs attention", "Requiere atención"],
+  failed: ["Failed", "Fallido"],
+  complete: ["Complete", "Completo"],
+  complete_with_exceptions: [
+    "Complete with exceptions",
+    "Completo con excepciones",
+  ],
+  partial_complete: ["Partially complete", "Parcialmente completo"],
+  failed_deferred: ["Deferred after failure", "Aplazado tras un fallo"],
+  reserved: ["Reserved", "Reservado"],
+  uncertain: ["Uncertain", "Incierto"],
+  rejected: ["Rejected", "Rechazado"],
+  staged: ["Staged locally", "Preparado localmente"],
+  proposed_not_published: ["Proposed, unpublished", "Propuesto, sin publicar"],
+  published: ["Published", "Publicado"],
+  deferred: ["Deferred", "Aplazado"],
+  revoked: ["Revoked", "Revocado"],
+  unclassified: ["Unclassified", "Sin clasificar"],
+  processing: ["Processing", "Procesando"],
+  rule_missing: ["Rule missing", "Falta regla"],
+  resolved: ["Resolved (primary)", "Resuelto (principal)"],
+  name: ["Name", "Nombre"],
+  brand: ["Brand", "Marca"],
+  photo_missing: ["Missing photo", "Falta foto"],
+  photo_unreviewed: ["Unreviewed photo", "Foto sin revisar"],
+  photo_age_review: ["Older photo review", "Revisar foto antigua"],
+  packaging: ["Packaging", "Envase"],
+  bin_guidance: ["Local guidance", "Guía local"],
+};
 
-function formatDate(value: string | null | undefined, language: "en" | "es") {
-  if (!value) return "Never";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(language === "es" ? "es-ES" : "en-GB");
+function useResource<T>(load: (signal: AbortSignal) => Promise<T>) {
+  const [data, setData] = useState<T | null>(null);
+  const [state, setState] = useState<RefreshState>({
+    refreshing: false,
+    error: null,
+    lastUpdated: null,
+  });
+  const controller = useRef<ReturnType<
+    typeof createRefreshController<T>
+  > | null>(null);
+  useEffect(() => {
+    const c = createRefreshController(
+      load,
+      setData,
+      (s) =>
+        setState((old) => ({
+          ...s,
+          lastUpdated: s.lastUpdated ?? old.lastUpdated,
+        })),
+      { window, document },
+    );
+    controller.current = c;
+    void c.refresh();
+    return () => c.dispose();
+  }, [load]);
+  return { data, state, refresh: () => controller.current?.refresh() };
 }
-
-function StateBadge({ state }: { state: QueueProduct["state"] }) {
-  const tones: Record<QueueProduct["state"], string> = {
-    unclassified: "bg-slate-100 text-slate-700",
-    processing: "bg-blue-50 text-blue-700",
-    review: "bg-amber-50 text-amber-800",
-    rule_missing: "bg-orange-50 text-orange-800",
-    failed: "bg-red-50 text-red-700",
-    resolved: "bg-emerald-50 text-emerald-700",
-  };
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tones[state]}`}>{state.replace("_", " ")}</span>;
+async function read<T>(path: string, signal: AbortSignal) {
+  const token = getToken();
+  if (!token) throw Error("Sign in required / Inicia sesión");
+  return apiFetch<T>(path, { token, signal, cache: "no-store" });
 }
 
 export function AdminRecyclingIntelligenceWorkspace() {
-  const router = useRouter();
   const { language } = useDashboardLanguage();
   const t = copy[language];
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [products, setProducts] = useState<QueueProduct[]>([]);
-  const [status, setStatus] = useState<QueueState>("all");
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [editing, setEditing] = useState<QueueProduct | null>(null);
-  const [editMaterial, setEditMaterial] = useState("other");
-  const [editForm, setEditForm] = useState("other");
-  const [ruleProduct, setRuleProduct] = useState<QueueProduct | null>(null);
-  const [ruleAuthority, setRuleAuthority] = useState("");
-  const [ruleSourceUrl, setRuleSourceUrl] = useState("");
-  const [ruleWasteStream, setRuleWasteStream] = useState("light_packaging");
-  const [ruleColor, setRuleColor] = useState("yellow");
-
-  const load = useCallback(async () => {
-    const token = getToken();
-    if (!token) return router.replace("/login");
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ status, countryCode: "ES", limit: "250" });
-      if (search.trim()) params.set("search", search.trim());
-      const [summaryResult, queueResult] = await Promise.all([
-        apiFetch<{ summary: Summary; settings: Settings }>("/admin/recycling-intelligence/summary?countryCode=ES", { token }),
-        apiFetch<{ products: QueueProduct[] }>(`/admin/recycling-intelligence/queue?${params}`, { token }),
-      ]);
-      setSummary(summaryResult.summary);
-      setSettings(summaryResult.settings);
-      setProducts(queueResult.products);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setLoading(false);
-    }
-  }, [router, search, status, t.loadError]);
-
+  const label = (s: string) => labels[s]?.[language === "es" ? 1 : 0] || s;
+  const format = (value: string | number | null) =>
+    value
+      ? new Intl.DateTimeFormat(language === "es" ? "es-ES" : "en-GB", {
+          dateStyle: "medium",
+          timeStyle: "medium",
+          timeZone: "Europe/Madrid",
+        }).format(new Date(value))
+      : t.notRecorded;
+  const [historyOpen, setHistoryOpen] = useState(false),
+    [selected, setSelected] = useState<RunRecord | null>(null),
+    [cursor, setCursor] = useState<string | null>(null),
+    [previous, setPrevious] = useState<(string | null)[]>([]);
+  const [search, setSearch] = useState(""),
+    [query, setQuery] = useState(""),
+    [filter, setFilter] = useState("all"),
+    [offset, setOffset] = useState(0),
+    [exportError, setExportError] = useState<string | null>(null);
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 250);
+    const timer = window.setTimeout(() => {
+      setQuery(search.trim());
+      setOffset(0);
+    }, 300);
     return () => window.clearTimeout(timer);
-  }, [load]);
-
-  const tabs = useMemo(() => Object.entries(t.tabs) as Array<[QueueState, string]>, [t.tabs]);
-
-  async function runBatch() {
-    const token = getToken();
-    if (!token || !settings) return;
-    setWorking(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const response = await apiFetch<{ result: { processed: number; classified: number } }>("/admin/recycling-intelligence/process", {
-        token,
-        method: "POST",
-        body: { limit: settings.batchSize },
-      });
-      setNotice(t.batchDone(response.result.processed, response.result.classified));
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setWorking(false);
+  }, [search]);
+  const loadHistory = useCallback(
+    async (signal: AbortSignal) => ({
+      ...validateHistory(
+        await read<HistoryPage>(
+          "/admin/recycling-intelligence/runs?limit=20" +
+            (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""),
+          signal,
+        ),
+      ),
+      dataCursor: cursor,
+      fetchedAt: Date.now(),
+    }),
+    [cursor],
+  );
+  const history = useResource(loadHistory);
+  const loadQueue = useCallback(
+    (signal: AbortSignal) =>
+      read<QueuePage>(
+        "/admin/recycling-intelligence/queue?" +
+          new URLSearchParams({
+            monitoring: "1",
+            countryCode: "ES",
+            limit: "50",
+            offset: String(offset),
+            status: filter,
+            search: query,
+          }),
+        signal,
+      ),
+    [offset, filter, query],
+  );
+  const queue = useResource(loadQueue);
+  const [latestUpdated, setLatestUpdated] = useState<number | null>(null);
+  const [latest, setLatest] = useState<RunRecord | null>(null);
+  useEffect(() => {
+    if (history.data?.dataCursor === null) {
+      setLatest(history.data.runs[0] || null);
+      setLatestUpdated(history.data.fetchedAt);
     }
+  }, [history.data]);
+  const activeSelected = selected
+    ? history.data?.runs.find((r) => r.runId === selected.runId) || selected
+    : null;
+  const busy = history.state.refreshing || queue.state.refreshing;
+  const refresh = () => {
+    void history.refresh();
+    void queue.refresh();
+  };
+  function openHistory() {
+    setHistoryOpen(true);
+    setSelected(null);
   }
-
-  async function saveSettings() {
-    const token = getToken();
-    if (!token || !settings) return;
-    setWorking(true);
-    setError(null);
+  function closeHistory() {
+    setHistoryOpen(false);
+    setSelected(null);
+    setCursor(null);
+    setPrevious([]);
+  }
+  async function exportQueue() {
     try {
-      const response = await apiFetch<{ settings: Settings }>("/admin/recycling-intelligence/settings", {
-        token,
-        method: "PUT",
-        body: settings,
-      });
-      setSettings(response.settings);
-      setNotice(t.saved);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function retryProduct(product: QueueProduct) {
-    const token = getToken();
-    if (!token) return;
-    setWorking(true);
-    setError(null);
-    try {
-      await apiFetch(`/admin/recycling-intelligence/products/${product.id}/retry`, { token, method: "POST", body: {} });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  function openReview(product: QueueProduct) {
-    setEditing(product);
-    setEditMaterial(product.materialType || "other");
-    setEditForm(product.packagingForm || "other");
-  }
-
-  async function verifyProduct() {
-    const token = getToken();
-    if (!token || !editing) return;
-    setWorking(true);
-    setError(null);
-    try {
-      await apiFetch(`/admin/recycling-intelligence/products/${editing.id}/components/${editing.componentKey || "primary"}`, {
-        token,
-        method: "PUT",
-        body: {
-          componentRole: "primary",
-          packagingForm: editForm,
-          materialType: editMaterial,
-          classificationConfidence: 1,
-          verificationStatus: "verified",
-          isPrimary: true,
-          sourceReference: "admin_dashboard_review",
-        },
-      });
-      setEditing(null);
-      setNotice(t.verifiedDone);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function rejectEvidence(product: QueueProduct) {
-    const token = getToken();
-    if (!token || !product.evidenceId) return;
-    setWorking(true);
-    setError(null);
-    try {
-      await apiFetch(`/admin/recycling-intelligence/products/${product.id}/evidence/${product.evidenceId}/reject`, {
-        token,
-        method: "POST",
-        body: {},
-      });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function createRule() {
-    const token = getToken();
-    if (!token || !ruleProduct?.materialType || !ruleProduct.packagingForm) return;
-    setWorking(true);
-    setError(null);
-    try {
-      await apiFetch("/admin/recycling-intelligence/rules", {
-        token,
-        method: "POST",
-        body: {
-          countryCode: "ES",
-          materialType: ruleProduct.materialType,
-          packagingForm: ruleProduct.packagingForm,
-          wasteStream: ruleWasteStream,
-          containerType: "street_container",
-          displayColor: ruleColor,
-          conditions: {},
-          exclusions: [],
-          sourceTier: 1,
-          sourceType: "official",
-          authority: ruleAuthority,
-          sourceUrl: ruleSourceUrl,
-          verificationStatus: "verified",
-          priority: 100,
-        },
-      });
-      setRuleProduct(null);
-      setRuleAuthority("");
-      setRuleSourceUrl("");
-      setNotice(t.ruleDone);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function downloadReport() {
-    const token = getToken();
-    if (!token) return;
-    try {
-      const blob = await apiFetchBlob("/admin/recycling-intelligence/report.csv?countryCode=ES", { token });
+      const token = getToken();
+      if (!token) throw Error("Sign in required / Inicia sesión");
+      const blob = await apiFetchBlob(
+        "/admin/recycling-intelligence/report.csv?countryCode=ES",
+        { token },
+      );
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `greenloop-recycling-intelligence-${new Date().toISOString().slice(0, 10)}.csv`;
-      anchor.click();
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "greenloop-legacy-queue.csv";
+      a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.loadError);
+      setExportError(null);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : String(e));
     }
   }
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[var(--gl-green)]">{t.eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{t.title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{t.description}</p>
+  function freshness(state: RefreshState) {
+    return (
+      <div className="text-xs text-slate-500" aria-live="polite">
+        {state.refreshing
+          ? t.refreshing
+          : state.lastUpdated
+            ? `${t.updated}: ${format(state.lastUpdated)} · ${t.timeZone}`
+            : t.waiting}
+        {state.error ? (
+          <p role="alert" className="mt-1 text-red-700">
+            {t.stale} {state.error}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+  function rows(products: ProductOutcome[], compact = false) {
+    return (
+      <ul className="divide-y divide-slate-100">
+        {products.map((p) => (
+          <li key={p.barcode} className="py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <strong className="min-w-0 break-words text-sm">
+                {p.name || p.barcode}{" "}
+                {p.name && p.name !== p.barcode ? (
+                  <span className="font-normal text-slate-500">
+                    · {p.barcode}
+                  </span>
+                ) : null}
+              </strong>
+              <span className="text-xs font-medium text-slate-600">
+                {label(p.outcome)}
+              </span>
+            </div>
+            <p className="mt-1 break-words text-sm text-slate-600">
+              {(compact
+                ? p.reason?.match(/^.*?[.!?](?:\s|$)/)?.[0] || p.reason
+                : p.reason) || t.reasonMissing}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {t[p.source]} · {p.inspected ? t.inspected : t.noPhoto}
+              {p.gaps.length
+                ? ` · ${t.gaps}: ${p.gaps.map(label).join(", ")}`
+                : ""}
+            </p>
+            {p.provenance.length ? (
+              <p className="mt-1 break-words text-xs text-slate-500">
+                {t.source}: {p.provenance.map((s) => s.host).join(", ")}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  function batch(run: RunRecord, compact = false) {
+    return (
+      <>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm font-medium">
+            {run.report?.startedAt ? t.start : t.reserved}:{" "}
+            {format(run.report?.startedAt || run.reservedAt)} · {t.timeZone}
+          </p>
+          <span className="text-xs text-slate-600">
+            {run.report ? label(run.report.status) : t.unavailable}
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold"><RefreshCw size={16} />{t.reload}</button>
-          <button type="button" onClick={() => void downloadReport()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold"><Download size={16} />{t.export}</button>
-          <button type="button" onClick={() => void runBatch()} disabled={working} className="inline-flex items-center gap-2 rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{working ? <LoaderCircle size={16} className="animate-spin" /> : <Play size={16} />}{working ? t.processing : t.process}</button>
+        {run.report && run.counts ? (
+          <>
+            <dl className="my-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
+              {(
+                [
+                  "reserved",
+                  "attempted",
+                  "inspected",
+                  "published",
+                  "staged",
+                  "deferred",
+                  "failed",
+                ] as const
+              ).map((k) => (
+                <div key={k} className="rounded-md bg-slate-50 px-2 py-2">
+                  <dd className="text-base font-semibold tabular-nums">
+                    {run.counts![k]}
+                    {(k==="attempted"?run.counts!.attemptedUnknown:k==="inspected"?run.counts!.inspectedUnknown:0) ? <span className="block text-[10px] font-normal">+ {k==="attempted"?run.counts!.attemptedUnknown:run.counts!.inspectedUnknown} {t.unknown}</span>:null}
+                  </dd>
+                  <dt className="text-[10px] text-slate-600">{t[k]}</dt>
+                </div>
+              ))}
+            </dl>
+            <p className="text-xs text-slate-500">
+              {t.contribution}: {run.counts.bySource.contribution.attempted} ·{" "}
+              {t.catalogue}: {run.counts.bySource.catalogue.attempted} ·{" "}
+              {t.skipped}: {run.report.skippedUnchanged}
+            </p>
+            {!compact ? (
+              <p className="mt-2 text-xs text-slate-500">
+                {t.start}: {format(run.report.startedAt)} · {t.end}:{" "}
+                {format(run.report.endedAt)} · {t.routine}
+              </p>
+            ) : null}
+            {rows(
+              compact ? run.report.products.slice(0, 3) : run.report.products,
+              compact,
+            )}
+          </>
+        ) : (
+          <p className="my-3 text-sm text-amber-800">{t.unavailable}</p>
+        )}
+      </>
+    );
+  }
+  return (
+    <div className="mx-auto max-w-7xl space-y-4">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">
+            {t.title}
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            {t.description}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            aria-label={t.refresh}
+            title={t.refresh}
+            disabled={busy}
+            onClick={refresh}
+            className="rounded-md border border-slate-200 p-2 disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={busy ? "animate-spin" : ""} />
+          </button>
+          <details className="relative">
+            <summary
+              aria-label={t.more}
+              className="cursor-pointer list-none rounded-md border border-slate-200 p-2"
+            >
+              <MoreHorizontal size={18} />
+            </summary>
+            <button
+              type="button"
+              onClick={() => void exportQueue()}
+              className="absolute right-0 z-10 mt-1 w-52 rounded-md border bg-white p-3 text-left text-sm shadow"
+            >
+              {t.export}
+            </button>
+          </details>
         </div>
       </header>
-
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-      {notice ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div> : null}
-
-      <section className="rounded-lg border border-[var(--gl-hairline)] bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-lg bg-[var(--gl-green-soft)] text-[var(--gl-green)]"><CircleGauge size={24} /></span><div><p className="text-sm font-semibold text-[var(--gl-ink-muted)]">{t.coverage}</p><p className="text-3xl font-semibold">{summary?.coveragePercent ?? 0}%</p></div></div>
-          <p className="text-sm text-[var(--gl-ink-muted)]">{summary?.resolvedScannedProducts ?? 0} / {summary?.scannedProducts ?? 0} {t.scannedProducts}</p>
+      {exportError ? (
+        <p role="alert" className="text-sm text-red-700">
+          {exportError}
+        </p>
+      ) : null}
+      <section
+        className="rounded-lg border border-slate-200 bg-white p-4"
+        aria-label={historyOpen ? t.history : t.latest}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">
+            {historyOpen ? t.history : t.latest}
+          </h2>
+          {historyOpen ? (
+            <button
+              onClick={activeSelected ? () => setSelected(null) : closeHistory}
+              className="flex items-center gap-1 text-sm font-medium"
+            >
+              <ChevronLeft size={16} />
+              {t.back}
+            </button>
+          ) : (
+            <button
+              onClick={openHistory}
+              className="text-sm font-semibold text-[var(--gl-green)]"
+            >
+              {t.all}
+            </button>
+          )}
         </div>
-        <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-[var(--gl-green)] transition-[width]" style={{ width: `${Math.min(summary?.coveragePercent ?? 0, 100)}%` }} /></div>
+        {freshness({...history.state,lastUpdated:historyOpen?history.state.lastUpdated:latestUpdated})}
+        {!history.data && !history.state.error ? (
+          <p className="py-5 text-sm text-slate-500">{t.loading}</p>
+        ) : null}
+        {history.data?.runs.length === 0 ? (
+          <p className="py-5 text-sm text-slate-500">{t.empty}</p>
+        ) : null}
+        {!historyOpen && latest ? (
+          <div className="mt-3">{batch(latest, true)}</div>
+        ) : null}
+        {historyOpen && activeSelected ? (
+          <div className="mt-3">{batch(activeSelected)}</div>
+        ) : null}
+        {historyOpen && !activeSelected ? (
+          <>
+            <ul className="mt-3 divide-y divide-slate-100">
+              {history.data?.runs.map((run) => (
+                <li key={run.runId}>
+                  <button
+                    onClick={() => setSelected(run)}
+                    className="flex w-full items-center justify-between gap-3 py-3 text-left"
+                  >
+                    <span className="text-sm">
+                      {format(run.report?.startedAt || run.reservedAt)} ·{" "}
+                      {t.timeZone}
+                      <span className="mt-1 block text-xs text-slate-500">
+                        {run.report ? label(run.report.status) : t.unavailable}
+                        {run.counts
+                          ? ` · ${t.attempted}: ${run.counts.attempted} · ${t.published}: ${run.counts.published}`
+                          : ""}
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex justify-between">
+              <button
+                aria-label={t.previous}
+                disabled={!previous.length || history.state.refreshing}
+                onClick={() => {
+                  setCursor(previous[previous.length - 1]);
+                  setPrevious(previous.slice(0, -1));
+                }}
+                className="text-sm disabled:opacity-40"
+              >
+                {t.previous}
+              </button>
+              <button
+                aria-label={t.next}
+                disabled={!history.data?.nextCursor || history.state.refreshing}
+                onClick={() => {
+                  setPrevious([...previous, cursor]);
+                  setCursor(history.data!.nextCursor);
+                }}
+                className="text-sm disabled:opacity-40"
+              >
+                {t.next}
+              </button>
+            </div>
+          </>
+        ) : null}
+        <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+          {t.scope}
+        </p>
       </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <Metric icon={BrainCircuit} label={t.classified} value={summary?.classified ?? 0} />
-        <Metric icon={ShieldCheck} label={t.verified} value={summary?.verified ?? 0} />
-        <Metric icon={CheckCircle2} label={t.review} value={summary?.awaitingReview ?? 0} tone="amber" />
-        <Metric icon={Search} label={t.unknown} value={summary?.unclassified ?? 0} />
-        <Metric icon={AlertTriangle} label={t.ruleMissing} value={summary?.ruleMissing ?? 0} tone="amber" />
-        <Metric icon={AlertTriangle} label={t.failures} value={summary?.failed ?? 0} tone="red" />
-      </section>
-
-      <section className="rounded-lg border border-[var(--gl-hairline)] bg-white p-5 shadow-sm">
-        <div className="mb-4"><h2 className="text-lg font-semibold">{t.settings}</h2><p className="text-sm text-[var(--gl-ink-muted)]">{t.today}: {summary?.today.attempts ?? 0}{settings ? ` / ${settings.dailyAiLimit}` : ""}</p></div>
-        {settings ? <div className="grid gap-4 lg:grid-cols-[minmax(300px,1.7fr)_repeat(2,minmax(140px,1fr))_auto] lg:items-end">
-          <label className="flex min-h-16 items-center gap-3 rounded-lg border border-[var(--gl-hairline)] px-4 py-3"><input type="checkbox" checked={settings.automaticProcessingEnabled} onChange={(event) => setSettings({ ...settings, automaticProcessingEnabled: event.target.checked })} className="size-5 accent-[var(--gl-green)]" /><span><span className="block text-sm font-semibold">{t.auto}</span><span className="block text-xs text-[var(--gl-ink-muted)]">{t.autoHelp}</span></span></label>
-          <NumberField label={t.dailyLimit} value={settings.dailyAiLimit} min={0} max={5000} onChange={(value) => setSettings({ ...settings, dailyAiLimit: value })} />
-          <NumberField label={t.batchSize} value={settings.batchSize} min={1} max={100} onChange={(value) => setSettings({ ...settings, batchSize: value })} />
-          <button type="button" onClick={() => void saveSettings()} disabled={working} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 text-sm font-semibold text-white disabled:opacity-50"><Save size={16} />{t.save}</button>
-        </div> : null}
-      </section>
-
-      <section className="rounded-lg border border-[var(--gl-hairline)] bg-white shadow-sm">
-        <div className="border-b border-[var(--gl-hairline)] p-4"><h2 className="text-lg font-semibold">{t.queue}</h2><p className="text-sm text-[var(--gl-ink-muted)]">{t.queueHelp}</p></div>
-        <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4">
-          <div className="flex flex-wrap gap-2">{tabs.map(([key, label]) => <button key={key} type="button" onClick={() => setStatus(key)} className={`rounded-full px-3 py-1.5 text-sm font-semibold ${status === key ? "bg-[var(--gl-green)] text-white" : "border border-[var(--gl-hairline)] bg-white text-[var(--gl-ink-soft)]"}`}>{label}</button>)}</div>
-          <div className="relative max-w-md"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gl-ink-muted)]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} className="w-full rounded-lg border border-[var(--gl-hairline)] py-2 pl-9 pr-3 text-sm" /></div>
+      <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="font-semibold">{t.queue}</h2>
+        <p className="mt-1 text-xs text-slate-500">{t.queueScope}</p>
+        <div className="my-3 flex flex-col gap-2 sm:flex-row">
+          <label className="relative flex-1">
+            <Search
+              size={16}
+              className="absolute left-3 top-3 text-slate-400"
+            />
+            <input
+              aria-label={t.search}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t.search}
+              className="h-10 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm"
+            />
+          </label>
+          <select
+            aria-label={t.filter}
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setOffset(0);
+            }}
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm"
+          >
+            {[
+              "all",
+              "unclassified",
+              "processing",
+              "review",
+              "rule_missing",
+              "failed",
+              "resolved",
+            ].map((s) => (
+              <option key={s} value={s}>
+                {s === "all" ? t.allStates : label(s)}
+              </option>
+            ))}
+          </select>
         </div>
-        <div className="overflow-x-auto"><table className="min-w-[1050px] w-full text-left text-sm"><thead className="bg-[var(--gl-card-cream)] text-xs uppercase text-[var(--gl-ink-muted)]"><tr><th className="px-4 py-3">{t.product}</th><th className="px-4 py-3">{t.state}</th><th className="px-4 py-3">{t.evidence}</th><th className="px-4 py-3">{t.attempts}</th><th className="px-4 py-3 text-right">{t.scans}</th><th className="px-4 py-3">{t.actions}</th></tr></thead>
-          <tbody>{loading ? <MessageRow text={t.loading} /> : products.length === 0 ? <MessageRow text={t.empty} /> : products.map((product) => <tr key={product.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]/70"><td className="px-4 py-3"><div className="flex min-w-0 items-center gap-3">{product.imageUrl ? <a href={product.imageUrl} target="_blank" rel="noreferrer" className="shrink-0"><Image unoptimized src={product.imageUrl} alt="Submitted packaging" width={56} height={56} className="size-14 rounded-md border border-[var(--gl-hairline)] object-cover" /></a> : null}<div className="min-w-0"><p className="font-semibold">{product.name || product.ean || "Unknown"}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.brandName || "-"} · {product.ean || "-"}</p>{product.evidenceStatus ? <p className="mt-1 text-xs font-semibold text-[var(--gl-green)]">User photo · {product.evidenceStatus}</p> : null}</div></div></td><td className="px-4 py-3"><StateBadge state={product.state} /></td><td className="px-4 py-3"><p className="font-medium">{product.materialType || "-"} {product.packagingForm ? `· ${product.packagingForm}` : ""}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.sourceReference?.startsWith("codex_subscription_curation:") ? t.subscriptionCandidate : product.sourceType || (product.imageUrl ? "User packaging photo" : "No evidence")}{product.confidence != null ? ` · ${Math.round(product.confidence * 100)}%` : ""}</p></td><td className="px-4 py-3"><p>{product.lastEnrichmentStatus || "Never attempted"}</p><p className="text-xs text-[var(--gl-ink-muted)]">{product.lastErrorCode || formatDate(product.lastEnrichmentAt, language)}</p></td><td className="px-4 py-3 text-right font-semibold">{product.scanCount}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{["unclassified", "failed"].includes(product.state) ? <button type="button" disabled={working} onClick={() => void retryProduct(product)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">{t.retry}</button> : null}{product.verificationStatus !== "verified" && product.state !== "processing" ? <button type="button" onClick={() => openReview(product)} className="rounded-md bg-[var(--gl-green-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-green-deep)]">{t.edit}</button> : null}{product.evidenceStatus === "review" && product.evidenceId ? <button type="button" disabled={working} onClick={() => void rejectEvidence(product)} className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50">{t.rejectEvidence}</button> : null}{product.state === "rule_missing" ? <button type="button" onClick={() => setRuleProduct(product)} className="rounded-md bg-[var(--gl-amber-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-amber-ink)]">{t.addRule}</button> : null}</div></td></tr>)}</tbody>
-        </table></div>
+        {freshness(queue.state)}
+        {!queue.data && !queue.state.error ? (
+          <p className="py-5 text-sm">{t.loading}</p>
+        ) : null}
+        {queue.data?.products.length === 0 ? (
+          <p className="py-5 text-sm text-slate-500">{t.queueEmpty}</p>
+        ) : null}
+        <ul className="mt-2 divide-y divide-slate-100">
+          {queue.data?.products.map((p) => (
+            <li key={p.id} className="py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-medium">
+                    {p.name || p.ean}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {p.ean} · {p.brandName || "—"} · {t.scans}: {p.scanCount}
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-slate-600">
+                  {label(p.state)}
+                </span>
+              </div>
+              <details className="mt-1 text-xs text-slate-500">
+                <summary className="cursor-pointer">{t.details}</summary>
+                <p className="mt-1">
+                  {p.materialType || "—"} · {p.packagingForm || "—"} ·{" "}
+                  {p.verificationStatus || "—"}
+                </p>
+                {p.lastErrorCode ? <p>{p.lastErrorCode}</p> : null}
+              </details>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex justify-between text-sm">
+          <button
+            disabled={offset === 0 || queue.state.refreshing}
+            onClick={() => setOffset(Math.max(0, offset - 50))}
+            className="disabled:opacity-40"
+          >
+            {t.previous}
+          </button>
+          <button
+            disabled={queue.data?.nextOffset == null || queue.state.refreshing}
+            onClick={() => setOffset(queue.data!.nextOffset!)}
+            className="disabled:opacity-40"
+          >
+            {t.next}
+          </button>
+        </div>
       </section>
-
-      {editing ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"><h2 className="text-xl font-semibold">{editing.name || editing.ean}</h2><p className="mt-1 text-sm text-[var(--gl-ink-muted)]">Confirm or correct the physical packaging. This marks the result as GreenLoop verified.</p>{editing.imageUrl ? <a href={editing.imageUrl} target="_blank" rel="noreferrer" className="relative mt-4 block h-56 overflow-hidden rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]"><Image unoptimized fill sizes="480px" src={editing.imageUrl} alt="Packaging submitted by a user" className="object-contain" /></a> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2"><SelectField label="Material" value={editMaterial} values={materials} onChange={setEditMaterial} /><SelectField label="Packaging form" value={editForm} values={forms} onChange={setEditForm} /></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold">{t.cancel}</button><button type="button" disabled={working} onClick={() => void verifyProduct()} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{t.verify}</button></div></div></div> : null}
-      {ruleProduct ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-lg bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"><Waypoints size={20} /></span><div><h2 className="text-xl font-semibold">{t.createRule}</h2><p className="text-sm text-[var(--gl-ink-muted)]">ES · {ruleProduct.materialType} · {ruleProduct.packagingForm}</p></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><SelectField label={t.wasteStream} value={ruleWasteStream} values={["light_packaging", "glass_packaging", "paper_cardboard", "organics", "residual", "deposit_return", "special_collection"]} onChange={setRuleWasteStream} /><SelectField label={t.binColor} value={ruleColor} values={["yellow", "blue", "green", "brown", "gray", "orange", "red", "white", "other"]} onChange={setRuleColor} /><TextField label={t.authority} value={ruleAuthority} onChange={setRuleAuthority} /><TextField label={t.sourceUrl} value={ruleSourceUrl} onChange={setRuleSourceUrl} type="url" /></div><p className="mt-4 text-xs text-[var(--gl-ink-muted)]">Only create this rule from an official source. It will apply nationally in Spain to this material and packaging form.</p><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setRuleProduct(null)} className="rounded-lg border border-[var(--gl-hairline)] px-4 py-2 text-sm font-semibold">{t.cancel}</button><button type="button" disabled={working || ruleAuthority.trim().length < 2 || !/^https:\/\//i.test(ruleSourceUrl)} onClick={() => void createRule()} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{t.createRule}</button></div></div></div> : null}
     </div>
   );
-}
-
-function Metric({ icon: Icon, label, value, tone = "green" }: { icon: typeof BrainCircuit; label: string; value: number; tone?: "green" | "amber" | "red" }) {
-  const colors = tone === "red" ? "bg-red-50 text-red-700" : tone === "amber" ? "bg-amber-50 text-amber-800" : "bg-[var(--gl-green-soft)] text-[var(--gl-green)]";
-  return <div className="rounded-lg border border-[var(--gl-hairline)] bg-white p-4 shadow-sm"><span className={`grid size-9 place-items-center rounded-lg ${colors}`}><Icon size={19} /></span><p className="mt-3 text-2xl font-semibold">{value.toLocaleString()}</p><p className="text-xs font-semibold text-[var(--gl-ink-muted)]">{label}</p></div>;
-}
-
-function NumberField({ label, value, min, max, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
-  return <label className="block text-sm font-semibold"><span className="mb-1.5 block text-[var(--gl-ink-soft)]">{label}</span><input type="number" value={value} min={min} max={max} step={step} onChange={(event) => onChange(Number(event.target.value))} className="h-10 w-full rounded-lg border border-[var(--gl-hairline)] px-3" /></label>;
-}
-
-function SelectField({ label, value, values, onChange }: { label: string; value: string; values: string[]; onChange: (value: string) => void }) {
-  return <label className="block text-sm font-semibold"><span className="mb-1.5 block">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2">{values.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>;
-}
-
-function TextField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return <label className="block text-sm font-semibold"><span className="mb-1.5 block">{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2" /></label>;
-}
-
-function MessageRow({ text }: { text: string }) {
-  return <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-[var(--gl-ink-muted)]">{text}</td></tr>;
 }
