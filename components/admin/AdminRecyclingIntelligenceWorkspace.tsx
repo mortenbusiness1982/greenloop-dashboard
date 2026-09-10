@@ -1,5 +1,7 @@
 "use client";
 import {queueNeed} from '@/lib/packagingReview';
+import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
+import type {ReviewData} from '@/lib/curationReview';
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -294,6 +296,25 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const activeSelected = selected
     ? history.data?.runs.find((r) => r.runId === selected.runId) || selected
     : null;
+  const [proposalStates,setProposalStates]=useState<Record<string,ProposalProgress>>({});
+  const [reviewRefresh,setReviewRefresh]=useState(0);
+  useEffect(()=>{
+    const controller=new AbortController();
+    const runs=[latest,activeSelected].filter((r):r is RunRecord=>!!r);
+    const targets=new Map(runs.flatMap(r=>(r.report?.products||[]).filter(p=>p.outcome==='staged'||p.outcome==='proposed_not_published').map(p=>[r.runId+':'+p.barcode,{runId:r.runId,barcode:p.barcode}] as const)));
+    async function check(){
+      for(const [key,target] of targets){
+        if(controller.signal.aborted)return;
+        let status:ProposalProgress='unavailable';
+        try{
+          const data=await read<ReviewData&{manualReview?:{rejected:boolean}}>('/admin/recycling-intelligence/review/'+target.barcode+'?run='+encodeURIComponent(target.runId),AbortSignal.any([controller.signal,AbortSignal.timeout(15000)]));
+          if(data.barcode===target.barcode)status=proposalProgress(data);
+        }catch{}
+        if(!controller.signal.aborted)setProposalStates(old=>({...old,[key]:status}));
+      }
+    }
+    void check();return()=>controller.abort();
+  },[latest,activeSelected,reviewRefresh]);
   const busy = history.state.refreshing || queue.state.refreshing;
   const refresh = () => {
     void history.refresh();
@@ -350,12 +371,14 @@ export function AdminRecyclingIntelligenceWorkspace() {
       <button onClick={()=>openReview({barcode:p.barcode,runId,outcome:p})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
         <span className="min-w-0"><strong className="block break-words text-sm">{usefulName(p.name,p.barcode)|| (language==='es'?'Producto sin identificar':'Unidentified product')}</strong>
         <span className="mt-1 block text-xs text-slate-500">{p.barcode}</span>
-        <span className="mt-1 block text-sm text-amber-800">{reviewLabels[language][reviewState(p)]}</span>
+        <span className="mt-1 block text-sm text-amber-800">{proposalStates[runId+':'+p.barcode]==='recorded'?(language==='es'?'Cambios guardados':'Changes saved'):proposalStates[runId+':'+p.barcode]==='rejected'?(language==='es'?'Rechazada':'Rejected'):reviewLabels[language][reviewState(p)]}</span>
         {!compact?<span className="mt-1 block break-words text-sm text-slate-600">{p.reason||t.reasonMissing}</span>:null}</span>
         <ChevronRight size={20} className="shrink-0 text-slate-500"/>
       </button></li>)}</ul>;
   }
   function batch(run: RunRecord, compact = false) {
+    const pending=(run.report?.products||[]).filter(p=>(p.outcome==='staged'||p.outcome==='proposed_not_published')&&!['recorded','rejected'].includes(proposalStates[run.runId+':'+p.barcode]));
+    const visible=(run.report?.products||[]).filter(p=>!compact||!['recorded','rejected'].includes(proposalStates[run.runId+':'+p.barcode]));
     return (
       <>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -370,14 +393,14 @@ export function AdminRecyclingIntelligenceWorkspace() {
         {run.report && run.counts ? (
           <>
             <dl className="my-4 flex flex-wrap gap-x-6 gap-y-3 border-b border-slate-100 pb-3">
-              {Object.entries(compactCounts(run.counts)).filter(([k])=>k!=='unknown').map(([k,v])=><div key={k}><dd className="text-lg font-semibold tabular-nums">{v}</dd><dt className="text-xs text-slate-600">{({processed:language==='es'?'Procesados':'Processed',photosPublished:language==='es'?'Fotos publicadas':'Photos published',staged:language==='es'?'Propuestas guardadas':'Staged proposals',unresolved:language==='es'?'Sin resolver':'Unresolved',failed:t.failed} as Record<string,string>)[k]}</dt></div>)}
+              {Object.entries(compactCounts(run.counts)).filter(([k])=>k!=='unknown').map(([k,v])=><div key={k}><dd className="text-lg font-semibold tabular-nums">{k==='staged'?pending.length:v}</dd><dt className="text-xs text-slate-600">{({processed:language==='es'?'Procesados':'Processed',photosPublished:language==='es'?'Fotos publicadas':'Photos published',staged:language==='es'?'Propuestas pendientes':'Pending proposals',unresolved:language==='es'?'Sin resolver':'Unresolved',failed:t.failed} as Record<string,string>)[k]}</dt></div>)}
               <div><dd className="text-lg font-semibold tabular-nums">{run.metadataApplications??t.notRecorded}</dd><dt className="text-xs text-slate-600">{language==='es'?'Correcciones activas del catálogo':'Active catalogue corrections'}</dt></div>
             </dl>
             {run.counts.attemptedUnknown?<p className="text-xs text-amber-800">+ {run.counts.attemptedUnknown} {t.unknown}</p>:null}
-            {run.counts.staged>0?<button className="mb-2 min-h-11 text-sm font-semibold text-emerald-800 underline" onClick={()=>{const p=run.report!.products.find(p=>p.outcome==='staged'||p.outcome==='proposed_not_published');if(p)openReview({barcode:p.barcode,runId:run.runId,outcome:p});}}>{language==='es'?'Revisar':'Review'} {run.counts.staged} {language==='es'?(run.counts.staged===1?'propuesta':'propuestas'):(run.counts.staged===1?'proposal':'proposals')}</button>:null}
+            {pending.length>0?<button className="mb-2 min-h-11 text-sm font-semibold text-emerald-800 underline" onClick={()=>openReview({barcode:pending[0].barcode,runId:run.runId,outcome:pending[0]})}>{language==='es'?'Revisar':'Review'} {pending.length} {language==='es'?(pending.length===1?'propuesta':'propuestas'):(pending.length===1?'proposal':'proposals')}</button>:run.counts.staged>0?<p className="mb-2 text-sm text-emerald-800">{language==='es'?'No quedan propuestas pendientes':'No proposals pending'}</p>:null}
             {!compact?<details className="mb-3 text-xs text-slate-500"><summary className="min-h-11 cursor-pointer py-3">{language==='es'?'Detalles del lote':'Batch details'}</summary><p>{t.reserved}: {run.counts.reserved} · {t.inspected}: {run.counts.inspected} · {t.skipped}: {run.report.skippedUnchanged}</p><p>{t.contribution}: {run.counts.bySource.contribution.attempted} · {t.catalogue}: {run.counts.bySource.catalogue.attempted}</p><p>{t.end}: {format(run.report.endedAt)} · {run.runId}</p></details>:null}
             {rows(
-              compact ? run.report.products.slice(0, 3) : run.report.products,
+              compact ? visible.slice(0, 3) : visible,
               run.runId, compact,
             )}
           </>
@@ -603,7 +626,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </button>
         </div>
       </section>
-      {reviewTarget?<CurationReviewDialog target={reviewTarget} language={language} onClose={()=>{setReviewTarget(null);requestAnimationFrame(()=>reviewOpener.current?.focus());}}/>:null}
+      {reviewTarget?<CurationReviewDialog target={reviewTarget} language={language} onClose={()=>{setReviewTarget(null);setReviewRefresh(v=>v+1);refresh();requestAnimationFrame(()=>reviewOpener.current?.focus());}}/>:null}
     </div>
   );
 }

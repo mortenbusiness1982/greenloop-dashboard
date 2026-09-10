@@ -2,6 +2,24 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function load(file,mocks={}){const m=new Module(file,module);m.require=id=>id in mocks?mocks[id]:require(id);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,file);return m.exports;}
 const {createRefreshController}=load('lib/refreshController.ts'),{validateHistory}=load('lib/curationMonitoring.ts');
 const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
+const {proposalProgress}=load('lib/proposalProgress.ts');
+test('pending proposals reconcile against persisted values across reloads',()=>{
+ const data={readOnly:true,enrichment:false,current:{name:'Saved name',brand:'Saved brand',packaging:[]},packet:{proposals:[{field:'name',value:'Saved name'},{field:'brand',value:'Saved brand'}]}};
+ assert.equal(proposalProgress(data),'recorded');
+ assert.equal(proposalProgress({...data,current:{...data.current,brand:'Old brand'}}),'pending');
+ assert.equal(proposalProgress({...data,manualReview:{rejected:true}}),'rejected');
+ assert.equal(proposalProgress({...data,packet:null}),'unavailable');
+ assert.equal(proposalProgress({...data,packet:{proposals:[]}}),'pending');
+});
+test('packaging confirmation cannot clear outstanding identity or unknown proposals',()=>{
+ const current={name:'Old name',brand:null,packaging:[{key:'main',role:'primary',form:'bottle',material:'plastic'}]};
+ const visual={field:'packaging_component',componentKey:'main',componentRole:'primary',packagingForm:'bottle',materialType:'plastic'};
+ const data={readOnly:true,enrichment:false,current,packet:{proposals:[],visualProposals:[visual]}};
+ assert.equal(proposalProgress(data),'recorded');
+ assert.equal(proposalProgress({...data,packet:{...data.packet,proposals:[{field:'name',value:'New name'}]}}),'pending');
+ assert.equal(proposalProgress({...data,packet:{proposals:[{field:'photo',value:'new image'}]}}),'pending');
+ assert.equal(proposalProgress({...data,current:{...current,packaging:[]}}),'pending');
+});
 test('review starts from recorded primary packaging, never invents material',()=>{
  const cap={key:'cap',role:'cap',form:'other',material:'plastic'},bottle={key:'main',role:'primary',form:'bottle',material:'glass'};
  assert.deepEqual(initialPackaging([cap,bottle]),bottle);assert.deepEqual(initialPackaging([cap]),cap);
