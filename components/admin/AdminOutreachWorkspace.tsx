@@ -4,6 +4,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { CheckSquare2, Send, X } from "lucide-react";
 import { API_BASE, apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { buildIsolatedEmailPreview } from "@/lib/emailPreview";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type OutreachStatus =
@@ -1883,9 +1884,12 @@ export function AdminOutreachWorkspace() {
                     <span className="ml-1">{c.editor.noAttachments}</span>
                   )}
                 </div>
-                <div
-                  className="max-h-[640px] min-h-[420px] overflow-auto rounded-xl border border-[var(--gl-hairline)] bg-white p-6"
-                  dangerouslySetInnerHTML={{ __html: buildPreviewHtml(form.html_body) }}
+                <iframe
+                  title={c.editor.preview}
+                  sandbox=""
+                  referrerPolicy="no-referrer"
+                  className="h-[540px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
+                  srcDoc={buildIsolatedEmailPreview(buildPreviewHtml(form.html_body))}
                 />
               </div>
 
