@@ -62,6 +62,14 @@ test('successful async submission resets the captured form once and blocks dupli
   assert.ok(f.updates.some(u => u.value === 'Submitted for GreenLoop review.'));
 });
 
+test('sponsored campaigns only submit the public visibility accepted by the API', async () => {
+  const f = fixture();
+  f.values.visibility = 'private';
+  const pending = f.submit();
+  assert.equal(f.requests[0].visibility, 'public');
+  f.complete(); await pending;
+});
+
 test('uncertain retries reuse the request ID; edited content receives a new ID', async () => {
   const f = fixture();
   const first = f.submit(); f.fail(); await first;
