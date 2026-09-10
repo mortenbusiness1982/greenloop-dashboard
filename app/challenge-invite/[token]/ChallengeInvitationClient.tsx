@@ -9,7 +9,6 @@ export type InvitationPreview = {
     title: string;
     description?: string | null;
     heroImageUrl?: string | null;
-    organizationName?: string | null;
     startsAt?: string | null;
     endsAt?: string | null;
   };
@@ -66,13 +65,10 @@ export default function ChallengeInvitationClient({
                 <div>
                   <p className="text-sm font-medium text-[var(--gl-green)]">You’ve been invited</p>
                   <p className="mt-1 text-lg text-[var(--gl-ink-soft)]">
-                    Join {invitation.challenge.organizationName || "the GreenLoop community"} and recycle together.
+                    Join &ldquo;{invitation.challenge.title}&rdquo; and recycle together.
                   </p>
                 </div>
               </div>
-              {invitation.challenge.description ? (
-                <p className="mt-5 line-clamp-4 leading-7 text-[var(--gl-ink-soft)]">{invitation.challenge.description}</p>
-              ) : null}
               <div className="mt-5 flex items-center gap-2 text-sm text-[var(--gl-ink-muted)]">
                 <CalendarDays className="h-4 w-4" />
                 {invitation.challenge.endsAt ? `Open until ${new Date(invitation.challenge.endsAt).toLocaleDateString()}` : "Open now"}

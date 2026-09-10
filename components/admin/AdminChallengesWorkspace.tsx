@@ -155,6 +155,28 @@ type ChallengeRequest = {
   requesterDisplayName?: string | null;
 };
 
+type SponsoredChallengeReview = {
+  id: string;
+  title: string;
+  description?: string | null;
+  visibility?: ChallengeVisibility | null;
+  target_kind?: TargetKind | "selected_products" | null;
+  required_count?: number | null;
+  collective_goal_count?: number | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  review_status: "draft" | "pending_review" | "approved" | "rejected" | "paused";
+  sponsor_review_notes?: string | null;
+  sponsor_brand_name?: string | null;
+  reward_title?: string | null;
+  redemption_type?: string | null;
+  affiliate_url?: string | null;
+  promo_code?: string | null;
+  participants?: number | null;
+  collective_progress?: number | null;
+  created_at?: string | null;
+};
+
 type CertificatePdfLanguage = "en" | "es";
 type ChallengeWorkspaceSection = "requests" | "community" | "all";
 
@@ -448,6 +470,7 @@ export function AdminChallengesWorkspace() {
   const { language } = useDashboardLanguage();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeRequests, setChallengeRequests] = useState<ChallengeRequest[]>([]);
+  const [sponsoredReviews, setSponsoredReviews] = useState<SponsoredChallengeReview[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [owners, setOwners] = useState<AdminChallengeOwner[]>([]);
@@ -470,6 +493,8 @@ export function AdminChallengesWorkspace() {
   const [requestAdminNotes, setRequestAdminNotes] = useState<Record<string, string>>({});
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [requestMessage, setRequestMessage] = useState<CertificateStatusMessage | null>(null);
+  const [sponsoredReviewNotes, setSponsoredReviewNotes] = useState<Record<string, string>>({});
+  const [sponsoredReviewActionId, setSponsoredReviewActionId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<ChallengeWorkspaceSection>("requests");
   const [pendingEditorFocus, setPendingEditorFocus] = useState<"form" | "image" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -510,17 +535,26 @@ export function AdminChallengesWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [challengeResult, requestResult, rewardResult, brandResult, userResult] = await Promise.all([
+      const [challengeResult, requestResult, sponsoredResult, rewardResult, brandResult, userResult] = await Promise.all([
         apiFetch("/admin/challenges", { token }),
         apiFetch("/admin/challenge-requests", { token }),
+        apiFetch("/admin/sponsored-challenges", { token }),
         apiFetch("/admin/rewards", { token }),
         apiFetch("/admin/brands", { token }),
         apiFetch("/admin/users", { token }),
       ]);
       const normalizedChallenges = normalizeList<Challenge>(challengeResult, ["challenges", "data"]).map(normalizeChallenge);
       const normalizedRequests = normalizeList<ChallengeRequest>(requestResult, ["requests", "data"]).map(normalizeChallengeRequest);
+      const normalizedSponsored = normalizeList<SponsoredChallengeReview>(sponsoredResult, ["challenges", "data"]);
       setChallenges(normalizedChallenges);
       setChallengeRequests(normalizedRequests);
+      setSponsoredReviews(normalizedSponsored);
+      setSponsoredReviewNotes(
+        normalizedSponsored.reduce<Record<string, string>>((notes, challenge) => {
+          notes[challenge.id] = challenge.sponsor_review_notes || "";
+          return notes;
+        }, {})
+      );
       setRequestAdminNotes(
         normalizedRequests.reduce<Record<string, string>>((notes, request) => {
           notes[request.id] = request.adminNotes || "";
@@ -602,7 +636,7 @@ export function AdminChallengesWorkspace() {
         key: "requests" as const,
         label: "Requests",
         description: "Review and publish requested community challenges.",
-        count: requestKpis.pending,
+        count: requestKpis.pending + sponsoredReviews.filter((challenge) => challenge.review_status === "pending_review").length,
       },
       {
         key: "community" as const,
@@ -617,7 +651,7 @@ export function AdminChallengesWorkspace() {
         count: filteredChallenges.length,
       },
     ],
-    [communityChallenges.length, filteredChallenges.length, requestKpis.pending]
+    [communityChallenges.length, filteredChallenges.length, requestKpis.pending, sponsoredReviews]
   );
 
   function startEdit(challenge: Challenge, focusImage = false) {
@@ -1131,6 +1165,48 @@ export function AdminChallengesWorkspace() {
     }
   }
 
+  async function reviewSponsoredChallenge(
+    challenge: SponsoredChallengeReview,
+    status: "approved" | "rejected" | "paused"
+  ) {
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    const actionKey = `${status}-${challenge.id}`;
+    setSponsoredReviewActionId(actionKey);
+    setRequestMessage(null);
+    try {
+      await apiFetch(`/admin/sponsored-challenges/${challenge.id}/review`, {
+        token,
+        method: "PATCH",
+        body: {
+          status,
+          notes: sponsoredReviewNotes[challenge.id] || null,
+        },
+      });
+      setRequestMessage({
+        type: "success",
+        text:
+          status === "approved"
+            ? `${challenge.title} is approved and live with its linked reward.`
+            : status === "paused"
+              ? `${challenge.title} and its linked reward are paused.`
+              : `${challenge.title} was rejected and remains hidden from users.`,
+      });
+      await loadData();
+    } catch (err) {
+      setRequestMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Unable to review sponsored challenge",
+      });
+    } finally {
+      setSponsoredReviewActionId(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -1181,6 +1257,101 @@ export function AdminChallengesWorkspace() {
       </section>
 
       {activeSection === "requests" ? (
+      <>
+      <section className="rounded-xl border border-[var(--gl-amber)]/35 bg-white shadow-sm">
+        <div className="border-b border-[var(--gl-hairline)] p-4">
+          <p className="text-sm font-medium text-[var(--gl-amber-ink)]">Sponsored Challenge Reviews</p>
+          <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Review brand-funded campaigns</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">
+            Brand submissions stay hidden until approved. Approval activates both the challenge and its linked completion benefit.
+          </p>
+        </div>
+        {loading ? (
+          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">Loading sponsored challenges...</div>
+        ) : sponsoredReviews.length === 0 ? (
+          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">No sponsored challenges have been submitted.</div>
+        ) : (
+          <div className="divide-y divide-[var(--gl-card-cream)]">
+            {sponsoredReviews.map((challenge) => (
+              <article key={challenge.id} className="grid gap-5 p-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="min-w-0 space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-[var(--gl-ink)]">{challenge.title}</h3>
+                        <span className="rounded-full bg-[var(--gl-amber-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--gl-amber-ink)]">
+                          {challenge.review_status.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-[var(--gl-green)]">Sponsored by {challenge.sponsor_brand_name || "Brand"}</p>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{challenge.description || "No description provided."}</p>
+                    </div>
+                    <span className="text-xs text-[var(--gl-ink-muted)]">Submitted {formatDateTime(challenge.created_at)}</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <CertificateMetric label="Eligibility" value={String(challenge.target_kind || "any").replace(/_/g, " ")} />
+                    <CertificateMetric label="Individual goal" value={`${formatNumber(Number(challenge.required_count || 0))} recycles`} />
+                    <CertificateMetric label="Access" value={challenge.visibility === "private" ? "Private" : "Public"} />
+                    <CertificateMetric label="Participants" value={formatNumber(Number(challenge.participants || 0))} />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <CertificateMetric label="Reward" value={challenge.reward_title || "No linked reward"} />
+                    <CertificateMetric label="Reward flow" value={String(challenge.redemption_type || "-").replace(/_/g, " ")} />
+                    <CertificateMetric label="Starts" value={formatDateTime(challenge.starts_at)} />
+                    <CertificateMetric label="Ends" value={formatDateTime(challenge.ends_at)} />
+                  </div>
+                  <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm text-[var(--gl-ink-soft)]">
+                    <strong className="text-[var(--gl-ink)]">Tracking:</strong>{" "}
+                    {challenge.affiliate_url ? "Affiliate link configured" : "No affiliate link"}
+                    {challenge.promo_code ? " · promo code configured" : ""}
+                    {challenge.collective_goal_count ? ` · collective target ${formatNumber(challenge.collective_goal_count)}` : ""}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Brand review notes</span>
+                    <textarea
+                      value={sponsoredReviewNotes[challenge.id] || ""}
+                      onChange={(event) => setSponsoredReviewNotes((current) => ({ ...current, [challenge.id]: event.target.value }))}
+                      placeholder="Reason for approval, requested edits, or rejection notes..."
+                      className="min-h-32 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15"
+                    />
+                  </label>
+                  <div className="mt-4 grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => reviewSponsoredChallenge(challenge, "approved")}
+                      disabled={sponsoredReviewActionId === `approved-${challenge.id}`}
+                      className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    >
+                      {sponsoredReviewActionId === `approved-${challenge.id}` ? "Approving..." : "Approve + publish"}
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => reviewSponsoredChallenge(challenge, "paused")}
+                        disabled={sponsoredReviewActionId === `paused-${challenge.id}`}
+                        className="rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] disabled:opacity-60"
+                      >
+                        Pause
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => reviewSponsoredChallenge(challenge, "rejected")}
+                        disabled={sponsoredReviewActionId === `rejected-${challenge.id}`}
+                        className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
         <div className="border-b border-[var(--gl-hairline)] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1367,6 +1538,7 @@ export function AdminChallengesWorkspace() {
           </div>
         )}
       </section>
+      </>
       ) : null}
 
       {activeSection === "community" ? (

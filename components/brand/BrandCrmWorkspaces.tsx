@@ -21,6 +21,7 @@ import {
   YAxis,
 } from "recharts";
 import { ArrowRight, Download, FileSpreadsheet, FileText, LineChart, Map as MapIcon, Megaphone, Recycle, Table } from "lucide-react";
+import { SponsoredChallengeManager } from "@/components/brand/SponsoredChallengeManager";
 
 const RecyclingMap = dynamic(() => import("@/components/RecyclingMap"), { ssr: false });
 
@@ -663,6 +664,7 @@ export function BrandCrmWorkspace({ kind }: { kind: BrandWorkspaceKind }) {
       {kind === "recycling" ? <ActivityTable events={languageAwareEvents} loading={loading} language={language} copy={copy} /> : null}
       {kind === "campaigns" || kind === "challenges" ? (
         <div className="space-y-5">
+          {kind === "challenges" ? <SponsoredChallengeManager products={data.products} /> : null}
           <CampaignChart campaigns={data.campaigns} copy={copy} />
           <CampaignTable campaigns={data.campaigns} loading={loading} language={language} copy={copy} />
         </div>

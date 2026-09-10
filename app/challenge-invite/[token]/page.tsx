@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { API_BASE } from "@/lib/api";
 import ChallengeInvitationClient, { type InvitationPreview } from "./ChallengeInvitationClient";
 
-const DASHBOARD_BASE_URL = (
-  process.env.NEXT_PUBLIC_DASHBOARD_URL || "https://dashboard.greenloopapp.com"
+const INVITATION_BASE_URL = (
+  process.env.NEXT_PUBLIC_INVITATION_URL || "https://join.greenloopapp.com"
 ).replace(/\/$/, "");
 
 type ChallengeInvitationPageProps = {
@@ -29,10 +29,7 @@ async function loadInvitation(token: string): Promise<InvitationPreview | null> 
 function previewDescription(invitation: InvitationPreview | null) {
   if (!invitation) return "Join a private GreenLoop recycling challenge.";
   const title = invitation.challenge.title.trim();
-  const organizer = invitation.challenge.organizationName?.trim();
-  return organizer
-    ? `${organizer} invited you to join “${title}”. Recycle together and follow the challenge.`
-    : `You’re invited to join “${title}”. Recycle together and follow the challenge.`;
+  return `You’re invited to join “${title}” on GreenLoop.`;
 }
 
 export async function generateMetadata({ params }: ChallengeInvitationPageProps): Promise<Metadata> {
@@ -41,8 +38,8 @@ export async function generateMetadata({ params }: ChallengeInvitationPageProps)
   const challengeTitle = invitation?.challenge.title.trim() || "GreenLoop challenge";
   const title = `Join “${challengeTitle}” | GreenLoop`;
   const description = previewDescription(invitation);
-  const pageUrl = `${DASHBOARD_BASE_URL}/challenge-invite/${encodeURIComponent(token)}`;
-  const imageUrl = `${pageUrl}/preview`;
+  const pageUrl = `${INVITATION_BASE_URL}/i/${encodeURIComponent(token)}`;
+  const imageUrl = `${INVITATION_BASE_URL}/challenge-invite/${encodeURIComponent(token)}/preview`;
 
   return {
     title,

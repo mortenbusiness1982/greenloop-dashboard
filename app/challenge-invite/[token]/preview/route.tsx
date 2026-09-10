@@ -1,18 +1,35 @@
 import { ImageResponse } from "next/og";
 import { API_BASE } from "@/lib/api";
 
+export const runtime = "nodejs";
+
 type InvitationPreview = {
   challenge?: {
     title?: string | null;
     description?: string | null;
     heroImageUrl?: string | null;
-    organizationName?: string | null;
   };
 };
 
 type PreviewRouteProps = {
   params: Promise<{ token: string }>;
 };
+
+async function resolveImageDataUrl(imageUrl: string, allowedOrigins: Set<string>) {
+  try {
+    const parsedUrl = new URL(imageUrl);
+    if (!allowedOrigins.has(parsedUrl.origin)) return null;
+    const response = await fetch(parsedUrl, { cache: "no-store" });
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
+    if (!contentType?.startsWith("image/")) return null;
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength > 8 * 1024 * 1024) return null;
+    return `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: Request, { params }: PreviewRouteProps) {
   const { token } = await params;
@@ -32,8 +49,15 @@ export async function GET(request: Request, { params }: PreviewRouteProps) {
   }
 
   const title = invitation?.challenge?.title?.trim() || "Join a GreenLoop challenge";
-  const organizer = invitation?.challenge?.organizationName?.trim() || "GreenLoop community";
-  const imageUrl = invitation?.challenge?.heroImageUrl || `${new URL(request.url).origin}/bella-stage-2.png`;
+  const requestOrigin = new URL(request.url).origin;
+  const fallbackImageUrl = `${requestOrigin}/bella-stage-2.png`;
+  const allowedImageOrigins = new Set([new URL(API_BASE).origin, requestOrigin]);
+  const imageUrl =
+    (invitation?.challenge?.heroImageUrl
+      ? await resolveImageDataUrl(invitation.challenge.heroImageUrl, allowedImageOrigins)
+      : null) ||
+    (await resolveImageDataUrl(fallbackImageUrl, allowedImageOrigins)) ||
+    fallbackImageUrl;
 
   return new ImageResponse(
     (
@@ -64,7 +88,7 @@ export async function GET(request: Request, { params }: PreviewRouteProps) {
               {title}
             </div>
             <div style={{ marginTop: 24, color: "#55756c", fontSize: 28, lineHeight: 1.3, display: "flex" }}>
-              {organizer} invited you to recycle together.
+              You’ve been invited to recycle together on GreenLoop.
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
