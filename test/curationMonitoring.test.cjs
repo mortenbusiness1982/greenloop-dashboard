@@ -49,3 +49,10 @@ test('explicit metadata application coalesces double clicks and preserves exact 
 test('timeout, failed and inactive application results remain unconfirmed without retry',async()=>{
  for(const result of [null,{active:false,id:'revoked'},'failure']){let calls=0;const c=createMetadataApplication(async()=>{calls++;if(result==='failure')throw Error('timeout');return result;},()=> 'fixture');assert.deepEqual(await c.apply({}),{confirmed:false});assert.deepEqual(await c.apply({}),{confirmed:false});assert.equal(calls,1);}
 });
+test('late A result cannot confirm accepted B and different bindings cannot reuse success',async()=>{
+ let resolve,updates=0,refreshes=0;const action={kind:'apply_metadata',runId:'A',barcode:'20174705',packetDigest:'digestA',expectedRevision:'1'};
+ let active=createMetadataApplication(()=>new Promise(r=>resolve=r),()=> 'requestA');const a=active;
+ const completion=a.apply(action).then(result=>{if('stale' in result||a!==active)return;updates++;refreshes++;});
+ a.invalidate();active=createMetadataApplication(async()=>({id:'B',active:true}),()=> 'requestB');resolve({id:'A',active:true});await completion;assert.equal(updates,0);assert.equal(refreshes,0);
+ const b={...action,runId:'B',packetDigest:'digestB',expectedRevision:'2'};assert.deepEqual(await active.apply(b),{confirmed:true});assert.deepEqual(await active.apply(action),{confirmed:false,stale:true});
+});
