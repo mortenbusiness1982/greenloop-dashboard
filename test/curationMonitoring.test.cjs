@@ -44,13 +44,13 @@ test('both genuine unpublished proposal statuses are ready for review',()=>{
 const {createMetadataApplication}=load('lib/curationApplication.ts');
 test('explicit metadata application coalesces double clicks and preserves exact binding',async()=>{
  let calls=0,resolve,options;const c=createMetadataApplication(async(path,o)=>{calls++;options=o;assert.equal(path,'/admin/recycling-intelligence/catalogue/apply');return new Promise(r=>resolve=r);},()=> 'fixture-request');
- const action={kind:'apply_metadata',runId:'run',barcode:'20174705',packetDigest:'digest',expectedRevision:'3'};const first=c.apply(action),second=c.apply(action);assert.equal(calls,1);assert.deepEqual(options.body,{runId:'run',barcode:'20174705',packetDigest:'digest',expectedRevision:'3',requestId:'fixture-request'});assert.ok(options.signal);resolve({id:'application',active:true});assert.deepEqual(await first,{confirmed:true});assert.deepEqual(await second,{confirmed:true});
+ const action={kind:'apply_metadata',runId:'run',barcode:'20174705',packetDigest:'digest',expectedRevision:'3',fields:['name']};const first=c.apply(action),second=c.apply(action);assert.equal(calls,1);assert.deepEqual(options.body,{runId:'run',barcode:'20174705',packetDigest:'digest',expectedRevision:'3',fields:['name'],requestId:'fixture-request'});assert.ok(options.signal);resolve({id:'application',active:true});assert.deepEqual(await first,{confirmed:true});assert.deepEqual(await second,{confirmed:true});
 });
 test('timeout, failed and inactive application results remain unconfirmed without retry',async()=>{
- for(const result of [null,{active:false,id:'revoked'},'failure']){let calls=0;const c=createMetadataApplication(async()=>{calls++;if(result==='failure')throw Error('timeout');return result;},()=> 'fixture');assert.deepEqual(await c.apply({}),{confirmed:false});assert.deepEqual(await c.apply({}),{confirmed:false});assert.equal(calls,1);}
+ for(const result of [null,{active:false,id:'revoked'},'failure']){let calls=0;const c=createMetadataApplication(async()=>{calls++;if(result==='failure')throw Error('timeout');return result;},()=> 'fixture');assert.deepEqual(await c.apply({fields:['name']}),{confirmed:false});assert.deepEqual(await c.apply({fields:['name']}),{confirmed:false});assert.equal(calls,1);}
 });
 test('late A result cannot confirm accepted B and different bindings cannot reuse success',async()=>{
- let resolve,updates=0,refreshes=0;const action={kind:'apply_metadata',runId:'A',barcode:'20174705',packetDigest:'digestA',expectedRevision:'1'};
+ let resolve,updates=0,refreshes=0;const action={kind:'apply_metadata',runId:'A',barcode:'20174705',packetDigest:'digestA',expectedRevision:'1',fields:['name']};
  let active=createMetadataApplication(()=>new Promise(r=>resolve=r),()=> 'requestA');const a=active;
  const completion=a.apply(action).then(result=>{if('stale' in result||a!==active)return;updates++;refreshes++;});
  a.invalidate();active=createMetadataApplication(async()=>({id:'B',active:true}),()=> 'requestB');resolve({id:'A',active:true});await completion;assert.equal(updates,0);assert.equal(refreshes,0);
@@ -63,4 +63,16 @@ test('field subset is part of exact action identity and request',async()=>{
  assert.deepEqual(await c.apply(action),{confirmed:true});assert.deepEqual(body.fields,['name']);
  assert.deepEqual(await c.apply({...action,fields:['brand']}),{confirmed:false,stale:true});
  assert.equal(reviewState({outcome:'uncertain',gaps:['photo_missing','name']}),'metadata');
+});
+
+test('legacy and malformed subsets fail closed with no misleading action or request',async()=>{
+ const {reviewedFields}=load('lib/curationApplication.ts');let calls=0;
+ const client=createMetadataApplication(async()=>{calls++;return {id:'bad',active:true};});
+ const packet=[{field:'name'},{field:'brand'}];
+ for(const fields of [undefined,[],['name','name'],['size'],['name','brand','size']]){
+  const action={kind:'apply_metadata',fields};assert.equal(reviewedFields(action,packet),null);
+  assert.equal((await client.apply(action)).confirmed,false);
+ }
+ assert.equal(calls,0);assert.deepEqual(reviewedFields({fields:['name','brand']},packet),['name','brand']);
+ assert.equal(reviewedFields({fields:['brand']},[{field:'name'}]),null);
 });
