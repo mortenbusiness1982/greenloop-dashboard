@@ -15,7 +15,7 @@ test('catalogue progress uses all products and primary classifications, not queu
  for(const s of [{},{totalProducts:10,classified:11,verified:0,scannedProducts:0,resolvedScannedProducts:0},{totalProducts:10,classified:5,verified:6,scannedProducts:0,resolvedScannedProducts:0}])assert.throws(()=>catalogueProgress(s));
 });
 test('compact batch counts never equate reserved with processed or staged with updated',()=>{
- assert.deepEqual(compactCounts({reserved:10,attempted:6,attemptedUnknown:2,published:1,staged:2,deferred:3,failed:0,inspected:4}),{processed:6,updated:1,needsReview:5,failed:0,unknown:2});
+ assert.deepEqual(compactCounts({reserved:10,attempted:6,attemptedUnknown:2,published:1,staged:2,deferred:3,failed:0,inspected:4}),{processed:6,photosPublished:1,staged:2,unresolved:3,failed:0,unknown:2});
 });
 test('specific review states, missing names and safe full source URLs',()=>{
  assert.equal(reviewState({outcome:'uncertain',reason:'Identity conflict: current name differs',gaps:['photo_missing']}),'identity');
@@ -55,4 +55,12 @@ test('late A result cannot confirm accepted B and different bindings cannot reus
  const completion=a.apply(action).then(result=>{if('stale' in result||a!==active)return;updates++;refreshes++;});
  a.invalidate();active=createMetadataApplication(async()=>({id:'B',active:true}),()=> 'requestB');resolve({id:'A',active:true});await completion;assert.equal(updates,0);assert.equal(refreshes,0);
  const b={...action,runId:'B',packetDigest:'digestB',expectedRevision:'2'};assert.deepEqual(await active.apply(b),{confirmed:true});assert.deepEqual(await active.apply(action),{confirmed:false,stale:true});
+});
+
+test('field subset is part of exact action identity and request',async()=>{
+ let body;const c=createMetadataApplication(async(_p,o)=>{body=o.body;return {active:true,id:'one'};},()=> 'request');
+ const action={kind:'apply_metadata',runId:'run',barcode:'12345678',packetDigest:'digest',expectedRevision:'1',fields:['name']};
+ assert.deepEqual(await c.apply(action),{confirmed:true});assert.deepEqual(body.fields,['name']);
+ assert.deepEqual(await c.apply({...action,fields:['brand']}),{confirmed:false,stale:true});
+ assert.equal(reviewState({outcome:'uncertain',gaps:['photo_missing','name']}),'metadata');
 });

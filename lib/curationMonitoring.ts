@@ -23,6 +23,8 @@ export type Counts = {
 };
 export type RunRecord = {
   runId: string;
+  metadataApplications?: number | null;
+  metadataRollbacks?: number | null;
   reservedAt: string;
   reportedAt: string | null;
   historyState: string;

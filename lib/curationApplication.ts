@@ -1,5 +1,5 @@
-export type MetadataAction={kind:'apply_metadata';runId:string;barcode:string;packetDigest:string;expectedRevision:string};
-const key=(a:MetadataAction)=>JSON.stringify([a.runId,a.barcode,a.packetDigest,a.expectedRevision]);
+export type MetadataAction={kind:'apply_metadata';runId:string;barcode:string;packetDigest:string;expectedRevision:string;fields?:('name'|'brand')[];mode?:'fill_missing'|'reviewed_correction'};
+const key=(a:MetadataAction)=>JSON.stringify([a.runId,a.barcode,a.packetDigest,a.expectedRevision,a.fields||null,a.mode||null]);
 // One exact evidence binding per review-session attempt. Late completions never
 // confirm a newer review, and ambiguity cannot silently create a new request.
 export function createMetadataApplication(request:(path:string,options:any)=>Promise<any>,id:()=>string=()=>crypto.randomUUID()){
