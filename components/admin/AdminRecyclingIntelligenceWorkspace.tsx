@@ -19,6 +19,9 @@ import {
   validateHistory,
 } from "@/lib/curationMonitoring";
 
+import { CurationReviewDialog } from './CurationReviewDialog';
+import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts, catalogueProgress, CatalogueSummary } from '@/lib/curationReview';
+
 type QueueProduct = {
   id: string;
   ean: string;
@@ -36,7 +39,7 @@ const copy = {
   en: {
     title: "Recycling Intelligence",
     description:
-      "Hourly contribution reviews and catalogue research. At most 10 products across both queues.",
+      "Photos, packaging and catalogue progress.",
     latest: "Latest batch",
     history: "Batch history",
     all: "See all",
@@ -90,7 +93,7 @@ const copy = {
   es: {
     title: "Inteligencia de reciclaje",
     description:
-      "Revisión por hora de aportaciones e investigación del catálogo. Máximo 10 productos entre ambas colas.",
+      "Fotos, envases y progreso del catálogo.",
     latest: "Último lote",
     history: "Historial de lotes",
     all: "Ver todo",
@@ -213,6 +216,14 @@ async function read<T>(path: string, signal: AbortSignal) {
 export function AdminRecyclingIntelligenceWorkspace() {
   const { language } = useDashboardLanguage();
   const t = copy[language];
+  const reviewOpener=useRef<HTMLElement|null>(null);
+  function openReview(target:ReviewTarget){reviewOpener.current=document.activeElement as HTMLElement;setReviewTarget(target);}
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget|null>(null);
+  const loadSummary = useCallback(async (signal:AbortSignal) => {
+    const value=await read<{summary:CatalogueSummary}>('/admin/recycling-intelligence/summary?countryCode=ES',signal);
+    return catalogueProgress(value.summary);
+  },[]);
+  const summary=useResource(loadSummary);
   const label = (s: string) => labels[s]?.[language === "es" ? 1 : 0] || s;
   const format = (value: string | number | null) =>
     value
@@ -285,6 +296,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const refresh = () => {
     void history.refresh();
     void queue.refresh();
+    void summary.refresh();
   };
   function openHistory() {
     setHistoryOpen(true);
@@ -331,44 +343,15 @@ export function AdminRecyclingIntelligenceWorkspace() {
       </div>
     );
   }
-  function rows(products: ProductOutcome[], compact = false) {
-    return (
-      <ul className="divide-y divide-slate-100">
-        {products.map((p) => (
-          <li key={p.barcode} className="py-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <strong className="min-w-0 break-words text-sm">
-                {p.name || p.barcode}{" "}
-                {p.name && p.name !== p.barcode ? (
-                  <span className="font-normal text-slate-500">
-                    · {p.barcode}
-                  </span>
-                ) : null}
-              </strong>
-              <span className="text-xs font-medium text-slate-600">
-                {label(p.outcome)}
-              </span>
-            </div>
-            <p className="mt-1 break-words text-sm text-slate-600">
-              {(compact
-                ? p.reason?.match(/^.*?[.!?](?:\s|$)/)?.[0] || p.reason
-                : p.reason) || t.reasonMissing}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {t[p.source]} · {p.inspected ? t.inspected : t.noPhoto}
-              {p.gaps.length
-                ? ` · ${t.gaps}: ${p.gaps.map(label).join(", ")}`
-                : ""}
-            </p>
-            {p.provenance.length ? (
-              <p className="mt-1 break-words text-xs text-slate-500">
-                {t.source}: {p.provenance.map((s) => s.host).join(", ")}
-              </p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    );
+  function rows(products: ProductOutcome[], runId:string, compact = false) {
+    return <ul className="divide-y divide-slate-100">{products.map(p=><li key={p.barcode}>
+      <button onClick={()=>openReview({barcode:p.barcode,runId,outcome:p})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
+        <span className="min-w-0"><strong className="block break-words text-sm">{usefulName(p.name,p.barcode)|| (language==='es'?'Producto sin identificar':'Unidentified product')}</strong>
+        <span className="mt-1 block text-xs text-slate-500">{p.barcode}</span>
+        <span className="mt-1 block text-sm text-amber-800">{reviewLabels[language][reviewState(p)]}</span>
+        {!compact?<span className="mt-1 block break-words text-sm text-slate-600">{p.reason||t.reasonMissing}</span>:null}</span>
+        <ChevronRight size={20} className="shrink-0 text-slate-500"/>
+      </button></li>)}</ul>;
   }
   function batch(run: RunRecord, compact = false) {
     return (
@@ -384,41 +367,15 @@ export function AdminRecyclingIntelligenceWorkspace() {
         </div>
         {run.report && run.counts ? (
           <>
-            <dl className="my-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
-              {(
-                [
-                  "reserved",
-                  "attempted",
-                  "inspected",
-                  "published",
-                  "staged",
-                  "deferred",
-                  "failed",
-                ] as const
-              ).map((k) => (
-                <div key={k} className="rounded-md bg-slate-50 px-2 py-2">
-                  <dd className="text-base font-semibold tabular-nums">
-                    {run.counts![k]}
-                    {(k==="attempted"?run.counts!.attemptedUnknown:k==="inspected"?run.counts!.inspectedUnknown:0) ? <span className="block text-[10px] font-normal">+ {k==="attempted"?run.counts!.attemptedUnknown:run.counts!.inspectedUnknown} {t.unknown}</span>:null}
-                  </dd>
-                  <dt className="text-[10px] text-slate-600">{t[k]}</dt>
-                </div>
-              ))}
+            <dl className="my-4 flex flex-wrap gap-x-6 gap-y-3 border-b border-slate-100 pb-3">
+              {Object.entries(compactCounts(run.counts)).filter(([k])=>k!=='unknown').map(([k,v])=><div key={k}><dd className="text-lg font-semibold tabular-nums">{v}</dd><dt className="text-xs text-slate-600">{({processed:language==='es'?'Procesados':'Processed',updated:language==='es'?'Actualizados':'Updated',needsReview:language==='es'?'Requieren revisión':'Needs review',failed:t.failed} as Record<string,string>)[k]}</dt></div>)}
             </dl>
-            <p className="text-xs text-slate-500">
-              {t.contribution}: {run.counts.bySource.contribution.attempted} ·{" "}
-              {t.catalogue}: {run.counts.bySource.catalogue.attempted} ·{" "}
-              {t.skipped}: {run.report.skippedUnchanged}
-            </p>
-            {!compact ? (
-              <p className="mt-2 text-xs text-slate-500">
-                {t.start}: {format(run.report.startedAt)} · {t.end}:{" "}
-                {format(run.report.endedAt)} · {t.routine}
-              </p>
-            ) : null}
+            {run.counts.attemptedUnknown?<p className="text-xs text-amber-800">+ {run.counts.attemptedUnknown} {t.unknown}</p>:null}
+            {run.counts.staged>0?<button className="mb-2 min-h-11 text-sm font-semibold text-emerald-800 underline" onClick={()=>{const p=run.report!.products.find(p=>p.outcome==='staged'||p.outcome==='proposed_not_published');if(p)openReview({barcode:p.barcode,runId:run.runId,outcome:p});}}>{language==='es'?'Revisar':'Review'} {run.counts.staged} {language==='es'?(run.counts.staged===1?'propuesta':'propuestas'):(run.counts.staged===1?'proposal':'proposals')}</button>:null}
+            {!compact?<details className="mb-3 text-xs text-slate-500"><summary className="min-h-11 cursor-pointer py-3">{language==='es'?'Detalles del lote':'Batch details'}</summary><p>{t.reserved}: {run.counts.reserved} · {t.inspected}: {run.counts.inspected} · {t.skipped}: {run.report.skippedUnchanged}</p><p>{t.contribution}: {run.counts.bySource.contribution.attempted} · {t.catalogue}: {run.counts.bySource.catalogue.attempted}</p><p>{t.end}: {format(run.report.endedAt)} · {run.runId}</p></details>:null}
             {rows(
               compact ? run.report.products.slice(0, 3) : run.report.products,
-              compact,
+              run.runId, compact,
             )}
           </>
         ) : (
@@ -466,13 +423,21 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </details>
         </div>
       </header>
+      <section aria-label={language==='es'?'Progreso del catálogo':'Catalogue progress'} className="bg-white px-4 py-3">
+        <h2 className="font-semibold">{language==='es'?'Progreso del catálogo':'Catalogue progress'}</h2>
+        {summary.data?<><div className="my-2 flex flex-wrap items-baseline gap-x-3"><strong className="text-2xl tabular-nums">{summary.data.percent===null?t.notRecorded:new Intl.NumberFormat(language,{maximumFractionDigits:1}).format(summary.data.percent)+'%'}</strong><span className="text-sm">{summary.data.classified.toLocaleString(language)} / {summary.data.totalProducts.toLocaleString(language)} {language==='es'?'productos categorizados':'products categorized'}</span></div>
+        {summary.data.percent!==null?<div role="progressbar" aria-valuemin={0} aria-valuenow={summary.data.classified} aria-valuemax={summary.data.totalProducts} aria-label={language==='es'?'Productos categorizados':'Categorized products'} className="h-2 w-full overflow-hidden rounded bg-slate-200"><div className="h-full rounded bg-emerald-700" style={{width:summary.data.percent+'%'}}/></div>:null}
+        <p className="mt-2 text-sm">{summary.data.remaining.toLocaleString(language)} {language==='es'?'sin categorizar':'remaining uncategorized'} · {summary.data.verified.toLocaleString(language)} {language==='es'?'verificados':'verified'}</p><p className="mt-1 text-xs text-slate-500">{language==='es'?'Envase principal · Todo el catálogo':'Primary packaging · Entire catalogue'}</p>
+        <p className="mt-1 text-xs text-slate-500">{language==='es'?'Guía resuelta para productos escaneados':'Resolved guidance for scanned products'}: {summary.data.resolvedScannedProducts.toLocaleString(language)} / {summary.data.scannedProducts.toLocaleString(language)}</p></>:!summary.state.error?<p className="py-3 text-sm">{t.loading}</p>:null}
+        {summary.state.error?<p role="alert" className="mt-2 text-sm text-amber-800">{summary.data?t.stale:language==='es'?'No se pudo cargar el progreso.':'Catalogue progress could not be loaded.'}</p>:null}
+      </section>
       {exportError ? (
         <p role="alert" className="text-sm text-red-700">
           {exportError}
         </p>
       ) : null}
       <section
-        className="rounded-lg border border-slate-200 bg-white p-4"
+        className="bg-white p-4"
         aria-label={historyOpen ? t.history : t.latest}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -496,7 +461,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
             </button>
           )}
         </div>
-        {freshness({...history.state,lastUpdated:historyOpen?history.state.lastUpdated:latestUpdated})}
+        {history.state.error?<p role="alert" className="text-sm text-amber-800">{t.stale}</p>:null}
         {!history.data && !history.state.error ? (
           <p className="py-5 text-sm text-slate-500">{t.loading}</p>
         ) : null}
@@ -559,13 +524,11 @@ export function AdminRecyclingIntelligenceWorkspace() {
             </div>
           </>
         ) : null}
-        <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-          {t.scope}
-        </p>
+
       </section>
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="bg-white p-4">
         <h2 className="font-semibold">{t.queue}</h2>
-        <p className="mt-1 text-xs text-slate-500">{t.queueScope}</p>
+
         <div className="my-3 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">
             <Search
@@ -613,28 +576,10 @@ export function AdminRecyclingIntelligenceWorkspace() {
         ) : null}
         <ul className="mt-2 divide-y divide-slate-100">
           {queue.data?.products.map((p) => (
-            <li key={p.id} className="py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-medium">
-                    {p.name || p.ean}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {p.ean} · {p.brandName || "—"} · {t.scans}: {p.scanCount}
-                  </p>
-                </div>
-                <span className="shrink-0 text-xs text-slate-600">
-                  {label(p.state)}
-                </span>
-              </div>
-              <details className="mt-1 text-xs text-slate-500">
-                <summary className="cursor-pointer">{t.details}</summary>
-                <p className="mt-1">
-                  {p.materialType || "—"} · {p.packagingForm || "—"} ·{" "}
-                  {p.verificationStatus || "—"}
-                </p>
-                {p.lastErrorCode ? <p>{p.lastErrorCode}</p> : null}
-              </details>
+            <li key={p.id}>
+              <button onClick={()=>openReview({barcode:p.ean})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
+                <span className="min-w-0"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{p.lastErrorCode==='PRODUCT_METADATA_UNAVAILABLE'?(language==='es'?'Faltan datos fiables del producto':'Reliable product details are missing'):p.state==='failed'?(language==='es'?'La investigación necesita atención':'Research needs attention'):p.state==='processing'?(language==='es'?'Investigación en curso':'Research in progress'):(language==='es'?'Abrir evidencia disponible':'Open available evidence')}</span></span><ChevronRight size={20} className="shrink-0"/>
+              </button>
             </li>
           ))}
         </ul>
@@ -655,6 +600,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </button>
         </div>
       </section>
+      {reviewTarget?<CurationReviewDialog target={reviewTarget} language={language} onClose={()=>{setReviewTarget(null);requestAnimationFrame(()=>reviewOpener.current?.focus());}}/>:null}
     </div>
   );
 }

@@ -8,3 +8,19 @@ test('failure retains data and timestamp; timeout aborts and reports a real erro
 test('filter-change disposal ignores late old response and cancels requests',async()=>{const env=environment(),values=[];let resolve,signal;const c=createRefreshController(s=>{signal=s;return new Promise(r=>resolve=r);},x=>values.push(x),()=>{},env);const pending=c.refresh();c.dispose();assert.equal(signal.aborted,true);resolve('old');await pending;assert.deepEqual(values,[]);});
 test('empty and unavailable histories remain distinct; invalid counts rejected',()=>{assert.deepEqual(validateHistory({runs:[],nextCursor:null,enrichment:false}).runs,[]);const unavailable={runId:'id',reservedAt:'2026-09-10',report:null,counts:null,historyState:'outcomes_unavailable'};assert.equal(validateHistory({runs:[unavailable],nextCursor:'next',enrichment:false}).runs[0].counts,null);assert.throws(()=>validateHistory({runs:[{...unavailable,report:{products:[{}]},counts:{reserved:0}}],nextCursor:null,enrichment:false}),/count mismatch/);});
 test('monitor API uses session auth, no-store and cancellation; returns HTTP status',async()=>{let cleared=false,seen;const {apiFetch}=load('lib/api.ts',{'@/lib/auth':{clearToken:()=>cleared=true}});const old=global.fetch;global.fetch=async(url,options)=>{seen=options;return {ok:false,status:401,text:async()=>JSON.stringify({error:'Token expired'})};};try{const signal=new AbortController().signal;await assert.rejects(apiFetch('/admin/recycling-intelligence/runs',{token:'isolated-jwt',cache:'no-store',signal}),e=>e.status===401);assert.equal(seen.cache,'no-store');assert.equal(seen.signal,signal);assert.equal(seen.headers.Authorization,'Bearer isolated-jwt');assert.equal(cleared,true);}finally{global.fetch=old;}});
+const {catalogueProgress,compactCounts,reviewState,safeSource,usefulName}=load('lib/curationReview.ts');
+test('catalogue progress uses all products and primary classifications, not queue or staged counts',()=>{
+ assert.deepEqual(catalogueProgress({totalProducts:100,classified:60,verified:45,scannedProducts:70,resolvedScannedProducts:50}),{totalProducts:100,classified:60,verified:45,scannedProducts:70,resolvedScannedProducts:50,remaining:40,percent:60});
+ assert.equal(catalogueProgress({totalProducts:0,classified:0,verified:0,scannedProducts:0,resolvedScannedProducts:0}).percent,null);
+ for(const s of [{},{totalProducts:10,classified:11,verified:0,scannedProducts:0,resolvedScannedProducts:0},{totalProducts:10,classified:5,verified:6,scannedProducts:0,resolvedScannedProducts:0}])assert.throws(()=>catalogueProgress(s));
+});
+test('compact batch counts never equate reserved with processed or staged with updated',()=>{
+ assert.deepEqual(compactCounts({reserved:10,attempted:6,attemptedUnknown:2,published:1,staged:2,deferred:3,failed:0,inspected:4}),{processed:6,updated:1,needsReview:5,failed:0,unknown:2});
+});
+test('specific review states, missing names and safe full source URLs',()=>{
+ assert.equal(reviewState({outcome:'uncertain',reason:'Identity conflict: current name differs',gaps:['photo_missing']}),'identity');
+ assert.equal(reviewState({outcome:'uncertain',reason:'Packaging conflict: PET versus glass',gaps:['photo_unreviewed']}),'material');
+ assert.equal(reviewState({outcome:'staged',gaps:[],reason:null}),'ready');assert.equal(reviewState({outcome:'published',gaps:[],reason:null}),'published');assert.equal(reviewState(null),'none');
+ assert.equal(usefulName('8411327002745','8411327002745'),null);assert.equal(usefulName('Unknown','12345678'),null);
+ assert.equal(safeSource('https://tienda.consum.es/es/p/item/1234'),true);for(const url of ['tienda.consum.es','javascript:alert(1)','https://example.com/a?signature=secret','https://user:pass@example.com/a','https://127.0.0.1/a'])assert.equal(safeSource(url),false);
+});
