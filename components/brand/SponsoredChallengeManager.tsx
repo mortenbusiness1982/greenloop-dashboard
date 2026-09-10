@@ -45,7 +45,7 @@ export function SponsoredChallengeManager({ products }: { products: Product[] })
       const body = {
           title: data.get("title"), description: data.get("description"),
           heroImageUrl: data.get("heroImageUrl") || null,
-          visibility: data.get("visibility"), targetKind,
+          visibility: "public", targetKind,
           eligibleProductIds: selected,
           requiredCount: Number(data.get("requiredCount")),
           collectiveGoalCount: data.get("collectiveGoalCount") ? Number(data.get("collectiveGoalCount")) : null,
@@ -93,7 +93,6 @@ export function SponsoredChallengeManager({ products }: { products: Product[] })
         <label className="text-sm font-semibold">Challenge title<input name="title" required className={field}/></label>
         <label className="text-sm font-semibold">Banner image URL<input name="heroImageUrl" type="url" className={field}/></label>
         <label className="text-sm font-semibold md:col-span-2">Description<textarea name="description" required rows={3} className={field}/></label>
-        <label className="text-sm font-semibold">Access<select name="visibility" className={field}><option value="public">Public</option><option value="private">Private/invite only</option></select></label>
         <label className="text-sm font-semibold">Eligible recycling<select value={targetKind} onChange={e => setTargetKind(e.target.value)} className={field}><option value="any">Any product</option><option value="brand">Any of our products</option><option value="selected_products">Selected products</option></select></label>
         <label className="text-sm font-semibold">Recycles to unlock<input name="requiredCount" type="number" min="1" required className={field}/></label>
         <label className="text-sm font-semibold">Optional collective goal<input name="collectiveGoalCount" type="number" min="1" className={field}/></label>
