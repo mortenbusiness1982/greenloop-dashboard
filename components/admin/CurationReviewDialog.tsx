@@ -1,4 +1,5 @@
 'use client';
+import {createMetadataApplication} from '@/lib/curationApplication';
 import {useEffect,useRef,useState} from 'react';
 import {X,ExternalLink,Image as ImageIcon,RefreshCw} from 'lucide-react';
 import {createReviewSession} from '@/lib/curationReviewSession';
@@ -20,11 +21,12 @@ function Photo({photo,language}:{photo:ReviewData['images'][number];language:'en
  return failed?<p>{words[language].photosFailed}</p>:src?<a href={src} target='_blank' rel='noopener noreferrer' referrerPolicy='no-referrer' className='block'><img src={src} alt={words[language].photo} referrerPolicy='no-referrer' onError={()=>setFailed(true)} className='max-h-64 max-w-full rounded object-contain'/><span className='mt-2 inline-flex min-h-11 items-center gap-2 text-sm text-emerald-800'><ImageIcon size={16}/>{words[language].view}</span></a>:<p>{words[language].loading}</p>;
 }
 export function CurationReviewDialog({target,language,onClose}:{target:ReviewTarget;language:'en'|'es';onClose:()=>void}){
+ const applySession=useRef<ReturnType<typeof createMetadataApplication>|null>(null);
  const [application,setApplication]=useState<string|null>(null),[applying,setApplying]=useState(false);
  const t=words[language],dialog=useRef<HTMLDialogElement>(null);const [data,setData]=useState<ReviewData|null>(null),[error,setError]=useState<string|null>(null),[newer,setNewer]=useState<ReviewData|null>(null);const session=useRef<ReturnType<typeof createReviewSession<ReviewData>>|null>(null);
  useEffect(()=>{dialog.current?.showModal();},[]);
  useEffect(()=>{
- setData(null);setNewer(null);setError(null);
+ setData(null);setNewer(null);setError(null);setApplication(null);setApplying(false);applySession.current=createMetadataApplication((path,options)=>apiFetch(path,{...options,token:getToken()||undefined}));
  const current=createReviewSession<ReviewData>(async(signal)=>{
   const result=await apiFetch<ReviewData>('/admin/recycling-intelligence/review/'+target.barcode+(target.runId?'?run='+encodeURIComponent(target.runId):''),{token:getToken()||undefined,signal,cache:'no-store'});
   if(result.readOnly!==true||result.enrichment!==false||result.barcode!==target.barcode)throw Error('Invalid review');
@@ -33,7 +35,7 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
  session.current=current;void current.refresh();const timer=setInterval(()=>void current.refresh(),30000);
  return()=>{clearInterval(timer);current.dispose();session.current=null;};
  },[target.barcode,target.runId,t.unavailable,t.failed]);
- async function applyReviewed(){const action=data?.actions.find(a=>a.kind==='apply_metadata');if(!action||data?.stale||newer||applying)return;setApplying(true);try{const {kind,...binding}=action;await apiFetch('/admin/recycling-intelligence/catalogue/apply',{method:'POST',token:getToken()||undefined,body:{...binding,requestId:crypto.randomUUID()},signal:AbortSignal.timeout(20000)});setApplication(language==='es'?'Corrección aplicada; actualiza para verificar.':'Correction applied; refresh to verify.');void session.current?.refresh();}catch{setApplication(language==='es'?'No se pudo confirmar. Actualiza antes de volver a decidir.':'Could not confirm. Refresh before making another decision.');}finally{setApplying(false);}}
+ async function applyReviewed(){const action=data?.actions.find(a=>a.kind==='apply_metadata');if(!action||data?.stale||newer||applying||!applySession.current)return;setApplying(true);const result=await applySession.current.apply(action);setApplication(result.confirmed?(language==='es'?'Corrección confirmada; actualiza para verificar.':'Correction confirmed; refresh to verify.'):(language==='es'?'Resultado no confirmado. Actualiza antes de volver a decidir.':'Outcome unconfirmed. Refresh before making another decision.'));if(result.confirmed)void session.current?.refresh();setApplying(false);}
  const outcome=data?.outcome||target.outcome;const title=usefulName(data?.current.name||outcome?.name,target.barcode)||t.title;
  const section=(heading:string,current:NonNullable<ReviewData['packet']>['current'])=><section><h3 className='mb-2 font-semibold'>{heading}</h3><dl className='space-y-2 text-sm'><div><dt className='text-slate-500'>{t.name}</dt><dd>{usefulName(current.name,target.barcode)||t.missing}</dd></div><div><dt className='text-slate-500'>{t.brand}</dt><dd>{current.brand&&!/^(greenloop|unknown)$/i.test(current.brand)?current.brand:t.missing}</dd></div><div><dt className='text-slate-500'>{t.packaging}</dt><dd>{current.packaging.length?current.packaging.map(c=><p key={c.key}>{c.role==='primary'?(language==='es'?'Envase principal':'Primary packaging'):c.role==='secondary'?(language==='es'?'Envase exterior':'Outer packaging'):c.role.replaceAll('_',' ')} · {language==='es'?(spanishValues[c.material]||c.material.replaceAll('_',' ')):c.material.replaceAll('_',' ')} / {language==='es'?(spanishValues[c.form]||c.form.replaceAll('_',' ')):c.form.replaceAll('_',' ')}</p>):t.missing}</dd></div></dl></section>;
  return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby='curation-review-title' className='m-auto max-h-[94dvh] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto rounded-xl bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/40'>

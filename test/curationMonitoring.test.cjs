@@ -41,3 +41,11 @@ test('detail unmount cancels a hanging request and ignores late results',async()
 test('both genuine unpublished proposal statuses are ready for review',()=>{
  for(const outcome of ['staged','proposed_not_published'])assert.equal(reviewState({outcome,reason:'Saved proposal',gaps:['packaging']}),'ready');
 });
+const {createMetadataApplication}=load('lib/curationApplication.ts');
+test('explicit metadata application coalesces double clicks and preserves exact binding',async()=>{
+ let calls=0,resolve,options;const c=createMetadataApplication(async(path,o)=>{calls++;options=o;assert.equal(path,'/admin/recycling-intelligence/catalogue/apply');return new Promise(r=>resolve=r);},()=> 'fixture-request');
+ const action={kind:'apply_metadata',runId:'run',barcode:'20174705',packetDigest:'digest',expectedRevision:'3'};const first=c.apply(action),second=c.apply(action);assert.equal(calls,1);assert.deepEqual(options.body,{runId:'run',barcode:'20174705',packetDigest:'digest',expectedRevision:'3',requestId:'fixture-request'});assert.ok(options.signal);resolve({id:'application',active:true});assert.deepEqual(await first,{confirmed:true});assert.deepEqual(await second,{confirmed:true});
+});
+test('timeout, failed and inactive application results remain unconfirmed without retry',async()=>{
+ for(const result of [null,{active:false,id:'revoked'},'failure']){let calls=0;const c=createMetadataApplication(async()=>{calls++;if(result==='failure')throw Error('timeout');return result;},()=> 'fixture');assert.deepEqual(await c.apply({}),{confirmed:false});assert.deepEqual(await c.apply({}),{confirmed:false});assert.equal(calls,1);}
+});
