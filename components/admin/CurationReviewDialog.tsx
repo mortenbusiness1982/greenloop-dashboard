@@ -59,11 +59,11 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
   if(refreshed){app.current?.invalidate();app.current=createMetadataApplication((p,o)=>apiFetch(p,{...o,token:getToken()||undefined}));}
   setMessage(refreshed?(saved?word('Saved.','Guardado.'):word('Latest record loaded. Check the values before confirming.','Registro actualizado. Comprueba los valores antes de confirmar.')):word('Could not refresh the record. Retry loading before continuing.','No se pudo actualizar el registro. Reintenta la carga antes de continuar.'));
  }
- async function perform(operation:()=>Promise<boolean>){
+ async function perform(operation:()=>Promise<boolean>,closeOnSuccess=false){
   if(blocked||locked.current)return;locked.current=true;setBusy(true);const version=generation.current;
   let success=false;try{success=await operation();}catch{}
   if(version!==generation.current)return;
-  if(success){await reconcile(true);return;}
+  if(success){if(closeOnSuccess){onClose();return;}await reconcile(true);return;}
   setBusy(false);setUncertain(true);setMessage(word('Save not confirmed. Reload the record before retrying.','Guardado sin confirmar. Recarga el registro antes de reintentar.'));void session.current?.refresh();
  }
  function decide(decision:'approve_packaging'|'reject_proposal'|'confirm_name',name?:string){
@@ -71,7 +71,7 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
   void perform(async()=>{
    const response=await apiFetch<{saved:boolean}>('/admin/recycling-intelligence/review/'+target.barcode+'/decision',{method:'POST',token:getToken()||undefined,signal:AbortSignal.timeout(20000),body:{requestId:crypto.randomUUID(),expectedRevision:permission.expectedRevision,evidenceFingerprint:permission.evidenceFingerprint,packetDigest:decision==='confirm_name'?null:permission.packetDigest,decision,...(decision==='confirm_name'?{name}:decision==='approve_packaging'?{component:{key:componentKey||role,role,form,material}}:{})}});
    return response.saved===true;
-  });
+  },decision==='approve_packaging');
  }
  function chooseComponent(key:string){setComponentKey(key);const c=data?.current.packaging.find(c=>c.key===key);setRole(c?.role||'');setForm(c?.form||'');setMaterial(c?.material||'');setEditing(!c?.form||!c?.material||c.material==='other');}
  const labelFor=(options:string[][],value:string)=>options.find(o=>o[0]===value)?.[es?2:1]||value;
