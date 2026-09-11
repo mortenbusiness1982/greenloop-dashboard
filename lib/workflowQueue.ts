@@ -1,5 +1,6 @@
 export const workflowStates=['pending','unprocessed','resolved','unresolved','all'] as const;
-export type WorkflowProduct={id:string;ean:string;name:string|null;brandName:string|null;state:string;runId:string|null;missingFields?:string[]};
+export type WorkflowProduct={id:string;ean:string;name:string|null;brandName:string|null;state:string;runId:string|null;missingFields?:string[];completeness?:number};
+export function bulkCandidate(p:WorkflowProduct){return p.state==='pending'&&!!p.runId&&p.completeness===100&&Array.isArray(p.missingFields)&&p.missingFields.length===0;}
 export function missingFieldLabel(fields:string[]|undefined,language:'en'|'es'){
  const labels:Record<string,string>=language==='es'?{name:'Nombre',brand:'Marca',photo:'Foto',packaging:'Envase',guidance:'Regla de reciclaje'}:{name:'Name',brand:'Brand',photo:'Photo',packaging:'Packaging',guidance:'Recycling rule'};
  return fields?.length?(language==='es'?'Falta: ':'Missing: ')+fields.map(f=>labels[f]||f).join(', '):null;

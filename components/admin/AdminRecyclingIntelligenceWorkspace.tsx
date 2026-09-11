@@ -1,7 +1,8 @@
 "use client";
 import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
 import {Outcomes,validateOutcomes} from '@/lib/curationOutcomes';
-import {WorkflowPage,validateWorkflowPage,missingFieldLabel} from '@/lib/workflowQueue';
+import {WorkflowPage,WorkflowProduct,validateWorkflowPage,missingFieldLabel,bulkCandidate} from '@/lib/workflowQueue';
+import {BulkProductReview} from './BulkProductReview';
 import type {ReviewData} from '@/lib/curationReview';
 import {actionableBatchProducts} from '@/lib/curationReview';
 
@@ -224,6 +225,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const loadOutcomes=useCallback(async(signal:AbortSignal)=>validateOutcomes(await read<Outcomes>('/admin/recycling-intelligence/outcomes',signal)),[]);
   const outcomes=useResource(loadOutcomes);
   const [pendingOpen,setPendingOpen]=useState(false);
+  const [completeness,setCompleteness]=useState('all');
+  const [chosen,setChosen]=useState<WorkflowProduct[]>([]),[bulk,setBulk]=useState<WorkflowProduct[]|null>(null);
   const label = (s: string) => labels[s]?.[language === "es" ? 1 : 0] || s;
   const format = (value: string | number | null) =>
     value
@@ -264,7 +267,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
     [cursor],
   );
   const history = useResource(loadHistory);
-  const queueKey=JSON.stringify([filter,query,offset]);
+  const queueKey=JSON.stringify([filter,query,offset,completeness]);
+  useEffect(()=>{setChosen([]);},[filter,query,offset,completeness]);
   const loadQueue = useCallback(
     async (signal: AbortSignal) => ({...validateWorkflowPage(await read<WorkflowPage>(
         "/admin/recycling-intelligence/workflow-queue?" +
@@ -273,10 +277,11 @@ export function AdminRecyclingIntelligenceWorkspace() {
             offset: String(offset),
             status: filter,
             search: query,
+            completeness,
           }),
         signal,
       )),selectionKey:queueKey}),
-    [offset, filter, query,queueKey],
+    [offset, filter, query,queueKey,completeness],
   );
   const queueResource = useResource(loadQueue);
   const queue={...queueResource,data:queueResource.data?.selectionKey===queueKey?queueResource.data:null};
@@ -473,10 +478,11 @@ export function AdminRecyclingIntelligenceWorkspace() {
           {exportError}
         </p>
       ) : null}
-      <section
+      <details
         className="bg-white p-4"
         aria-label={historyOpen ? t.history : t.latest}
       >
+        <summary className="min-h-11 cursor-pointer font-semibold">{t.latest}<span className="ml-3 text-sm font-normal text-stone-600">{latest?.counts?`${latest.counts.attempted} ${language==='es'?'procesados':'processed'} · ${format(latest.report?.startedAt||latest.reservedAt)}`:history.data?t.empty:t.loading}</span></summary>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold">
             {historyOpen ? t.history : t.latest}
@@ -562,9 +568,9 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </>
         ) : null}
 
-      </section>
-      <section className="bg-white p-4">
-        <h2 className="font-semibold">{t.queue}</h2>
+      </details>
+      <details className="bg-white p-4">
+        <summary className="min-h-11 cursor-pointer font-semibold">{t.queue}<span className="ml-3 text-sm font-normal text-stone-600">{outcomes.data?`${outcomes.data.pendingCount} ${language==='es'?'por revisar':'awaiting review'}`:''}</span></summary>
 
         <div className="my-3 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">
@@ -601,6 +607,13 @@ export function AdminRecyclingIntelligenceWorkspace() {
               </option>
             ))}
           </select>
+          <select aria-label={language==='es'?'Completitud':'Completeness'} value={completeness} onChange={e=>{setCompleteness(e.target.value);setOffset(0);}} className="min-h-11 rounded border border-stone-300 bg-white px-3 text-sm">
+           {[['all','All completeness','Cualquier completitud'],['below50','Below 50%','Menos del 50%'],['50','Exactly 50%','Exactamente 50%'],['above50','Above 50%','Más del 50%'],['100','100% complete','100% completo']].map(o=><option key={o[0]} value={o[0]}>{o[language==='es'?2:1]}</option>)}
+          </select>
+        </div>
+        <div className="my-3 flex flex-wrap items-center gap-3">
+         <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" disabled={!queue.data?.products.some(bulkCandidate)} checked={!!queue.data?.products.filter(bulkCandidate).length&&queue.data.products.filter(bulkCandidate).slice(0,20).every(p=>chosen.some(c=>c.ean===p.ean))} onChange={e=>setChosen(e.target.checked?(queue.data?.products.filter(bulkCandidate).slice(0,20)||[]):[])}/>{language==='es'?'Seleccionar elegibles de esta página (máx. 20)':'Select eligible on this page (max 20)'}</label>
+         <button disabled={!chosen.length} onClick={()=>setBulk([...chosen])} className="min-h-11 rounded bg-emerald-800 px-4 text-sm text-white disabled:opacity-50">{language==='es'?'Revisar selección':'Review selected'} ({chosen.length})</button>
         </div>
         {freshness(queue.state)}
         {queue.data?<p className="mt-2 text-sm text-slate-600" aria-live="polite">{queue.data.total.toLocaleString(language)} {language==='es'?(queue.data.total===1?'producto':'productos'):(queue.data.total===1?'product':'products')}</p>:null}
@@ -610,12 +623,16 @@ export function AdminRecyclingIntelligenceWorkspace() {
         {queue.data?.products.length === 0 ? (
           <p className="py-5 text-sm text-slate-500">{t.queueEmpty}</p>
         ) : null}
-        <ul className="mt-2 divide-y divide-slate-100">
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {queue.data?.products.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className="min-w-0 rounded-lg border border-stone-200 p-3">
+              <div className="flex items-center justify-between gap-2"><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" aria-label={(language==='es'?'Seleccionar ':'Select ')+(p.name||p.ean)} disabled={!bulkCandidate(p)||chosen.length>=20&&!chosen.some(c=>c.ean===p.ean)} checked={chosen.some(c=>c.ean===p.ean)} onChange={e=>setChosen(rows=>e.target.checked?[...rows,p]:rows.filter(c=>c.ean!==p.ean))}/>{language==='es'?'Seleccionar':'Select'}</label><strong className="text-lg tabular-nums">{p.completeness===undefined?'—':p.completeness+'%'}</strong></div>
+              <div role="progressbar" aria-label={language==='es'?'Completitud del producto':'Product completeness'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.completeness} className="h-1.5 overflow-hidden rounded bg-stone-200"><div className="h-full bg-emerald-700" style={{width:(p.completeness||0)+'%'}}/></div>
               <button onClick={()=>openReview({barcode:p.ean,...(p.runId?{runId:p.runId}:{})})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
                 <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{p.state==='unresolved'?(missingFieldLabel(p.missingFields,language)||workflowLabels[language][p.state]):workflowLabels[language][p.state]}</span></span><ChevronRight size={20} className="shrink-0"/>
               </button>
+              <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs">{[['name','Name','Nombre'],['brand','Brand','Marca'],['photo','Photo','Foto'],['packaging','Packaging','Envase']].map(f=><li key={f[0]} className={p.missingFields?.includes(f[0])?'text-red-800':'text-emerald-800'}>{p.missingFields?.includes(f[0])?'○ ':'✓ '}{f[language==='es'?2:1]}</li>)}</ul>
+              <p className="mt-2 text-xs text-stone-600">{bulkCandidate(p)?(language==='es'?'Completo · Propuesta por verificar':'Complete · Proposal to verify'):p.state==='pending'?(language==='es'?'Completa la información antes de aprobar en grupo':'Fill missing information before bulk approval'):p.state==='resolved'?(language==='es'?'Resuelto · Sin decisión pendiente':'Resolved · No decision pending'):(language==='es'?'Información pendiente · Abre para completar':'Information missing · Open to complete')}</p>
             </li>
           ))}
         </ul>
@@ -635,7 +652,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
             {t.next}
           </button>
         </div>
-      </section>
+      </details>
+      {bulk?<BulkProductReview products={bulk} language={language} onSaved={barcode=>{setChosen(rows=>rows.filter(p=>p.ean!==barcode));refresh();}} onClose={()=>{setBulk(null);refresh();}}/>:null}
       {reviewTarget?<CurationReviewDialog target={reviewTarget} language={language} onClose={()=>{setReviewTarget(null);setReviewRefresh(v=>v+1);refresh();requestAnimationFrame(()=>reviewOpener.current?.focus());}}/>:null}
     </div>
   );
