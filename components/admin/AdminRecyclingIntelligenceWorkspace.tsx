@@ -29,6 +29,7 @@ import { CurationReviewDialog } from './CurationReviewDialog';
 import { EvidenceThumbnail } from "./EvidenceThumbnail";
 import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts } from '@/lib/curationReview';
 import {IntelligenceStatistics} from './IntelligenceStatistics';
+import {RecentUserActivity} from './RecentUserActivity';
 
 const workflowLabels:Record<string,Record<string,string>>={
   en:{all:'All products',pending:'Awaiting my review',unprocessed:'Not processed',resolved:'Resolved',unresolved:'Needs research'},
@@ -444,7 +445,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </details>
         </div>
       </header>
-      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={()=>setPendingOpen(v=>!v)}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
+      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={()=>setPendingOpen(v=>!v)} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
       {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{t.stale}</p>:null}
       {pendingOpen&&outcomes.data?<section className="bg-white p-4"><h2 className="font-semibold">{language==='es'?'Necesita tu decisión':'Needs your decision'}</h2><ul className="divide-y">{outcomes.data.pending.map(p=><li key={p.barcode}><button className="min-h-14 w-full py-3 text-left text-sm" onClick={()=>openReview({barcode:p.barcode,runId:p.runId})}><strong>{usefulName(p.name,p.barcode)||p.barcode}</strong></button></li>)}</ul></section>:null}
       {exportError ? (
