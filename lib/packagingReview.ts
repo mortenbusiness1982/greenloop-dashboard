@@ -1,6 +1,6 @@
 type Component={key:string;role:string;form:string;material:string};
-export function initialPackaging(components:Component[]){
- const c=components.find(c=>c.role==='primary')||components[0];
+export function initialPackaging(components:Component[],pendingKeys:string[]=[]){
+ const c=pendingKeys.length?components.find(c=>c.key===pendingKeys[0]):components.find(c=>c.role==='primary')||components[0];
  return c?{...c}:{key:'',role:'primary',form:'',material:''};
 }
 export function barcodeResearchLinks(barcode:string){

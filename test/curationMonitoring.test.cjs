@@ -2,6 +2,12 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function load(file,mocks={}){const m=new Module(file,module);m.require=id=>id in mocks?mocks[id]:require(id);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,file);return m.exports;}
 const {createRefreshController}=load('lib/refreshController.ts'),{validateHistory}=load('lib/curationMonitoring.ts');
 const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
+test('pending cap takes priority over the primary bottle',()=>{
+ const bottle={key:'primary',role:'primary',form:'bottle',material:'plastic'};
+ const cap={key:'dispensing_cap',role:'secondary',form:'other',material:'plastic'};
+ assert.deepEqual(initialPackaging([bottle,cap],['dispensing_cap']),cap);
+ assert.deepEqual(initialPackaging([bottle],['dispensing_cap']),{key:'',role:'primary',form:'',material:''});
+});
 const {proposalProgress}=load('lib/proposalProgress.ts');
 const {validateOutcomes}=load('lib/curationOutcomes.ts');
 const {validateWorkflowPage}=load('lib/workflowQueue.ts');
