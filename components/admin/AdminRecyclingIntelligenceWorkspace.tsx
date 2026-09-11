@@ -1,7 +1,7 @@
 "use client";
-import {queueNeed} from '@/lib/packagingReview';
 import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
 import {Outcomes,validateOutcomes} from '@/lib/curationOutcomes';
+import {WorkflowPage,validateWorkflowPage} from '@/lib/workflowQueue';
 import type {ReviewData} from '@/lib/curationReview';
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -27,19 +27,10 @@ import { CurationReviewDialog } from './CurationReviewDialog';
 import { EvidenceThumbnail } from "./EvidenceThumbnail";
 import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts, catalogueProgress, CatalogueSummary } from '@/lib/curationReview';
 
-type QueueProduct = {
-  id: string;
-  ean: string;
-  name: string | null;
-  brandName: string | null;
-  scanCount: number;
-  state: string;
-  materialType: string | null;
-  packagingForm: string | null;
-  verificationStatus: string | null;
-  lastErrorCode: string | null;
+const workflowLabels:Record<string,Record<string,string>>={
+ en:{all:'All products',pending:'Awaiting your review',unprocessed:'Not processed yet',resolved:'Resolved',unresolved:'Processed, needs information'},
+ es:{all:'Todos los productos',pending:'Pendientes de tu revisión',unprocessed:'Sin procesar',resolved:'Resueltos',unresolved:'Procesados, falta información'},
 };
-type QueuePage = { products: QueueProduct[]; nextOffset: number | null };
 const copy = {
   en: {
     title: "Recycling Intelligence",
@@ -247,7 +238,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
     [previous, setPrevious] = useState<(string | null)[]>([]);
   const [search, setSearch] = useState(""),
     [query, setQuery] = useState(""),
-    [filter, setFilter] = useState("all"),
+    [filter, setFilter] = useState("pending"),
     [offset, setOffset] = useState(0),
     [exportError, setExportError] = useState<string | null>(null);
   useEffect(() => {
@@ -272,23 +263,22 @@ export function AdminRecyclingIntelligenceWorkspace() {
     [cursor],
   );
   const history = useResource(loadHistory);
+  const queueKey=JSON.stringify([filter,query,offset]);
   const loadQueue = useCallback(
-    (signal: AbortSignal) =>
-      read<QueuePage>(
-        "/admin/recycling-intelligence/queue?" +
+    async (signal: AbortSignal) => ({...validateWorkflowPage(await read<WorkflowPage>(
+        "/admin/recycling-intelligence/workflow-queue?" +
           new URLSearchParams({
-            monitoring: "1",
-            countryCode: "ES",
             limit: "50",
             offset: String(offset),
             status: filter,
             search: query,
           }),
         signal,
-      ),
-    [offset, filter, query],
+      )),selectionKey:queueKey}),
+    [offset, filter, query,queueKey],
   );
-  const queue = useResource(loadQueue);
+  const queueResource = useResource(loadQueue);
+  const queue={...queueResource,data:queueResource.data?.selectionKey===queueKey?queueResource.data:null};
   const [latestUpdated, setLatestUpdated] = useState<number | null>(null);
   const [latest, setLatest] = useState<RunRecord | null>(null);
   useEffect(() => {
@@ -597,21 +587,20 @@ export function AdminRecyclingIntelligenceWorkspace() {
             className="rounded-md border border-slate-200 px-3 py-2 text-sm"
           >
             {[
-              "all",
-              "unclassified",
-              "processing",
-              "review",
-              "rule_missing",
-              "failed",
+              "pending",
+              "unprocessed",
               "resolved",
+              "unresolved",
+              "all",
             ].map((s) => (
               <option key={s} value={s}>
-                {s === "all" ? t.allStates : label(s)}
+                {workflowLabels[language==='es'?'es':'en'][s]}{queue.data ? ` (${queue.data.counts[s]})` : ''}
               </option>
             ))}
           </select>
         </div>
         {freshness(queue.state)}
+        {queue.data?<p className="mt-2 text-sm text-slate-600" aria-live="polite">{queue.data.total.toLocaleString(language)} {language==='es'?'productos':'products'}</p>:null}
         {!queue.data && !queue.state.error ? (
           <p className="py-5 text-sm">{t.loading}</p>
         ) : null}
@@ -621,8 +610,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
         <ul className="mt-2 divide-y divide-slate-100">
           {queue.data?.products.map((p) => (
             <li key={p.id}>
-              <button onClick={()=>openReview({barcode:p.ean})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
-                <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{queueNeed(p,language==='es')}</span></span><ChevronRight size={20} className="shrink-0"/>
+              <button onClick={()=>openReview({barcode:p.ean,...(p.runId?{runId:p.runId}:{})})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
+                <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{workflowLabels[language==='es'?'es':'en'][p.state]}</span></span><ChevronRight size={20} className="shrink-0"/>
               </button>
             </li>
           ))}

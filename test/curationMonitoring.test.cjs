@@ -4,6 +4,12 @@ const {createRefreshController}=load('lib/refreshController.ts'),{validateHistor
 const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
 const {proposalProgress}=load('lib/proposalProgress.ts');
 const {validateOutcomes}=load('lib/curationOutcomes.ts');
+const {validateWorkflowPage}=load('lib/workflowQueue.ts');
+test('workflow dropdown counts and pending links validate before display',()=>{
+ const value={readOnly:true,enrichment:false,products:[{id:'p',ean:'12345678',state:'pending',runId:'run'}],counts:{all:4,pending:1,unprocessed:1,resolved:1,unresolved:1},total:1,nextOffset:null};
+ assert.equal(validateWorkflowPage(value).counts.pending,1);
+ for(const bad of [{...value,counts:{...value.counts,all:5}},{...value,total:null},{...value,products:[{...value.products[0],runId:null}]},{...value,enrichment:true}])assert.throws(()=>validateWorkflowPage(bad));
+});
 test('current outcomes reject unknown or inconsistent counts rather than showing zero',()=>{
  const value={readOnly:true,enrichment:false,asOf:'2026-09-11T09:00:00Z',productsImproved:10,pendingCount:0,pending:[],photosAdded:1,missingInformation:20,gaps:{name:1,brand:2,photo:20,packaging:3}};
  assert.equal(validateOutcomes(value).productsImproved,10);
