@@ -15,7 +15,7 @@ const localOrigin=process.env.TEST_DASHBOARD_ORIGIN||'http://127.0.0.1:4319';
    let body,status=200;const path=url.pathname;
    if(path==='/fixture-session')body={localFixture:true,token:'local-test-only'};
    else if(path.endsWith('/summary'))body={summary:{totalProducts:4,classified:3,verified:2,scannedProducts:4,resolvedScannedProducts:2}};
-   else if(path.endsWith('/outcomes'))body={totalProducts:4,classified:3,catalogueCoveragePercent:75,productsImproved:saved.size,pendingCount:2-saved.size,pending:products.filter(p=>p.state==='pending'&&!saved.has(p.ean)).map(p=>({barcode:p.ean,name:p.name,runId:'run',fields:['packaging_component']})),photosAdded:0,missingInformation:2,gaps:{name:1,brand:2,photo:1,packaging:1},readOnly:true,enrichment:false,asOf:new Date().toISOString()};
+   else if(path.endsWith('/outcomes'))body={totalProducts:4,completeProducts:2,completePercent:50,classified:3,catalogueCoveragePercent:75,productsImproved:saved.size,improvedLast24Hours:2,improvedLatestBatch:1,latestBatch:{id:'run',startedAt:'2026-09-11T10:00:00Z',endedAt:'2026-09-11T10:05:00Z'},contributions:{openFoodFacts:{products:3,completeAtImport:null,historyAvailable:false},intelligence:{improvedProducts:2},users:{products:1,improvedProducts:1}},topContributors:[{id:'u',name:'Morten',products:1,improvedProducts:1}],pendingCount:2-saved.size,pending:products.filter(p=>p.state==='pending'&&!saved.has(p.ean)).map(p=>({barcode:p.ean,name:p.name,runId:'run',fields:['packaging_component']})),photosAdded:0,missingInformation:2,gaps:{name:1,brand:2,photo:1,packaging:1},readOnly:true,enrichment:false,asOf:new Date().toISOString()};
    else if(path.endsWith('/runs'))body={runs:[],nextCursor:null,enrichment:false};
    else if(path.endsWith('/workflow-queue')){const all=products.map(p=>({...p,state:saved.has(p.ean)?'resolved':p.state}));const state=url.searchParams.get('status'),filter=url.searchParams.get('completeness');const rows=all.filter(p=>(state==='all'||p.state===state)&&(filter==='all'||filter==='below50'&&p.completeness<50||filter==='50'&&p.completeness===50||filter==='above50'&&p.completeness>50||filter==='100'&&p.completeness===100));body={products:rows,counts:{all:4,pending:2-saved.size,unprocessed:1,resolved:saved.size,unresolved:1},total:rows.length,nextOffset:null,readOnly:true,enrichment:false};}
    else if(path.endsWith('/decision')){const barcode=path.split('/').at(-2);writes.push(barcode);if(barcode==='22222222'){status=409;body={error:'REVIEW_CHANGED'};}else{saved.add(barcode);body={saved:true};}}
@@ -24,6 +24,14 @@ const localOrigin=process.env.TEST_DASHBOARD_ORIGIN||'http://127.0.0.1:4319';
    return route.fulfill({status,headers,json:body});
   });
   await page.goto(localOrigin+'/curation-preview');
+  await page.getByRole('heading',{name:'Complete products',exact:true}).waitFor();
+  assert.equal(await page.getByRole('progressbar',{name:'Complete products'}).getAttribute('aria-valuenow'),'2');
+  await page.getByText('Last 24 hours',{exact:true}).waitFor();
+  const leaders=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Top contributing users'})}).last();
+  assert.equal(await leaders.getAttribute('open'),null);
+  await leaders.locator('summary').click();await page.getByText('Morten',{exact:true}).waitFor();await leaders.locator('summary').click();
+  await page.getByLabel('About these statistics',{exact:true}).click();await page.getByText(/Each counts for 25%/).waitFor();await page.getByLabel('About these statistics',{exact:true}).click();
+  await page.screenshot({path:`/private/tmp/intelligence-statistics-${width}.png`,fullPage:true});
   const queue=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Product review queue'})}).last();
   await queue.waitFor();assert.equal(await queue.getAttribute('open'),null);
   assert.equal(await page.locator('details[aria-label="Latest batch"]').getAttribute('open'),null);

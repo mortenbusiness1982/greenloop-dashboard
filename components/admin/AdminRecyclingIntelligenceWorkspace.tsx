@@ -27,7 +27,8 @@ import {
 
 import { CurationReviewDialog } from './CurationReviewDialog';
 import { EvidenceThumbnail } from "./EvidenceThumbnail";
-import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts, catalogueProgress, CatalogueSummary } from '@/lib/curationReview';
+import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts } from '@/lib/curationReview';
+import {IntelligenceStatistics} from './IntelligenceStatistics';
 
 const workflowLabels:Record<string,Record<string,string>>={
  en:{all:'All products',pending:'Awaiting my review',unprocessed:'Not processed',resolved:'Complete',unresolved:'Needs research'},
@@ -217,11 +218,6 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const reviewOpener=useRef<HTMLElement|null>(null);
   function openReview(target:ReviewTarget){reviewOpener.current=document.activeElement as HTMLElement;setReviewTarget(target);}
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget|null>(null);
-  const loadSummary = useCallback(async (signal:AbortSignal) => {
-    const value=await read<{summary:CatalogueSummary}>('/admin/recycling-intelligence/summary?countryCode=ES',signal);
-    return catalogueProgress(value.summary);
-  },[]);
-  const summary=useResource(loadSummary);
   const loadOutcomes=useCallback(async(signal:AbortSignal)=>validateOutcomes(await read<Outcomes>('/admin/recycling-intelligence/outcomes',signal)),[]);
   const outcomes=useResource(loadOutcomes);
   const [pendingOpen,setPendingOpen]=useState(false);
@@ -319,7 +315,6 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const refresh = () => {
     void history.refresh();
     void queue.refresh();
-    void summary.refresh();
     void outcomes.refresh();
   };
   function openHistory() {
@@ -420,9 +415,6 @@ export function AdminRecyclingIntelligenceWorkspace() {
           <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">
             {t.title}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            {t.description}
-          </p>
         </div>
         <div className="flex shrink-0 gap-1">
           <button
@@ -452,27 +444,9 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </details>
         </div>
       </header>
-      <section aria-label={language==='es'?'Resultados actuales':'Current results'} className="bg-white px-4 py-3">
-       <h2 className="font-semibold">{language==='es'?'Resultados actuales':'Current results'}</h2>
-       {outcomes.data?<><dl className="grid grid-cols-2 gap-4 py-3 sm:grid-cols-4">
-        <div><dd className="text-2xl font-semibold">{outcomes.data.productsImproved}</dd><dt className="text-sm">{language==='es'?'Productos mejorados en vivo':'Products improved live'}</dt></div>
-        <div><dd className="text-2xl font-semibold">{outcomes.data.pendingCount}</dd><dt><button className="min-h-11 text-left text-sm text-emerald-800 underline" onClick={()=>setPendingOpen(v=>!v)}>{language==='es'?'Pendientes de tu decisión':'Awaiting your decision'}</button></dt></div>
-        <div><dd className="text-2xl font-semibold">{outcomes.data.missingInformation}</dd><dt className="text-sm">{language==='es'?'Con información incompleta':'Products missing information'}</dt></div>
-        <div><dd className="text-2xl font-semibold">{outcomes.data.photosAdded}</dd><dt className="text-sm">{language==='es'?'Fotos publicadas':'Photos added'}</dt></div>
-       </dl><p className="text-xs text-slate-500">{language==='es'?'Estado actual · Catálogo completo':'Current state · Entire catalogue'} · {format(outcomes.data.asOf)}</p>
-       <details className="mt-2 text-sm"><summary className="cursor-pointer">{language==='es'?'Información que falta':'Missing information breakdown'}</summary><p className="py-2">{language==='es'?'Nombre':'Name'}: {outcomes.data.gaps.name} · {language==='es'?'Marca':'Brand'}: {outcomes.data.gaps.brand} · {language==='es'?'Foto':'Photo'}: {outcomes.data.gaps.photo} · {language==='es'?'Envase':'Packaging'}: {outcomes.data.gaps.packaging}</p></details>
-       {pendingOpen?<ul className="divide-y">{outcomes.data.pending.map(p=><li key={p.barcode}><button className="min-h-14 w-full py-3 text-left text-sm" onClick={()=>openReview({barcode:p.barcode,runId:p.runId})}><strong>{usefulName(p.name,p.barcode)||p.barcode}</strong><span className="ml-2 text-slate-500">{p.fields.map(f=>f==='brand'?(language==='es'?'Marca':'Brand'):f==='name'?(language==='es'?'Nombre':'Name'):(language==='es'?'Envase':'Packaging')).join(', ')}</span></button></li>)}</ul>:null}
-       </>:!outcomes.state.error?<p className="py-3 text-sm">{t.loading}</p>:null}
-       {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{language==='es'?'No se pudieron actualizar los resultados.':'Current results could not be refreshed.'}</p>:null}
-      </section>
-      <section aria-label={language==='es'?'Progreso del catálogo':'Catalogue progress'} className="bg-white px-4 py-3">
-        <h2 className="font-semibold">{language==='es'?'Progreso del catálogo':'Catalogue progress'}</h2>
-        {summary.data?<><div className="my-2 flex flex-wrap items-baseline gap-x-3"><strong className="text-2xl tabular-nums">{summary.data.percent===null?t.notRecorded:new Intl.NumberFormat(language,{maximumFractionDigits:1}).format(summary.data.percent)+'%'}</strong><span className="text-sm">{summary.data.classified.toLocaleString(language)} / {summary.data.totalProducts.toLocaleString(language)} {language==='es'?'productos categorizados':'products categorized'}</span></div>
-        {summary.data.percent!==null?<div role="progressbar" aria-valuemin={0} aria-valuenow={summary.data.classified} aria-valuemax={summary.data.totalProducts} aria-label={language==='es'?'Productos categorizados':'Categorized products'} className="h-2 w-full overflow-hidden rounded bg-slate-200"><div className="h-full rounded bg-emerald-700" style={{width:summary.data.percent+'%'}}/></div>:null}
-        <p className="mt-2 text-sm">{summary.data.remaining.toLocaleString(language)} {language==='es'?'sin categorizar':'remaining uncategorized'} · {summary.data.verified.toLocaleString(language)} {language==='es'?'revisados o verificados':'reviewed or verified'}</p><p className="mt-1 text-xs text-slate-500">{language==='es'?'Componente principal registrado · Todo el catálogo · No mide la exactitud del envase':'Primary component recorded · Entire catalogue · Does not measure packaging accuracy'}</p>
-        <p className="mt-1 text-xs text-slate-500">{language==='es'?'Guía resuelta para productos escaneados':'Resolved guidance for scanned products'}: {summary.data.resolvedScannedProducts.toLocaleString(language)} / {summary.data.scannedProducts.toLocaleString(language)}</p></>:!summary.state.error?<p className="py-3 text-sm">{t.loading}</p>:null}
-        {summary.state.error?<p role="alert" className="mt-2 text-sm text-amber-800">{summary.data?t.stale:language==='es'?'No se pudo cargar el progreso.':'Catalogue progress could not be loaded.'}</p>:null}
-      </section>
+      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={()=>setPendingOpen(v=>!v)}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
+      {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{t.stale}</p>:null}
+      {pendingOpen&&outcomes.data?<section className="bg-white p-4"><h2 className="font-semibold">{language==='es'?'Necesita tu decisión':'Needs your decision'}</h2><ul className="divide-y">{outcomes.data.pending.map(p=><li key={p.barcode}><button className="min-h-14 w-full py-3 text-left text-sm" onClick={()=>openReview({barcode:p.barcode,runId:p.runId})}><strong>{usefulName(p.name,p.barcode)||p.barcode}</strong></button></li>)}</ul></section>:null}
       {exportError ? (
         <p role="alert" className="text-sm text-red-700">
           {exportError}
@@ -631,6 +605,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
               <button onClick={()=>openReview({barcode:p.ean,...(p.runId?{runId:p.runId}:{})})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
                 <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{p.state==='unresolved'?(missingFieldLabel(p.missingFields,language)||workflowLabels[language][p.state]):workflowLabels[language][p.state]}</span></span><ChevronRight size={20} className="shrink-0"/>
               </button>
+              <div className="mb-2 flex flex-wrap gap-2 text-xs">{(p.contributions||['unknown']).map(source=><span key={source} className="border-l-2 border-emerald-600 pl-2">{source==='open_food_facts'?'Open Food Facts':source==='greenloop_intelligence'?'GreenLoop Intelligence':source==='user'?(language==='es'?'Evidencia de usuario':'User evidence'):(language==='es'?'Fuente sin registrar':'Source not recorded')}</span>)}</div>
+              {p.photoFlags?.length?<p className="mb-2 text-xs font-medium text-red-800">{p.photoFlags.includes('photo_privacy_blocked')?(language==='es'?'Foto bloqueada: riesgo de privacidad':'Photo blocked: privacy risk'):(language==='es'?'Foto no publicable: revisión de privacidad pendiente':'Photo not publishable: privacy screening needed')}</p>:null}
               <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs">{[['name','Name','Nombre'],['brand','Brand','Marca'],['photo','Photo','Foto'],['packaging','Packaging','Envase']].map(f=><li key={f[0]} className={p.missingFields?.includes(f[0])?'text-red-800':'text-emerald-800'}>{p.missingFields?.includes(f[0])?'○ ':'✓ '}{f[language==='es'?2:1]}</li>)}</ul>
               <p className="mt-2 text-xs text-stone-600">{bulkCandidate(p)?(language==='es'?'Completo · Propuesta por verificar':'Complete · Proposal to verify'):p.state==='pending'?(language==='es'?'Completa la información antes de aprobar en grupo':'Fill missing information before bulk approval'):p.state==='resolved'?(language==='es'?'Resuelto · Sin decisión pendiente':'Resolved · No decision pending'):(language==='es'?'Información pendiente · Abre para completar':'Information missing · Open to complete')}</p>
             </li>
