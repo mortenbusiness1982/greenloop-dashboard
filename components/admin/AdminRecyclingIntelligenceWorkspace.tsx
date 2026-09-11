@@ -1,6 +1,7 @@
 "use client";
 import {queueNeed} from '@/lib/packagingReview';
 import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
+import {Outcomes,validateOutcomes} from '@/lib/curationOutcomes';
 import type {ReviewData} from '@/lib/curationReview';
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -228,6 +229,9 @@ export function AdminRecyclingIntelligenceWorkspace() {
     return catalogueProgress(value.summary);
   },[]);
   const summary=useResource(loadSummary);
+  const loadOutcomes=useCallback(async(signal:AbortSignal)=>validateOutcomes(await read<Outcomes>('/admin/recycling-intelligence/outcomes',signal)),[]);
+  const outcomes=useResource(loadOutcomes);
+  const [pendingOpen,setPendingOpen]=useState(false);
   const label = (s: string) => labels[s]?.[language === "es" ? 1 : 0] || s;
   const format = (value: string | number | null) =>
     value
@@ -320,6 +324,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
     void history.refresh();
     void queue.refresh();
     void summary.refresh();
+    void outcomes.refresh();
   };
   function openHistory() {
     setHistoryOpen(true);
@@ -449,6 +454,19 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </details>
         </div>
       </header>
+      <section aria-label={language==='es'?'Resultados actuales':'Current results'} className="bg-white px-4 py-3">
+       <h2 className="font-semibold">{language==='es'?'Resultados actuales':'Current results'}</h2>
+       {outcomes.data?<><dl className="grid grid-cols-2 gap-4 py-3 sm:grid-cols-4">
+        <div><dd className="text-2xl font-semibold">{outcomes.data.productsImproved}</dd><dt className="text-sm">{language==='es'?'Productos mejorados en vivo':'Products improved live'}</dt></div>
+        <div><dd className="text-2xl font-semibold">{outcomes.data.pendingCount}</dd><dt><button className="min-h-11 text-left text-sm text-emerald-800 underline" onClick={()=>setPendingOpen(v=>!v)}>{language==='es'?'Pendientes de tu decisión':'Awaiting your decision'}</button></dt></div>
+        <div><dd className="text-2xl font-semibold">{outcomes.data.missingInformation}</dd><dt className="text-sm">{language==='es'?'Con información incompleta':'Products missing information'}</dt></div>
+        <div><dd className="text-2xl font-semibold">{outcomes.data.photosAdded}</dd><dt className="text-sm">{language==='es'?'Fotos publicadas':'Photos added'}</dt></div>
+       </dl><p className="text-xs text-slate-500">{language==='es'?'Estado actual · Catálogo completo':'Current state · Entire catalogue'} · {format(outcomes.data.asOf)}</p>
+       <details className="mt-2 text-sm"><summary className="cursor-pointer">{language==='es'?'Información que falta':'Missing information breakdown'}</summary><p className="py-2">{language==='es'?'Nombre':'Name'}: {outcomes.data.gaps.name} · {language==='es'?'Marca':'Brand'}: {outcomes.data.gaps.brand} · {language==='es'?'Foto':'Photo'}: {outcomes.data.gaps.photo} · {language==='es'?'Envase':'Packaging'}: {outcomes.data.gaps.packaging}</p></details>
+       {pendingOpen?<ul className="divide-y">{outcomes.data.pending.map(p=><li key={p.barcode}><button className="min-h-14 w-full py-3 text-left text-sm" onClick={()=>openReview({barcode:p.barcode,runId:p.runId})}><strong>{usefulName(p.name,p.barcode)||p.barcode}</strong><span className="ml-2 text-slate-500">{p.fields.map(f=>f==='brand'?(language==='es'?'Marca':'Brand'):f==='name'?(language==='es'?'Nombre':'Name'):(language==='es'?'Envase':'Packaging')).join(', ')}</span></button></li>)}</ul>:null}
+       </>:!outcomes.state.error?<p className="py-3 text-sm">{t.loading}</p>:null}
+       {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{language==='es'?'No se pudieron actualizar los resultados.':'Current results could not be refreshed.'}</p>:null}
+      </section>
       <section aria-label={language==='es'?'Progreso del catálogo':'Catalogue progress'} className="bg-white px-4 py-3">
         <h2 className="font-semibold">{language==='es'?'Progreso del catálogo':'Catalogue progress'}</h2>
         {summary.data?<><div className="my-2 flex flex-wrap items-baseline gap-x-3"><strong className="text-2xl tabular-nums">{summary.data.percent===null?t.notRecorded:new Intl.NumberFormat(language,{maximumFractionDigits:1}).format(summary.data.percent)+'%'}</strong><span className="text-sm">{summary.data.classified.toLocaleString(language)} / {summary.data.totalProducts.toLocaleString(language)} {language==='es'?'productos categorizados':'products categorized'}</span></div>

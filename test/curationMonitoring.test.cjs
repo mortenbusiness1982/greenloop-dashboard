@@ -3,6 +3,12 @@ function load(file,mocks={}){const m=new Module(file,module);m.require=id=>id in
 const {createRefreshController}=load('lib/refreshController.ts'),{validateHistory}=load('lib/curationMonitoring.ts');
 const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
 const {proposalProgress}=load('lib/proposalProgress.ts');
+const {validateOutcomes}=load('lib/curationOutcomes.ts');
+test('current outcomes reject unknown or inconsistent counts rather than showing zero',()=>{
+ const value={readOnly:true,enrichment:false,asOf:'2026-09-11T09:00:00Z',productsImproved:10,pendingCount:0,pending:[],photosAdded:1,missingInformation:20,gaps:{name:1,brand:2,photo:20,packaging:3}};
+ assert.equal(validateOutcomes(value).productsImproved,10);
+ for(const bad of [{...value,pendingCount:1},{...value,productsImproved:null},{...value,gaps:{}},{...value,enrichment:true}])assert.throws(()=>validateOutcomes(bad));
+});
 test('pending proposals reconcile against persisted values across reloads',()=>{
  const data={readOnly:true,enrichment:false,current:{name:'Saved name',brand:'Saved brand',packaging:[]},packet:{proposals:[{field:'name',value:'Saved name'},{field:'brand',value:'Saved brand'}]}};
  assert.equal(proposalProgress(data),'recorded');
