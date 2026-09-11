@@ -30,8 +30,8 @@ import { EvidenceThumbnail } from "./EvidenceThumbnail";
 import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts, catalogueProgress, CatalogueSummary } from '@/lib/curationReview';
 
 const workflowLabels:Record<string,Record<string,string>>={
- en:{all:'All products',pending:'Awaiting your review',unprocessed:'Not processed yet',resolved:'Resolved',unresolved:'Processed, needs information'},
- es:{all:'Todos los productos',pending:'Pendientes de tu revisión',unprocessed:'Sin procesar',resolved:'Resueltos',unresolved:'Procesados, falta información'},
+ en:{all:'All products',pending:'Awaiting my review',unprocessed:'Not processed',resolved:'Complete',unresolved:'Needs research'},
+ es:{all:'Todos los productos',pending:'Pendientes de mi revisión',unprocessed:'Sin procesar',resolved:'Completos',unresolved:'Necesita investigación'},
 };
 const copy = {
   en: {
@@ -372,7 +372,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
       <button onClick={()=>openReview({barcode:p.barcode,runId,outcome:p})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
         <span className="min-w-0"><strong className="block break-words text-sm">{usefulName(p.name,p.barcode)|| (language==='es'?'Producto sin identificar':'Unidentified product')}</strong>
         <span className="mt-1 block text-xs text-slate-500">{p.barcode}</span>
-        <span className="mt-1 block text-sm text-amber-800">{proposalStates[runId+':'+p.barcode]==='recorded'?(language==='es'?'Cambios guardados':'Changes saved'):proposalStates[runId+':'+p.barcode]==='rejected'?(language==='es'?'Rechazada':'Rejected'):reviewLabels[language][reviewState(p)]}</span>
+        <span className="mt-1 block text-sm text-amber-800">{proposalStates[runId+':'+p.barcode]==='research'?(language==='es'?'Enviado a investigación':'Sent for research'):proposalStates[runId+':'+p.barcode]==='finished'?(language==='es'?'Revisión terminada':'Review finished'):proposalStates[runId+':'+p.barcode]==='recorded'?(language==='es'?'Cambios guardados':'Changes saved'):proposalStates[runId+':'+p.barcode]==='rejected'?(language==='es'?'Rechazada':'Rejected'):reviewLabels[language][reviewState(p)]}</span>
         {!compact?<span className="mt-1 block break-words text-sm text-slate-600">{p.reason||t.reasonMissing}</span>:null}</span>
         <ChevronRight size={20} className="shrink-0 text-slate-500"/>
       </button></li>)}</ul>;
