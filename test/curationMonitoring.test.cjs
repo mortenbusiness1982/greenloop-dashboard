@@ -2,6 +2,12 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function load(file,mocks={}){const m=new Module(file,module);m.require=id=>id in mocks?mocks[id]:require(id);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,file);return m.exports;}
 const {createRefreshController}=load('lib/refreshController.ts'),{validateHistory}=load('lib/curationMonitoring.ts');
 const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
+test('queue explains the actual missing field, not another packaging confirmation',()=>{
+ const {missingFieldLabel}=load('lib/workflowQueue.ts');
+ assert.equal(missingFieldLabel(['brand'],'en'),'Missing: Brand');
+ assert.equal(missingFieldLabel(['brand'],'es'),'Falta: Marca');
+ assert.equal(missingFieldLabel([],'en'),null);
+});
 const {actionableBatchProducts}=load('lib/curationReview.ts');
 test('compact batch shows decisions only, not unresolved historical Cheddar results',()=>{
  const products=[{barcode:'cheddar',outcome:'deferred'},{barcode:'name',outcome:'staged'},{barcode:'cap',outcome:'proposed_not_published'},{barcode:'failed',outcome:'failed'}];

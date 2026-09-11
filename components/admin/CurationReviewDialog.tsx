@@ -24,10 +24,12 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
  const [busy,setBusy]=useState(false),[message,setMessage]=useState<string|null>(null),[uncertain,setUncertain]=useState(false);
  const [componentKey,setComponentKey]=useState(''),[role,setRole]=useState(''),[form,setForm]=useState(''),[material,setMaterial]=useState('');
  const [editing,setEditing]=useState(false);
+ const [brand,setBrand]=useState('');
  const initialized=useRef<string|null>(null);
  useEffect(()=>{dialog.current?.showModal();},[]);
  useEffect(()=>{
   initialized.current=null;
+  setBrand('');
   ++generation.current;locked.current=false;setData(null);setNewer(null);setError(false);setMessage(null);setBusy(false);setUncertain(false);setComponentKey('');setRole('');setForm('');setMaterial('');
   app.current=createMetadataApplication((path,options)=>apiFetch(path,{...options,token:getToken()||undefined}));
   const active=createReviewSession<Data>(async signal=>{
@@ -68,12 +70,12 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
   if(success){if(closeOnSuccess){onClose();return;}await reconcile(true);return;}
   setBusy(false);setUncertain(true);setMessage(word('Save not confirmed. Reload the record before retrying.','Guardado sin confirmar. Recarga el registro antes de reintentar.'));void session.current?.refresh();
  }
- function decide(decision:'approve_packaging'|'reject_proposal'|'confirm_name'|'approve_metadata',name?:string){
+ function decide(decision:'approve_packaging'|'reject_proposal'|'confirm_name'|'confirm_brand'|'approve_metadata',name?:string){
   const permission=data?.manualReview;if(!permission)return;
   void perform(async()=>{
-   const response=await apiFetch<{saved:boolean}>('/admin/recycling-intelligence/review/'+target.barcode+'/decision',{method:'POST',token:getToken()||undefined,signal:AbortSignal.timeout(20000),body:{requestId:crypto.randomUUID(),expectedRevision:permission.expectedRevision,evidenceFingerprint:permission.evidenceFingerprint,packetDigest:decision==='confirm_name'?null:permission.packetDigest,decision,...(decision==='confirm_name'?{name}:decision==='approve_metadata'?{fields:manualFields}:decision==='approve_packaging'?{component:{key:componentKey||role,role,form,material}}:{})}});
+   const response=await apiFetch<{saved:boolean}>('/admin/recycling-intelligence/review/'+target.barcode+'/decision',{method:'POST',token:getToken()||undefined,signal:AbortSignal.timeout(20000),body:{requestId:crypto.randomUUID(),expectedRevision:permission.expectedRevision,evidenceFingerprint:permission.evidenceFingerprint,packetDigest:decision==='confirm_name'||decision==='confirm_brand'?null:permission.packetDigest,decision,...(decision==='confirm_name'||decision==='confirm_brand'?{name}:decision==='approve_metadata'?{fields:manualFields}:decision==='approve_packaging'?{component:{key:componentKey||role,role,form,material}}:{})}});
    return response.saved===true;
-  },decision==='approve_packaging'||decision==='approve_metadata');
+  },decision==='approve_packaging'||decision==='approve_metadata'||decision==='confirm_brand');
  }
  function chooseComponent(key:string){setComponentKey(key);const c=data?.current.packaging.find(c=>c.key===key);setRole(c?.role||'');setForm(c?.form||'');setMaterial(c?.material||'');setEditing(!c?.form||!c?.material||c.material==='other');}
  const labelFor=(options:string[][],value:string)=>options.find(o=>o[0]===value)?.[es?2:1]||value;
@@ -89,6 +91,11 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
     <div className='grid gap-5 sm:grid-cols-2'>
      <section aria-label={word('Product photos','Fotos del producto')} className='space-y-2'>{data.images.length?data.images.map(p=><Photo key={p.url} photo={p} language={language}/>):<div className='flex h-64 flex-col items-center justify-center gap-2 rounded bg-stone-100 text-stone-500'><ImageOff size={32}/><p>{word('No photo available','No hay foto disponible')}</p></div>}</section>
      <div className='space-y-5'>
+      {!data.current.brand&&data.manualReview&&!manualFields?.includes('brand')?<section className='space-y-2'>
+       <label htmlFor='review-brand' className='block font-semibold'>{word('Missing: brand','Falta: marca')}</label>
+       <input id='review-brand' value={brand} onChange={e=>setBrand(e.target.value)} disabled={blocked} maxLength={180} className='min-h-11 w-full rounded border border-stone-300 bg-white px-3 text-base'/>
+       <button disabled={blocked||brand.trim().length<2} onClick={()=>decide('confirm_brand',brand.trim())} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{word('Save brand','Guardar marca')}</button>
+      </section>:null}
       {!usefulName(data.current.name,target.barcode)&&data.manualReview?<ProductNameReview key={target.barcode} barcode={target.barcode} language={language} disabled={blocked} onConfirm={name=>decide('confirm_name',name)}/>:null}
       {data.packet?.proposals.length?<section><h3 className='mb-2 font-semibold'>{word('Suggested changes','Cambios propuestos')}</h3>{data.packet.proposals.map(p=><div key={p.field} className='border-b py-2 text-sm'><span className='text-stone-500'>{p.field==='brand'?word('Brand','Marca'):word('Name','Nombre')}</span><p className='font-semibold'>{p.value}</p></div>)}
        {data.manualReview?.rejected?<p className='mt-3 text-sm'>{word('Proposal rejected. Current values kept.','Propuesta rechazada. Se mantienen los valores actuales.')}</p>:data.manualReview?.completed?<p className='mt-3 text-sm'>{word('Changes saved.','Cambios guardados.')}</p>:<div className='mt-3 flex flex-wrap gap-2'>{manualFields?<button disabled={blocked} onClick={()=>decide('approve_metadata')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{manualFields.length===2?word('Approve name and brand','Aprobar nombre y marca'):manualFields[0]==='brand'?word('Approve brand','Aprobar marca'):word('Approve name','Aprobar nombre')}</button>:fields&&action?<button disabled={blocked} onClick={()=>void perform(async()=>{const r=await app.current!.apply(action);return 'confirmed' in r&&r.confirmed;},true)} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{approveLabel}</button>:null}{data.manualReview?.packetDigest?<button disabled={blocked} onClick={()=>decide('reject_proposal')} className='inline-flex min-h-11 items-center gap-2 rounded border border-stone-400 px-4 disabled:opacity-50'><X size={18}/>{word('Reject','Rechazar')}</button>:null}</div>}

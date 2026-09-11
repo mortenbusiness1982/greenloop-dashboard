@@ -1,7 +1,7 @@
 "use client";
 import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
 import {Outcomes,validateOutcomes} from '@/lib/curationOutcomes';
-import {WorkflowPage,validateWorkflowPage} from '@/lib/workflowQueue';
+import {WorkflowPage,validateWorkflowPage,missingFieldLabel} from '@/lib/workflowQueue';
 import type {ReviewData} from '@/lib/curationReview';
 import {actionableBatchProducts} from '@/lib/curationReview';
 
@@ -614,7 +614,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           {queue.data?.products.map((p) => (
             <li key={p.id}>
               <button onClick={()=>openReview({barcode:p.ean,...(p.runId?{runId:p.runId}:{})})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
-                <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{workflowLabels[language==='es'?'es':'en'][p.state]}</span></span><ChevronRight size={20} className="shrink-0"/>
+                <EvidenceThumbnail barcode={p.ean} language={language} revision={queue.state.lastUpdated}/><span className="min-w-0 flex-1"><strong className="block break-words text-sm">{usefulName(p.name,p.ean)||(language==='es'?'Producto sin identificar':'Unidentified product')}</strong><span className="mt-1 block text-xs text-slate-500">{p.ean}{p.brandName&&!/^(greenloop|unknown)$/i.test(p.brandName)?' · '+p.brandName:''}</span><span className="mt-1 block text-sm text-slate-600">{p.state==='unresolved'?(missingFieldLabel(p.missingFields,language)||workflowLabels[language][p.state]):workflowLabels[language][p.state]}</span></span><ChevronRight size={20} className="shrink-0"/>
               </button>
             </li>
           ))}
