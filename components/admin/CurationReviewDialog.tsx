@@ -10,7 +10,7 @@ import {Photo} from './ProductReviewPhoto';
 import {initialPackaging,barcodeResearchLinks} from '@/lib/packagingReview';
 import {ProductNameReview} from './ProductNameReview';
 export {Photo} from './ProductReviewPhoto';
-type ManualPermission={expectedRevision:string;evidenceFingerprint:string;packetDigest:string|null;rejected:boolean};
+type ManualPermission={expectedRevision:string;evidenceFingerprint:string;packetDigest:string|null;rejected:boolean;completed?:boolean;metadataFields?:('name'|'brand')[]};
 type Data=ReviewData&{manualReview?:ManualPermission};
 const forms=[['bottle','Bottle','Botella'],['can','Can','Lata'],['jar','Jar','Tarro'],['carton','Carton','Brik'],['box','Box','Caja'],['tray','Tray','Bandeja'],['wrapper','Wrapper','Envoltorio'],['bag','Bag','Bolsa'],['cup','Cup / pot','Vaso / tarrina'],['container','Container','Recipiente'],['other','Other','Otro']];
 const materials=[['plastic','Plastic','Plástico'],['glass','Glass','Vidrio'],['paper','Paper','Papel'],['cardboard','Cardboard','Cartón'],['metal','Metal','Metal'],['aluminium','Aluminium','Aluminio'],['steel','Steel','Acero'],['composite','Mixed layers','Multicapa'],['pet','PET','PET'],['hdpe','HDPE','HDPE'],['ldpe','LDPE','LDPE'],['pp','PP','PP'],['ps','PS','PS'],['compostable','Compostable','Compostable'],['other','Other','Otro']];
@@ -49,6 +49,7 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
  const blocked=busy||uncertain||!!newer;
  const action=data?.actions.find(a=>a.kind==='apply_metadata');
  const fields=data?.stale?null:reviewedFields(action,data?.packet?.proposals);
+ const manualFields=reviewedFields({kind:'apply_metadata',runId:target.runId||'',barcode:target.barcode,packetDigest:data?.manualReview?.packetDigest||'',expectedRevision:data?.manualReview?.expectedRevision||'',fields:data?.manualReview?.metadataFields},data?.packet?.proposals);
  const approveLabel=fields?.length===1?(fields[0]==='name'?word('Approve name','Aprobar nombre'):word('Approve brand','Aprobar marca')):word('Approve changes','Aprobar cambios');
  function latest(){++generation.current;locked.current=false;app.current?.invalidate();app.current=createMetadataApplication((p,o)=>apiFetch(p,{...o,token:getToken()||undefined}));setMessage(null);setUncertain(false);setBusy(false);setComponentKey('');setRole('');setForm('');setMaterial('');session.current?.acceptLatest();}
  async function reconcile(saved:boolean){
@@ -66,12 +67,12 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
   if(success){if(closeOnSuccess){onClose();return;}await reconcile(true);return;}
   setBusy(false);setUncertain(true);setMessage(word('Save not confirmed. Reload the record before retrying.','Guardado sin confirmar. Recarga el registro antes de reintentar.'));void session.current?.refresh();
  }
- function decide(decision:'approve_packaging'|'reject_proposal'|'confirm_name',name?:string){
+ function decide(decision:'approve_packaging'|'reject_proposal'|'confirm_name'|'approve_metadata',name?:string){
   const permission=data?.manualReview;if(!permission)return;
   void perform(async()=>{
-   const response=await apiFetch<{saved:boolean}>('/admin/recycling-intelligence/review/'+target.barcode+'/decision',{method:'POST',token:getToken()||undefined,signal:AbortSignal.timeout(20000),body:{requestId:crypto.randomUUID(),expectedRevision:permission.expectedRevision,evidenceFingerprint:permission.evidenceFingerprint,packetDigest:decision==='confirm_name'?null:permission.packetDigest,decision,...(decision==='confirm_name'?{name}:decision==='approve_packaging'?{component:{key:componentKey||role,role,form,material}}:{})}});
+   const response=await apiFetch<{saved:boolean}>('/admin/recycling-intelligence/review/'+target.barcode+'/decision',{method:'POST',token:getToken()||undefined,signal:AbortSignal.timeout(20000),body:{requestId:crypto.randomUUID(),expectedRevision:permission.expectedRevision,evidenceFingerprint:permission.evidenceFingerprint,packetDigest:decision==='confirm_name'?null:permission.packetDigest,decision,...(decision==='confirm_name'?{name}:decision==='approve_metadata'?{fields:manualFields}:decision==='approve_packaging'?{component:{key:componentKey||role,role,form,material}}:{})}});
    return response.saved===true;
-  },decision==='approve_packaging');
+  },decision==='approve_packaging'||decision==='approve_metadata');
  }
  function chooseComponent(key:string){setComponentKey(key);const c=data?.current.packaging.find(c=>c.key===key);setRole(c?.role||'');setForm(c?.form||'');setMaterial(c?.material||'');setEditing(!c?.form||!c?.material||c.material==='other');}
  const labelFor=(options:string[][],value:string)=>options.find(o=>o[0]===value)?.[es?2:1]||value;
@@ -88,8 +89,9 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
      <div className='space-y-5'>
       {!usefulName(data.current.name,target.barcode)&&data.manualReview?<ProductNameReview key={target.barcode} barcode={target.barcode} language={language} disabled={blocked} onConfirm={name=>decide('confirm_name',name)}/>:null}
       {data.packet?.proposals.length?<section><h3 className='mb-2 font-semibold'>{word('Suggested changes','Cambios propuestos')}</h3>{data.packet.proposals.map(p=><div key={p.field} className='border-b py-2 text-sm'><span className='text-stone-500'>{p.field==='brand'?word('Brand','Marca'):word('Name','Nombre')}</span><p className='font-semibold'>{p.value}</p></div>)}
-       {data.manualReview?.rejected?<p className='mt-3 text-sm'>{word('Proposal rejected. Current values kept.','Propuesta rechazada. Se mantienen los valores actuales.')}</p>:<div className='mt-3 flex flex-wrap gap-2'>{fields&&action?<button disabled={blocked} onClick={()=>void perform(async()=>{const r=await app.current!.apply(action);return 'confirmed' in r&&r.confirmed;})} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{approveLabel}</button>:null}{data.manualReview?.packetDigest?<button disabled={blocked} onClick={()=>decide('reject_proposal')} className='inline-flex min-h-11 items-center gap-2 rounded border border-stone-400 px-4 disabled:opacity-50'><X size={18}/>{word('Reject','Rechazar')}</button>:null}</div>}
-       {!fields&&!data.manualReview?.rejected?<p className='mt-2 text-sm text-stone-600'>{word('These changes are not enabled for application.','Estos cambios no están habilitados para aplicar.')}</p>:null}
+       {data.manualReview?.rejected?<p className='mt-3 text-sm'>{word('Proposal rejected. Current values kept.','Propuesta rechazada. Se mantienen los valores actuales.')}</p>:data.manualReview?.completed?<p className='mt-3 text-sm'>{word('Changes saved.','Cambios guardados.')}</p>:<div className='mt-3 flex flex-wrap gap-2'>{manualFields?<button disabled={blocked} onClick={()=>decide('approve_metadata')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{manualFields.length===2?word('Approve name and brand','Aprobar nombre y marca'):manualFields[0]==='brand'?word('Approve brand','Aprobar marca'):word('Approve name','Aprobar nombre')}</button>:fields&&action?<button disabled={blocked} onClick={()=>void perform(async()=>{const r=await app.current!.apply(action);return 'confirmed' in r&&r.confirmed;},true)} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 text-white disabled:opacity-50'><Check size={18}/>{approveLabel}</button>:null}{data.manualReview?.packetDigest?<button disabled={blocked} onClick={()=>decide('reject_proposal')} className='inline-flex min-h-11 items-center gap-2 rounded border border-stone-400 px-4 disabled:opacity-50'><X size={18}/>{word('Reject','Rechazar')}</button>:null}</div>}
+       {manualFields?.includes('brand')?<p className='mt-2 text-xs text-stone-600'>{word('Uses the matching brand, or creates it if missing.','Usa la marca existente o la crea si falta.')}</p>:null}
+       {!manualFields&&!fields&&!data.manualReview?.rejected&&!data.manualReview?.completed?<p className='mt-2 text-sm text-stone-600'>{word('No missing fields can be approved. Existing values are kept.','No hay campos vacíos que aprobar. Se conservan los valores actuales.')}</p>:null}
       </section>:null}
       <section><h3 className='mb-3 font-semibold'>{word('Packaging','Envase')}</h3>
        {data.manualReview?<div className='space-y-3'>
