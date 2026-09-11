@@ -32,8 +32,8 @@ import {IntelligenceStatistics} from './IntelligenceStatistics';
 import {RecentUserActivity} from './RecentUserActivity';
 
 const workflowLabels:Record<string,Record<string,string>>={
-  en:{all:'All products',pending:'Awaiting my review',unprocessed:'Not processed',resolved:'Resolved',unresolved:'Needs research'},
- es:{all:'Todos los productos',pending:'Pendientes de mi revisión',unprocessed:'Sin procesar',resolved:'Resueltos',unresolved:'Necesita investigación'},
+  en:{all:'All products',pending:'Saved proposals',unprocessed:'Not processed',resolved:'Resolved',unresolved:'Needs research'},
+ es:{all:'Todos los productos',pending:'Propuestas guardadas',unprocessed:'Sin procesar',resolved:'Resueltos',unresolved:'Necesita investigación'},
 };
 const copy = {
   en: {
@@ -221,7 +221,11 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget|null>(null);
   const loadOutcomes=useCallback(async(signal:AbortSignal)=>validateOutcomes(await read<Outcomes>('/admin/recycling-intelligence/outcomes',signal)),[]);
   const outcomes=useResource(loadOutcomes);
-  const [pendingOpen,setPendingOpen]=useState(false);
+  const queueSection=useRef<HTMLDetailsElement>(null);
+  function showSavedProposals(){
+    setFilter('pending');setSearch('');setQuery('');setOffset(0);setCompleteness('all');
+    if(queueSection.current){queueSection.current.open=true;queueSection.current.scrollIntoView({block:'start'});queueSection.current.querySelector('summary')?.focus({preventScroll:true});}
+  }
   const [completeness,setCompleteness]=useState('all');
   const [chosen,setChosen]=useState<WorkflowProduct[]>([]),[bulk,setBulk]=useState<WorkflowProduct[]|null>(null);
   const label = (s: string) => labels[s]?.[language === "es" ? 1 : 0] || s;
@@ -445,9 +449,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </details>
         </div>
       </header>
-      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={()=>setPendingOpen(v=>!v)} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
+      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={showSavedProposals} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
       {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{t.stale}</p>:null}
-      {pendingOpen&&outcomes.data?<section className="bg-white p-4"><h2 className="font-semibold">{language==='es'?'Necesita tu decisión':'Needs your decision'}</h2><ul className="divide-y">{outcomes.data.pending.map(p=><li key={p.barcode}><button className="min-h-14 w-full py-3 text-left text-sm" onClick={()=>openReview({barcode:p.barcode,runId:p.runId})}><strong>{usefulName(p.name,p.barcode)||p.barcode}</strong></button></li>)}</ul></section>:null}
       {exportError ? (
         <p role="alert" className="text-sm text-red-700">
           {exportError}
@@ -544,8 +547,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
         ) : null}
 
       </details>
-      <details className="bg-white p-4">
-        <summary className="min-h-11 cursor-pointer font-semibold">{t.queue}<span className="ml-3 text-sm font-normal text-stone-600">{outcomes.data?`${outcomes.data.pendingCount} ${language==='es'?'por revisar':'awaiting review'}`:''}</span></summary>
+      <details ref={queueSection} className="bg-white p-4">
+        <summary className="min-h-11 cursor-pointer font-semibold">{t.queue}<span className="ml-3 text-sm font-normal text-stone-600">{outcomes.data?`${outcomes.data.pendingCount} ${language==='es'?'propuestas guardadas':'saved proposals'}`:''}</span></summary>
 
         <div className="my-3 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">

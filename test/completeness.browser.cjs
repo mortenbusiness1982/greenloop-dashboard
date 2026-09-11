@@ -22,12 +22,18 @@ const localOrigin=process.env.TEST_DASHBOARD_ORIGIN||'http://127.0.0.1:4319';
    else if(path.endsWith('/decision')){const barcode=path.split('/').at(-2);writes.push(barcode);if(barcode==='22222222'){status=409;body={error:'REVIEW_CHANGED'};}else{saved.add(barcode);body={saved:true};}}
    else if(path.includes('/review/'))body=detail(path.split('/').at(-1));
    else return route.fulfill({status:404,headers,json:{error:'Fixture route missing'}});
+   if(body?.contributions){body.contributions.intelligence.fields={name:2,brand:1,photo:1,packaging:1};body.photosAdded=1;}
    return route.fulfill({status,headers,json:body});
   });
   await page.goto(localOrigin+'/curation-preview');
   await page.getByRole('heading',{name:'Complete products',exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Complete products'}).getAttribute('aria-valuenow'),'2');
   await page.getByText('Last 24 hours',{exact:true}).waitFor();
+  const fields=page.getByRole('list',{name:'Improvements by field'});await fields.waitFor();assert.equal(await fields.locator('li').count(),4);
+  assert.match(await fields.innerText(),/Names: 2/);assert.match(await fields.innerText(),/Brands: 1/);
+  assert.equal(await page.getByText('Needs your decision',{exact:true}).count(),0);
+  assert.equal(await page.getByText('A product can be missing more than one field.',{exact:true}).count(),0);
+  assert.equal(await page.evaluate(()=>{const a=document.querySelector('[aria-label="Live improvements"]');const b=[...document.querySelectorAll('summary')].find(x=>x.textContent==='Recent user activity');return !!(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)}),true);
   await page.getByText('2 products need information',{exact:true}).waitFor();await page.getByText('Of these:',{exact:true}).waitFor();
   assert.equal(await page.getByText(/complete at import/i).count(),0);
   const activity=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Recent user activity'})}).last();
@@ -48,7 +54,8 @@ const localOrigin=process.env.TEST_DASHBOARD_ORIGIN||'http://127.0.0.1:4319';
   const queue=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Product review queue'})}).last();
   await queue.waitFor();assert.equal(await queue.getAttribute('open'),null);
   assert.equal(await page.locator('details[aria-label="Latest batch"]').getAttribute('open'),null);
-  await queue.locator('summary').first().click();
+  await page.getByRole('button',{name:'View saved proposals',exact:true}).click();
+  assert.notEqual(await queue.getAttribute('open'),null);assert.equal(await page.getByRole('combobox',{name:'Product status'}).inputValue(),'pending');
   await page.getByRole('checkbox',{name:'Select Glass bottle',exact:true}).check();
   await page.getByRole('checkbox',{name:'Select Second bottle',exact:true}).check();
   await page.getByRole('button',{name:'Review selected (2)',exact:true}).click();
