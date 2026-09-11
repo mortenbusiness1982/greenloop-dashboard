@@ -600,7 +600,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </select>
         </div>
         {freshness(queue.state)}
-        {queue.data?<p className="mt-2 text-sm text-slate-600" aria-live="polite">{queue.data.total.toLocaleString(language)} {language==='es'?'productos':'products'}</p>:null}
+        {queue.data?<p className="mt-2 text-sm text-slate-600" aria-live="polite">{queue.data.total.toLocaleString(language)} {language==='es'?(queue.data.total===1?'producto':'productos'):(queue.data.total===1?'product':'products')}</p>:null}
         {!queue.data && !queue.state.error ? (
           <p className="py-5 text-sm">{t.loading}</p>
         ) : null}
