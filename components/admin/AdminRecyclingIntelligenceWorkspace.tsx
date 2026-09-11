@@ -31,8 +31,8 @@ import { ReviewTarget, reviewState, reviewLabels, usefulName, compactCounts } fr
 import {IntelligenceStatistics} from './IntelligenceStatistics';
 
 const workflowLabels:Record<string,Record<string,string>>={
- en:{all:'All products',pending:'Awaiting my review',unprocessed:'Not processed',resolved:'Complete',unresolved:'Needs research'},
- es:{all:'Todos los productos',pending:'Pendientes de mi revisión',unprocessed:'Sin procesar',resolved:'Completos',unresolved:'Necesita investigación'},
+  en:{all:'All products',pending:'Awaiting my review',unprocessed:'Not processed',resolved:'Resolved',unresolved:'Needs research'},
+ es:{all:'Todos los productos',pending:'Pendientes de mi revisión',unprocessed:'Sin procesar',resolved:'Resueltos',unresolved:'Necesita investigación'},
 };
 const copy = {
   en: {
