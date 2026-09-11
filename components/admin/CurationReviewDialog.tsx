@@ -10,7 +10,7 @@ import {Photo} from './ProductReviewPhoto';
 import {initialPackaging,barcodeResearchLinks} from '@/lib/packagingReview';
 import {ProductNameReview} from './ProductNameReview';
 export {Photo} from './ProductReviewPhoto';
-type ManualPermission={expectedRevision:string;evidenceFingerprint:string;packetDigest:string|null;rejected:boolean;completed?:boolean;metadataFields?:('name'|'brand')[];packagingKeys?:string[]};
+type ManualPermission={expectedRevision:string;evidenceFingerprint:string;packetDigest:string|null;rejected:boolean;completed?:boolean;metadataFields?:('name'|'brand')[];packagingKeys?:string[];confirmedPackagingKeys?:string[]};
 type Data=ReviewData&{manualReview?:ManualPermission};
 const forms=[['bottle','Bottle','Botella'],['can','Can','Lata'],['jar','Jar','Tarro'],['carton','Carton','Brik'],['box','Box','Caja'],['tray','Tray','Bandeja'],['wrapper','Wrapper','Envoltorio'],['bag','Bag','Bolsa'],['cup','Cup / pot','Vaso / tarrina'],['container','Container','Recipiente'],['other','Other','Otro']];
 const materials=[['plastic','Plastic','Plástico'],['glass','Glass','Vidrio'],['paper','Paper','Papel'],['cardboard','Cardboard','Cartón'],['metal','Metal','Metal'],['aluminium','Aluminium','Aluminio'],['steel','Steel','Acero'],['composite','Mixed layers','Multicapa'],['pet','PET','PET'],['hdpe','HDPE','HDPE'],['ldpe','LDPE','LDPE'],['pp','PP','PP'],['ps','PS','PS'],['compostable','Compostable','Compostable'],['other','Other','Otro']];
@@ -47,6 +47,7 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
   setEditing(!c.form||!c.material||c.material==='other');
  },[data,target.barcode]);
  const blocked=busy||uncertain||!!newer;
+ const packagingConfirmed=data?.manualReview?.confirmedPackagingKeys?.includes(componentKey)&&!data.manualReview.packagingKeys?.includes(componentKey);
  const action=data?.actions.find(a=>a.kind==='apply_metadata');
  const fields=data?.stale?null:reviewedFields(action,data?.packet?.proposals);
  const manualFields=reviewedFields({kind:'apply_metadata',runId:target.runId||'',barcode:target.barcode,packetDigest:data?.manualReview?.packetDigest||'',expectedRevision:data?.manualReview?.expectedRevision||'',fields:data?.manualReview?.metadataFields},data?.packet?.proposals);
@@ -102,8 +103,9 @@ export function CurationReviewDialog({target,language,onClose}:{target:ReviewTar
          {select(word('Packaging type','Tipo de envase'),form,setForm,forms)}
          {select(word('Material','Material'),material,setMaterial,materials)}
         </>}
-        <button disabled={blocked||!role||!form||!material||data.current.packaging.length>0&&!componentKey} onClick={()=>decide('approve_packaging')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 py-2 text-left text-white disabled:opacity-50'><Check size={18} className='shrink-0'/>{editing?word('Save packaging','Guardar envase'):word('Confirm','Confirmar')+' '+(partName(componentKey,role)||word('packaging','envase'))}</button>
+        {packagingConfirmed&&!editing?<p role='status' className='flex items-center gap-2 font-medium text-emerald-800'><Check size={18}/>{word('Packaging confirmed','Envase confirmado')}</p>:<button disabled={blocked||!role||!form||!material||data.current.packaging.length>0&&!componentKey} onClick={()=>decide('approve_packaging')} className='inline-flex min-h-11 items-center gap-2 rounded bg-emerald-800 px-4 py-2 text-left text-white disabled:opacity-50'><Check size={18} className='shrink-0'/>{editing?word('Save packaging','Guardar envase'):word('Confirm','Confirmar')+' '+(partName(componentKey,role)||word('packaging','envase'))}</button>}
         <p className='text-xs text-stone-500'>{word('This packaging part only.','Solo esta parte del envase.')}</p>
+        {packagingConfirmed&&!data.images.length?<p className='text-sm text-stone-600'>{word('Still missing: product photo. No further packaging confirmation needed.','Falta la foto del producto. No hace falta confirmar el envase de nuevo.')}</p>:null}
        </div>:<p className='text-sm'>{data.current.packaging.map(c=>`${c.form} · ${c.material}`).join(', ')||word('Not classified','Sin clasificar')}<span className='mt-2 block text-stone-500'>{word('Packaging editing is not available on this server yet.','La edición del envase aún no está disponible en este servidor.')}</span></p>}
       </section>
       {message?<p role='status' className='text-sm font-medium'>{message}{uncertain?<button disabled={busy} className='ml-2 min-h-11 underline' onClick={()=>void reconcile(false)}>{word('Reload record','Recargar registro')}</button>:null}</p>:null}

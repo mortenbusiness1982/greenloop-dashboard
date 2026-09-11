@@ -2,6 +2,13 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function load(file,mocks={}){const m=new Module(file,module);m.require=id=>id in mocks?mocks[id]:require(id);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,file);return m.exports;}
 const {createRefreshController}=load('lib/refreshController.ts'),{validateHistory}=load('lib/curationMonitoring.ts');
 const {initialPackaging,barcodeResearchLinks,queueNeed}=load('lib/packagingReview.ts');
+const {actionableBatchProducts}=load('lib/curationReview.ts');
+test('compact batch shows decisions only, not unresolved historical Cheddar results',()=>{
+ const products=[{barcode:'cheddar',outcome:'deferred'},{barcode:'name',outcome:'staged'},{barcode:'cap',outcome:'proposed_not_published'},{barcode:'failed',outcome:'failed'}];
+ assert.deepEqual(actionableBatchProducts(products,{},'run').map(p=>p.barcode),['name','cap']);
+ assert.deepEqual(actionableBatchProducts(products,{'run:name':'recorded','run:cap':'rejected'},'run'),[]);
+ assert.equal(products.length,4);
+});
 test('pending cap takes priority over the primary bottle',()=>{
  const bottle={key:'primary',role:'primary',form:'bottle',material:'plastic'};
  const cap={key:'dispensing_cap',role:'secondary',form:'other',material:'plastic'};

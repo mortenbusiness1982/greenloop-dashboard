@@ -3,6 +3,7 @@ import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
 import {Outcomes,validateOutcomes} from '@/lib/curationOutcomes';
 import {WorkflowPage,validateWorkflowPage} from '@/lib/workflowQueue';
 import type {ReviewData} from '@/lib/curationReview';
+import {actionableBatchProducts} from '@/lib/curationReview';
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -372,8 +373,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
       </button></li>)}</ul>;
   }
   function batch(run: RunRecord, compact = false) {
-    const pending=(run.report?.products||[]).filter(p=>(p.outcome==='staged'||p.outcome==='proposed_not_published')&&!['recorded','rejected'].includes(proposalStates[run.runId+':'+p.barcode]));
-    const visible=(run.report?.products||[]).filter(p=>!compact||!['recorded','rejected'].includes(proposalStates[run.runId+':'+p.barcode]));
+    const pending=actionableBatchProducts(run.report?.products||[],proposalStates,run.runId);
+    const visible=compact?pending:(run.report?.products||[]);
     return (
       <>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -394,6 +395,8 @@ export function AdminRecyclingIntelligenceWorkspace() {
             {run.counts.attemptedUnknown?<p className="text-xs text-amber-800">+ {run.counts.attemptedUnknown} {t.unknown}</p>:null}
             {pending.length>0?<button className="mb-2 min-h-11 text-sm font-semibold text-emerald-800 underline" onClick={()=>openReview({barcode:pending[0].barcode,runId:run.runId,outcome:pending[0]})}>{language==='es'?'Revisar':'Review'} {pending.length} {language==='es'?(pending.length===1?'propuesta':'propuestas'):(pending.length===1?'proposal':'proposals')}</button>:run.counts.staged>0?<p className="mb-2 text-sm text-emerald-800">{language==='es'?'No quedan propuestas pendientes':'No proposals pending'}</p>:null}
             {!compact?<details className="mb-3 text-xs text-slate-500"><summary className="min-h-11 cursor-pointer py-3">{language==='es'?'Detalles del lote':'Batch details'}</summary><p>{t.reserved}: {run.counts.reserved} · {t.inspected}: {run.counts.inspected} · {t.skipped}: {run.report.skippedUnchanged}</p><p>{t.contribution}: {run.counts.bySource.contribution.attempted} · {t.catalogue}: {run.counts.bySource.catalogue.attempted}</p><p>{t.end}: {format(run.report.endedAt)} · {run.runId}</p></details>:null}
+            {compact&&!pending.length?<p className="py-2 text-sm text-stone-600">{language==='es'?'Nada que revisar en este lote.':'Nothing to review in this batch.'}</p>:null}
+            {!compact?<h3 className="mt-3 text-sm font-semibold">{language==='es'?'Historial del lote':'Batch history'}</h3>:null}
             {rows(
               compact ? visible.slice(0, 3) : visible,
               run.runId, compact,
