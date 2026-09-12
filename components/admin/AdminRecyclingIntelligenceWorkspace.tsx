@@ -449,7 +449,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </details>
         </div>
       </header>
-      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={showSavedProposals} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
+      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={showSavedProposals} onProduct={barcode=>openReview({barcode})} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
       {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{t.stale}</p>:null}
       {exportError ? (
         <p role="alert" className="text-sm text-red-700">

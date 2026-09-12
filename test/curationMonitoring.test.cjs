@@ -44,6 +44,12 @@ test('pending proposals reconcile against persisted values across reloads',()=>{
  assert.equal(proposalProgress({...data,packet:null}),'unavailable');
  assert.equal(proposalProgress({...data,packet:{proposals:[]}}),'pending');
 });
+test('recent improvements reject malformed or duplicate products while old responses remain readable',()=>{
+ const base={readOnly:true,enrichment:false,asOf:'2026-09-12T18:00:00Z',productsImproved:1,pendingCount:0,pending:[],photosAdded:0,missingInformation:0,gaps:{name:0,brand:0,photo:0,packaging:0}};
+ const item={productId:'p',barcode:'12345678',name:'Product',at:'2026-09-12T17:00:00Z',fields:[{field:'brand',value:'Brand'}]};
+ assert.equal(validateOutcomes(base),base);assert.equal(validateOutcomes({...base,recentImprovements:[item]}).recentImprovements.length,1);
+ for(const rows of [[item,item],[{...item,barcode:'bad'}],[{...item,fields:[]}],[{...item,fields:[{field:'invented'}]}],[{...item,at:'2027-01-01'}]])assert.throws(()=>validateOutcomes({...base,recentImprovements:rows}));
+});
 test('packaging confirmation cannot clear outstanding identity or unknown proposals',()=>{
  const current={name:'Old name',brand:null,packaging:[{key:'main',role:'primary',form:'bottle',material:'plastic'}]};
  const visual={field:'packaging_component',componentKey:'main',componentRole:'primary',packagingForm:'bottle',materialType:'plastic'};

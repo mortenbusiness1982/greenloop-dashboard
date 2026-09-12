@@ -22,13 +22,22 @@ const localOrigin=process.env.TEST_DASHBOARD_ORIGIN||'http://127.0.0.1:4319';
    else if(path.endsWith('/decision')){const barcode=path.split('/').at(-2);writes.push(barcode);if(barcode==='22222222'){status=409;body={error:'REVIEW_CHANGED'};}else{saved.add(barcode);body={saved:true};}}
    else if(path.includes('/review/'))body=detail(path.split('/').at(-1));
    else return route.fulfill({status:404,headers,json:{error:'Fixture route missing'}});
-   if(body?.contributions){body.contributions.intelligence.fields={name:2,brand:1,photo:1,packaging:1};body.photosAdded=1;}
+   if(body?.contributions){body.contributions.intelligence.fields={name:2,brand:1,photo:1,packaging:1};body.photosAdded=1;body.recentImprovements=Array.from({length:7},(_,i)=>({productId:'improved'+i,barcode:String(11111111+i),name:'Improved product '+i,at:'2026-09-11T10:00:00Z',fields:[{field:'brand',value:'Confirmed brand '+i}]}));}
    return route.fulfill({status,headers,json:body});
   });
   await page.goto(localOrigin+'/curation-preview');
   await page.getByRole('heading',{name:'Complete products',exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Complete products'}).getAttribute('aria-valuenow'),'2');
   await page.getByText('Last 24 hours',{exact:true}).waitFor();
+  const contribution=page.locator('details[aria-label="Intelligence Contribution"]');
+  assert.equal(await contribution.getAttribute('open'),null);
+  const latest=page.getByRole('region',{name:'Latest improvements',exact:true});
+  await latest.getByText('Improved product 0',{exact:true}).waitFor();assert.equal(await latest.locator('li').count(),5);
+  await latest.getByText('Brand',{exact:true}).first().waitFor();await latest.getByText(/Confirmed brand 0/).waitFor();
+  await latest.getByRole('button',{name:'See all',exact:true}).click();assert.equal(await latest.locator('li').count(),7);
+  await latest.getByRole('button',{name:'Show less',exact:true}).click();assert.equal(await latest.locator('li').count(),5);
+  assert.equal(await contribution.getAttribute('open'),null);
+  await contribution.locator('summary').first().click();
   const fields=page.getByRole('list',{name:'Improvements by field'});await fields.waitFor();assert.equal(await fields.locator('li').count(),4);
   assert.match(await fields.innerText(),/Names: 2/);assert.match(await fields.innerText(),/Brands: 1/);
   assert.equal(await page.getByText('Needs your decision',{exact:true}).count(),0);
