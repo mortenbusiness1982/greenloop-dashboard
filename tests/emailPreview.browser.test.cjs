@@ -13,7 +13,7 @@ const { buildIsolatedEmailPreview } = exportsObject;
 
 test('outreach preview isolates scripts, storage, CSS, forms and tracking requests', async () => {
   const component = fs.readFileSync(path.join(__dirname, '../components/admin/AdminOutreachWorkspace.tsx'), 'utf8');
-  assert.match(component, /<iframe[\s\S]*?sandbox=""[\s\S]*?referrerPolicy="no-referrer"[\s\S]*?srcDoc=\{buildIsolatedEmailPreview/);
+  assert.match(component, /<iframe[\s\S]*?sandbox="allow-popups allow-popups-to-escape-sandbox"[\s\S]*?referrerPolicy="no-referrer"[\s\S]*?srcDoc=\{buildIsolatedEmailPreview/);
   assert.doesNotMatch(component, /dangerouslySetInnerHTML/);
   const browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || undefined });
   try {
@@ -35,7 +35,7 @@ test('outreach preview isolates scripts, storage, CSS, forms and tracking reques
     await page.evaluate(doc => {
       const frame = document.createElement('iframe');
       frame.title = 'Email preview';
-      frame.setAttribute('sandbox', '');
+      frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
       frame.referrerPolicy = 'no-referrer';
       frame.style.cssText = 'height:540px;width:100%;box-sizing:border-box';
       frame.srcdoc = doc;
@@ -56,6 +56,50 @@ test('outreach preview isolates scripts, storage, CSS, forms and tracking reques
       assert.equal(await preview.locator('#email-copy').textContent(), 'Hello community');
       assert.ok((await page.locator('iframe[title="Email preview"]').boundingBox()).width <= width);
     }
+  } finally {
+    await browser.close();
+  }
+});
+
+test('web links open the exact presentation outside the isolated preview', async () => {
+  const destination = 'https://www.greenloopapp.com/organizations/challenges';
+  const document = buildIsolatedEmailPreview(`<p><a href="${destination}" target="_self" rel="opener">Cómo funciona un reto en tu organización</a></p>`);
+  assert.match(document, new RegExp(`<a href="${destination}" target="_blank" rel="noopener noreferrer">`));
+  const unsafeDocument = buildIsolatedEmailPreview('<a href="javascript:alert(1)" target="_blank" rel="opener">Unsafe</a>');
+  assert.doesNotMatch(unsafeDocument, /<a[^>]+target=/i);
+  assert.doesNotMatch(unsafeDocument, /<a[^>]+rel=/i);
+
+  const browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || undefined });
+  try {
+    const context = await browser.newContext();
+    await context.route('**/*', route => {
+      const url = route.request().url();
+      if (url === destination) {
+        return route.fulfill({ contentType: 'text/html', body: '<html><body><h1>Correct GreenLoop presentation</h1></body></html>' });
+      }
+      return route.fulfill({ contentType: 'text/html', body: '<html><body><h1 id="host">Dashboard</h1></body></html>' });
+    });
+    const page = await context.newPage();
+    await page.goto('https://dashboard.test/');
+    await page.evaluate(doc => {
+      const frame = document.createElement('iframe');
+      frame.title = 'Email preview';
+      frame.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
+      frame.referrerPolicy = 'no-referrer';
+      frame.srcdoc = doc;
+      document.body.append(frame);
+    }, document);
+
+    const preview = page.frameLocator('iframe[title="Email preview"]');
+    const popupPromise = page.waitForEvent('popup');
+    await preview.getByRole('link', { name: 'Cómo funciona un reto en tu organización' }).click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState();
+
+    assert.equal(popup.url(), destination);
+    assert.equal(await popup.getByRole('heading', { name: 'Correct GreenLoop presentation' }).isVisible(), true);
+    assert.equal(await page.getByRole('heading', { name: 'Dashboard' }).isVisible(), true);
+    await context.close();
   } finally {
     await browser.close();
   }

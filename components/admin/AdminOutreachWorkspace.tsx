@@ -1886,7 +1886,7 @@ export function AdminOutreachWorkspace() {
                 </div>
                 <iframe
                   title={c.editor.preview}
-                  sandbox=""
+                  sandbox="allow-popups allow-popups-to-escape-sandbox"
                   referrerPolicy="no-referrer"
                   className="h-[540px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
                   srcDoc={buildIsolatedEmailPreview(buildPreviewHtml(form.html_body))}
