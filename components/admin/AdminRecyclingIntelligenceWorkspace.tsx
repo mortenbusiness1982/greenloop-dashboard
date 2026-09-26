@@ -1,4 +1,6 @@
 "use client";
+
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
 import {proposalProgress,ProposalProgress} from '@/lib/proposalProgress';
 import {Outcomes,validateOutcomes} from '@/lib/curationOutcomes';
 import {WorkflowPage,WorkflowProduct,validateWorkflowPage,missingFieldLabel,bulkCandidate} from '@/lib/workflowQueue';
@@ -222,9 +224,11 @@ export function AdminRecyclingIntelligenceWorkspace() {
   const loadOutcomes=useCallback(async(signal:AbortSignal)=>validateOutcomes(await read<Outcomes>('/admin/recycling-intelligence/outcomes',signal)),[]);
   const outcomes=useResource(loadOutcomes);
   const queueSection=useRef<HTMLDetailsElement>(null);
+  const [workspaceView, setWorkspaceView] = useState<'summary'|'improvements'|'contribution'|'review'>('summary');
   function showSavedProposals(){
     setFilter('pending');setSearch('');setQuery('');setOffset(0);setCompleteness('all');
-    if(queueSection.current){queueSection.current.open=true;queueSection.current.scrollIntoView({block:'start'});queueSection.current.querySelector('summary')?.focus({preventScroll:true});}
+    setWorkspaceView('review');
+    requestAnimationFrame(() => { if(queueSection.current){queueSection.current.open=true;queueSection.current.querySelector('summary')?.focus({preventScroll:true});} });
   }
   const [completeness,setCompleteness]=useState('all');
   const [chosen,setChosen]=useState<WorkflowProduct[]>([]),[bulk,setBulk]=useState<WorkflowProduct[]|null>(null);
@@ -415,7 +419,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
   }
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <header className="flex items-start justify-between gap-3">
+      <WorkspaceHeader className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">
             {t.title}
@@ -448,8 +452,20 @@ export function AdminRecyclingIntelligenceWorkspace() {
             </button>
           </details>
         </div>
-      </header>
-      {outcomes.data?<IntelligenceStatistics data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={showSavedProposals} onProduct={barcode=>openReview({barcode})} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
+      </WorkspaceHeader>
+      <div role="tablist" aria-label={language==='es'?'Inteligencia de reciclaje':'Recycling intelligence'} className="flex overflow-x-auto border-b border-[var(--gl-hairline)]">
+        {(['summary','improvements','contribution','review'] as const).map((view, index, views) => <button key={view} type="button" id={`intelligence-${view}-tab`} role="tab" aria-selected={workspaceView===view} aria-controls="intelligence-panel" tabIndex={workspaceView===view?0:-1}
+          onClick={() => setWorkspaceView(view)} onKeyDown={event => {
+            if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+            event.preventDefault();
+            const next=event.key==='Home'?0:event.key==='End'?views.length-1:(index+(event.key==='ArrowRight'?1:-1)+views.length)%views.length;
+            setWorkspaceView(views[next]);document.getElementById(`intelligence-${views[next]}-tab`)?.focus({preventScroll:true});
+          }} className={`min-h-11 shrink-0 border-b-2 px-3 text-sm font-medium ${workspaceView===view?'border-[var(--gl-green)] text-[var(--gl-green)]':'border-transparent text-[var(--gl-ink-muted)]'}`}>
+          {({summary:['Summary','Resumen'],improvements:['Improvements','Mejoras'],contribution:['Contributions & batches','Aportaciones y lotes'],review:['Review queue','Cola de revisión']})[view][language==='es'?1:0]}
+        </button>)}
+      </div>
+      <div id="intelligence-panel" role="tabpanel" aria-labelledby={`intelligence-${workspaceView}-tab`} className="space-y-3">
+      {outcomes.data?<IntelligenceStatistics view={workspaceView} data={outcomes.data} language={language==='es'?'es':'en'} format={format} onPending={showSavedProposals} onProduct={barcode=>openReview({barcode})} activity={<RecentUserActivity language={language==='es'?'es':'en'} format={format} onProduct={barcode=>openReview({barcode})}/>}/>:outcomes.state.error?null:<p className="py-3 text-sm">{t.loading}</p>}
       {outcomes.state.error?<p role="alert" className="text-sm text-amber-800">{t.stale}</p>:null}
       {exportError ? (
         <p role="alert" className="text-sm text-red-700">
@@ -457,6 +473,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
         </p>
       ) : null}
       <details
+        hidden={workspaceView !== 'contribution'}
         className="bg-white p-4"
         aria-label={historyOpen ? t.history : t.latest}
       >
@@ -547,7 +564,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
         ) : null}
 
       </details>
-      <details ref={queueSection} className="bg-white p-4">
+      <details open hidden={workspaceView !== 'review'} ref={queueSection} className="bg-white p-4">
         <summary className="min-h-11 cursor-pointer font-semibold">{t.queue}<span className="ml-3 text-sm font-normal text-stone-600">{outcomes.data?`${outcomes.data.pendingCount} ${language==='es'?'propuestas guardadas':'saved proposals'}`:''}</span></summary>
 
         <div className="my-3 flex flex-col gap-2 sm:flex-row">
@@ -601,9 +618,9 @@ export function AdminRecyclingIntelligenceWorkspace() {
         {queue.data?.products.length === 0 ? (
           <p className="py-5 text-sm text-slate-500">{t.queueEmpty}</p>
         ) : null}
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+        <ul className="crm-intelligence-rows mt-3 divide-y divide-[var(--gl-hairline)]">
           {queue.data?.products.map((p) => (
-            <li key={p.id} className="min-w-0 rounded-lg border border-stone-200 p-3">
+            <li key={p.id} className="min-w-0 py-3">
               <div className="flex items-center justify-between gap-2"><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" aria-label={(language==='es'?'Seleccionar ':'Select ')+(p.name||p.ean)} disabled={!bulkCandidate(p)||chosen.length>=20&&!chosen.some(c=>c.ean===p.ean)} checked={chosen.some(c=>c.ean===p.ean)} onChange={e=>setChosen(rows=>e.target.checked?[...rows,p]:rows.filter(c=>c.ean!==p.ean))}/>{language==='es'?'Seleccionar':'Select'}</label><strong className="text-lg tabular-nums">{p.completeness===undefined?'—':p.completeness+'%'}</strong></div>
               <div role="progressbar" aria-label={language==='es'?'Completitud del producto':'Product completeness'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.completeness} className="h-1.5 overflow-hidden rounded bg-stone-200"><div className="h-full bg-emerald-700" style={{width:(p.completeness||0)+'%'}}/></div>
               <button onClick={()=>openReview({barcode:p.ean,...(p.runId?{runId:p.runId}:{})})} className="flex min-h-16 w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
@@ -633,6 +650,7 @@ export function AdminRecyclingIntelligenceWorkspace() {
           </button>
         </div>
       </details>
+      </div>
       {bulk?<BulkProductReview products={bulk} language={language} onSaved={barcode=>{setChosen(rows=>rows.filter(p=>p.ean!==barcode));refresh();}} onClose={()=>{setBulk(null);refresh();}}/>:null}
       {reviewTarget?<CurationReviewDialog target={reviewTarget} language={language} onClose={()=>{setReviewTarget(null);setReviewRefresh(v=>v+1);refresh();requestAnimationFrame(()=>reviewOpener.current?.focus());}}/>:null}
     </div>

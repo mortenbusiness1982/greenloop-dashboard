@@ -1,7 +1,10 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import styles from "@/components/crm/Workspace.module.css";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -254,23 +257,23 @@ export function AdminBinsWorkspace() {
         </>
       }
     >
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className={styles.metrics}>
         <Kpi label={copy.bins.kpis[0]} value={totals.bins} language={language} />
         <Kpi label={copy.bins.kpis[1]} value={totals.active} language={language} />
         <Kpi label={copy.bins.kpis[2]} value={totals.units} language={language} />
         <Kpi label={copy.bins.kpis[3]} value={totals.cities} language={language} />
       </div>
 
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+      <section className="min-w-0">
         <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.bins.tableTitle}</h2>
+            <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.bins.tableTitle}</h2>
             <p className="text-sm text-[var(--gl-ink-muted)]">{copy.bins.tableDescription}</p>
           </div>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.bins.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} aria-label={copy.bins.search} placeholder={copy.bins.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[1100px] w-full text-left text-sm">
+          <table className={styles.table}>
             <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr>
                 {copy.bins.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
@@ -288,7 +291,7 @@ export function AdminBinsWorkspace() {
                       <div className="font-semibold text-[var(--gl-ink)]">{bin.city || copy.bins.unknownCity}</div>
                       <div className="text-xs text-[var(--gl-ink-muted)]">{[bin.province, bin.region, bin.country].filter(Boolean).join(", ") || bin.id}</div>
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-xs">{bin.lat}, {bin.lng}</td>
+                    <td data-label={copy.bins.headers[1]} className="px-4 py-2.5 font-mono text-xs">{bin.lat}, {bin.lng}</td>
                     <td className="px-4 py-2.5">
                       <Badge tone={bin.verification_status === "active" ? "green" : "amber"}>{bin.verification_status || copy.bins.unknown}</Badge>
                       <div className="mt-1 text-xs text-[var(--gl-ink-muted)]">{bin.bin_type || copy.bins.bin} · {bin.source || copy.bins.unknown}</div>
@@ -297,7 +300,7 @@ export function AdminBinsWorkspace() {
                       <div>{bin.recycling_events_count || 0} {copy.bins.events}</div>
                       <div className="text-xs text-[var(--gl-ink-muted)]">{bin.recycled_units_count || 0} {copy.bins.units}</div>
                     </td>
-                    <td className="px-4 py-2.5">{bin.user_email || bin.user_display_name || bin.user_id || "-"}</td>
+                    <td data-label={copy.bins.headers[4]} className="px-4 py-2.5">{bin.user_email || bin.user_display_name || bin.user_id || "-"}</td>
                     <td className="px-4 py-2.5">
                       <div className="text-xs text-[var(--gl-ink-muted)]">{copy.bins.created}</div>
                       <div>{formatDate(bin.created_at, language)}</div>
@@ -336,7 +339,7 @@ export function AdminSettingsWorkspace() {
         {copy.settings.cards.map(([title, rows]) => <ConfigCard key={title} title={title} rows={rows} />)}
       </div>
       <section className="rounded-xl border border-dashed border-[var(--gl-hairline)] bg-white p-6">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.settings.noteTitle}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.settings.noteTitle}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">
           {copy.settings.noteBody}
         </p>
@@ -356,13 +359,13 @@ export function AdminAuditWorkspace() {
       description={copy.audit.description}
       actions={<LinkButton href="/admin/settings">{copy.audit.settings}</LinkButton>}
     >
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
+      <section className="min-w-0">
         <div className="border-b border-[var(--gl-hairline)] p-4">
-          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.audit.planTitle}</h2>
+          <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.audit.planTitle}</h2>
           <p className="text-sm text-[var(--gl-ink-muted)]">{copy.audit.planDescription}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full text-left text-sm">
+          <table className={styles.table}>
             <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr>
                 {copy.audit.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
@@ -381,7 +384,7 @@ export function AdminAuditWorkspace() {
         </div>
       </section>
       <section className="rounded-xl border border-dashed border-[var(--gl-hairline)] bg-white p-6">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.audit.schemaTitle}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.audit.schemaTitle}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">
           {copy.audit.schemaBody}
         </p>
@@ -406,16 +409,16 @@ function Frame({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className={`${styles.root} space-y-4`}>
+      <WorkspaceHeader className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-[var(--gl-green)]">{eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{description}</p>
+          <p className="sr-only">{eyebrow}</p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{title}</h1>
+          <p className="sr-only">{description}</p>
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-      </div>
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      </WorkspaceHeader>
+      {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       {children}
     </div>
   );
@@ -425,7 +428,7 @@ function Kpi({ label, value, language = "en" }: { label: string; value: number; 
   return (
     <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
+      <p className="mt-2 text-2xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
     </div>
   );
 }
@@ -456,9 +459,9 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
 
 function ConfigCard({ title, rows }: { title: string; rows: readonly (readonly [string, string])[] }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
-      <div className="mt-4 space-y-3">
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
+      <div className="mt-3 space-y-2">
         {rows.map(([label, value]) => (
           <div key={label} className="border-t border-[var(--gl-card-cream)] pt-3 first:border-t-0 first:pt-0">
             <p className="text-sm font-medium text-[var(--gl-ink-soft)]">{label}</p>

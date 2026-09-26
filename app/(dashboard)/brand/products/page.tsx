@@ -1,9 +1,12 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 import { BrandProductsWorkspace } from "@/components/brand/BrandProductsWorkspace";
 
 type BrandMetaResponse = {
@@ -18,6 +21,7 @@ type BrandMetaResponse = {
 
 export default function BrandProductsPage() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
   const [brandMeta, setBrandMeta] = useState<BrandMetaResponse["brand"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +48,7 @@ export default function BrandProductsPage() {
   const brandName = brandMeta?.name ?? "Your brand";
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-4">
       {error ? (
         <div
           role="alert"
@@ -54,21 +58,21 @@ export default function BrandProductsPage() {
         </div>
       ) : null}
 
-      <header>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
-          Brand workspace
+      <WorkspaceHeader>
+        <p className="sr-only">
+          {language === "es" ? "Espacio de marca" : "Brand workspace"}
         </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
-          Product catalog
+        <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">
+          {language === "es" ? "Catálogo de productos" : "Product catalog"}
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)] md:text-base">
-          Manage the barcodes and product names assigned to {brandName}.
+          {brandName}
         </p>
-      </header>
+      </WorkspaceHeader>
 
       {loading ? (
         <div className="rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-6 py-8 text-base text-[var(--gl-ink-muted)]">
-          Loading brand workspace...
+          {language === "es" ? "Cargando espacio de marca..." : "Loading brand workspace..."}
         </div>
       ) : (
         <BrandProductsWorkspace />

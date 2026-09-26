@@ -2,7 +2,8 @@
 
 import { ChangeEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Plus, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Upload } from "lucide-react";
+import styles from "@/components/crm/Workspace.module.css";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
@@ -291,6 +292,8 @@ export function BrandProductsWorkspace() {
   const { language } = useDashboardLanguage();
   const copy = brandProductsCopy[language];
   const [products, setProducts] = useState<BrandProduct[]>([]);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<BrandProduct | null>(null);
@@ -489,7 +492,10 @@ export function BrandProductsWorkspace() {
     URL.revokeObjectURL(url);
   }
 
-  const visibleProducts = products.slice(0, 20);
+  const filteredProducts = products.filter((product) => `${product.name} ${product.barcode}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / 20));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleProducts = filteredProducts.slice(currentPage * 20, (currentPage + 1) * 20);
   const verifiedProductCount = products.filter((product) => product.verificationStatus === "verified").length;
   const needsReviewProductCount = products.filter((product) => product.verificationStatus !== "verified").length;
 
@@ -507,9 +513,9 @@ export function BrandProductsWorkspace() {
 
   return (
     <>
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+      <section className={`${styles.root} space-y-3`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <p className="max-w-2xl text-sm leading-6 text-[var(--gl-ink-muted)]">
+          <p className="sr-only">
             {copy.intro}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -525,14 +531,18 @@ export function BrandProductsWorkspace() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className={styles.metrics}>
           <MiniMetric label={copy.metrics.products} value={String(products.length)} />
           <MiniMetric label={copy.metrics.verified} value={String(verifiedProductCount)} />
           <MiniMetric label={copy.metrics.needReview} value={String(needsReviewProductCount)} />
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--gl-hairline)]">
-          <table className="min-w-[680px] w-full text-left text-sm">
+        <label className="block">
+          <span className="sr-only">{language === "es" ? "Buscar producto o código de barras" : "Search product or barcode"}</span>
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder={language === "es" ? "Buscar producto o código de barras" : "Search product or barcode"} className="min-h-11 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm" />
+        </label>
+        <div className="min-w-0 overflow-x-auto">
+          <table className={styles.table}>
             <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
               <tr className="border-b border-[var(--gl-hairline)]">
                 <th className="px-4 py-2.5 font-medium">{copy.table.product}</th>
@@ -552,12 +562,12 @@ export function BrandProductsWorkspace() {
                 visibleProducts.map((product) => (
                   <tr key={product.id} className="border-b border-[var(--gl-hairline)] last:border-b-0">
                     <td className="px-4 py-2.5 font-medium text-[var(--gl-ink)]">{product.name}</td>
-                    <td className="px-4 py-2.5 text-[var(--gl-ink-muted)]">{product.barcode}</td>
+                    <td data-label={copy.table.barcode} className="px-4 py-2.5 text-[var(--gl-ink-muted)]">{product.barcode}</td>
                     <td className="px-4 py-2.5">
                       <StatusBadge status={product.verificationStatus} copy={copy} />
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
+                      <div className="flex flex-wrap items-center gap-2 md:justify-end">
                         <SmallButton onClick={() => openEditProductModal(product)}>{copy.actions.edit}</SmallButton>
                         {product.verificationStatus !== "verified" ? (
                           <SmallButton onClick={() => handleMarkVerified(product)} kind="success">{copy.actions.markVerified}</SmallButton>
@@ -572,11 +582,13 @@ export function BrandProductsWorkspace() {
           </table>
         </div>
 
-        {products.length > visibleProducts.length ? (
-          <p className="mt-3 text-xs text-[var(--gl-ink-faint)]">
-            {copy.table.showingFirst(visibleProducts.length)}
-          </p>
-        ) : null}
+        <nav aria-label={language === "es" ? "Páginas de productos" : "Product pages"} className="flex items-center justify-between gap-3 text-xs text-[var(--gl-ink-muted)]">
+          <span>{filteredProducts.length ? currentPage * 20 + 1 : 0}–{Math.min((currentPage + 1) * 20, filteredProducts.length)} / {filteredProducts.length}</span>
+          <div className="flex gap-2">
+            <button aria-label={language === "es" ? "Página anterior" : "Previous page"} title={language === "es" ? "Página anterior" : "Previous page"} disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)} className="flex size-11 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-white disabled:opacity-40"><ChevronLeft size={18} /></button>
+            <button aria-label={language === "es" ? "Página siguiente" : "Next page"} title={language === "es" ? "Página siguiente" : "Next page"} disabled={currentPage + 1 >= pageCount} onClick={() => setPage(currentPage + 1)} className="flex size-11 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-white disabled:opacity-40"><ChevronRight size={18} /></button>
+          </div>
+        </nav>
       </section>
 
       {showImportModal ? (
@@ -695,7 +707,7 @@ function ActionButton({ children, onClick, icon }: { children: ReactNode; onClic
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
     >
       {icon}
       {children}
@@ -737,7 +749,7 @@ function SmallButton({ children, onClick, kind = "default" }: { children: ReactN
   return (
     <button
       onClick={onClick}
-      className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${kindClasses[kind]}`}
+      className={`min-h-11 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${kindClasses[kind]}`}
     >
       {children}
     </button>
@@ -751,7 +763,7 @@ function EmptyCopy({ children }: { children: ReactNode }) {
 function ModalShell({ children }: { children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--gl-green-forest)]/45 px-4">
-      <div className="w-full max-w-xl rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-6 shadow-xl">
+      <div role="dialog" aria-modal="true" className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-6 shadow-xl">
         {children}
       </div>
     </div>

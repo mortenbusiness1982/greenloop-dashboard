@@ -1,7 +1,12 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import styles from "@/components/crm/Workspace.module.css";
+import { WorkspaceTabs } from "@/components/crm/WorkspaceTabs";
+import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -482,12 +487,12 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
   const totals = platform?.totals;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className={`${styles.root} space-y-4`}>
+      <WorkspaceHeader className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-[var(--gl-green)]">{copy.eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{copy.titles[kind]}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
+          <p className="sr-only">{copy.eyebrow}</p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{copy.titles[kind]}</h1>
+          <p className="sr-only">
             {copy.description}
           </p>
         </div>
@@ -495,24 +500,25 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
           {kind !== "hub" ? <LinkButton href="/admin/reports">{copy.hubButton}</LinkButton> : null}
           {kind !== "exports" ? <LinkButton href="/admin/reports/exports">{copy.exportCenterButton}</LinkButton> : null}
         </div>
-      </div>
+      </WorkspaceHeader>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {(kind === "platform" || kind === "geo" || kind === "exports") ? (
-        <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="block">
+        <section className="min-w-0">
+          {kind === "exports" ? <p className="mb-2 text-xs text-[var(--gl-ink-muted)]">{language === "es" ? "Filtros de actividad de plataforma. Las demás exportaciones incluyen todos los registros cargados." : "Platform activity filters. Other exports include all loaded records."}</p> : null}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <label className="block min-w-0">
               <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.filters.from}</span>
-              <input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+              <input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="min-w-0 w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
             </label>
-            <label className="block">
+            <label className="block min-w-0">
               <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.filters.to}</span>
-              <input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+              <input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="min-w-0 w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
             </label>
-            <label className="block">
+            <label className="block min-w-0">
               <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{copy.filters.city}</span>
-              <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} placeholder={copy.filters.cityPlaceholder} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
+              <input value={filters.city} onChange={(event) => setFilters((current) => ({ ...current, city: event.target.value }))} placeholder={copy.filters.cityPlaceholder} className="min-w-0 w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
             </label>
           </div>
         </section>
@@ -520,17 +526,17 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
 
       {kind === "hub" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={styles.metrics}>
             <Kpi label={copy.kpis.totalUnits} value={Number(totals?.totalUnits || 0)} language={language} />
             <Kpi label={copy.kpis.ecoPointsIssued} value={Number(totals?.ecoPointsIssued || 0)} language={language} />
             <Kpi label={copy.kpis.brands} value={brands.length} language={language} />
             <Kpi label={copy.kpis.users} value={users.length} language={language} />
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-[var(--gl-hairline)] border-y border-[var(--gl-hairline)] bg-[var(--gl-paper)]">
             {copy.links.map((report) => (
-              <Link key={report.href} href={report.href} className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm transition hover:border-[var(--gl-green)]/25 hover:shadow-md">
-                <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{report.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">{report.description}</p>
+              <Link key={report.href} href={report.href} className="block px-4 py-3 transition hover:bg-[var(--gl-green-soft)]">
+                <h2 className="text-base font-semibold text-[var(--gl-ink)]">{report.title}</h2>
+                <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">{report.description}</p>
               </Link>
             ))}
           </div>
@@ -539,23 +545,25 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
 
       {kind === "platform" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={styles.metrics}>
             <Kpi label={copy.kpis.totalUnits} value={Number(totals?.totalUnits || 0)} language={language} />
             <Kpi label={copy.kpis.totalEvents} value={Number(totals?.totalEvents || 0)} language={language} />
             <Kpi label={copy.kpis.uniqueUsers} value={Number(totals?.uniqueConsumers || 0)} language={language} />
             <Kpi label={copy.kpis.ecoPointsIssued} value={Number(totals?.ecoPointsIssued || 0)} language={language} />
           </div>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <WorkspaceTabs label={copy.titles.platform} tabs={[
+            { id: "activity", label: copy.tables.platformRowsTitle, content: (<EventTable events={platform?.events ?? []} loading={loading} onExport={exportPlatformEvents} language={language} copy={copy} />) },
+            { id: "summary", label: language === "es" ? "Resumen" : "Summary", content: (<div className="grid gap-6 lg:grid-cols-2">
             <SimpleTable title={copy.tables.topProducts} headers={[copy.tables.headers.product, copy.tables.headers.units]} loading={loading} rows={(platform?.perProduct ?? []).map((row) => [row.product_name || copy.tables.unknown, row.units_recycled || 0])} copy={copy} />
             <SimpleTable title={copy.tables.dailyTrend} headers={[copy.tables.headers.date, copy.tables.headers.units]} loading={loading} rows={(platform?.dailyTrend ?? []).map((row) => [row.date, row.units || 0])} copy={copy} />
-          </div>
-          <EventTable events={platform?.events ?? []} loading={loading} onExport={exportPlatformEvents} language={language} copy={copy} />
+          </div>) },
+          ]} />
         </>
       ) : null}
 
       {kind === "brands" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={styles.metrics}>
             <Kpi label={copy.kpis.brands} value={brands.length} language={language} />
             <Kpi label={copy.kpis.assignedProducts} value={brands.reduce((sum, brand) => sum + Number(brand.product_count || 0), 0)} language={language} />
             <Kpi label={copy.kpis.brandAdmins} value={brands.reduce((sum, brand) => sum + Number(brand.admin_count || 0), 0)} language={language} />
@@ -574,7 +582,7 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
 
       {kind === "users" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className={styles.metrics}>
             <Kpi label={copy.kpis.users} value={userTotals.total} language={language} />
             <Kpi label={copy.kpis.admins} value={userTotals.admins} language={language} />
             <Kpi label={copy.kpis.brandAdmins} value={userTotals.brandAdmins} language={language} />
@@ -594,7 +602,7 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
 
       {kind === "geo" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={styles.metrics}>
             <Kpi label={copy.kpis.cities} value={platform?.geoBreakdown?.length || 0} language={language} />
             <Kpi label={copy.kpis.mappedRows} value={(platform?.events ?? []).filter((event) => event.lat && event.lng).length} language={language} />
             <Kpi label={copy.kpis.units} value={Number(totals?.totalUnits || 0)} language={language} />
@@ -613,13 +621,13 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
 
       {kind === "exports" ? (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={styles.metrics}>
             <Kpi label={copy.kpis.platformRows} value={platform?.events?.length || 0} language={language} />
             <Kpi label={copy.kpis.brands} value={brands.length} language={language} />
             <Kpi label={copy.kpis.users} value={users.length} language={language} />
             <Kpi label={copy.kpis.unlocks} value={unlocks.length} language={language} />
           </div>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section className="divide-y divide-[var(--gl-hairline)]">
             <ExportCard title={copy.exportCards.platformActivity[0]} description={copy.exportCards.platformActivity[1]} onClick={exportPlatformEvents} disabled={loading} buttonLabel={copy.actions.exportCsv} />
             <ExportCard title={copy.exportCards.brands[0]} description={copy.exportCards.brands[1]} onClick={exportBrands} disabled={loading} buttonLabel={copy.actions.exportCsv} />
             <ExportCard title={copy.exportCards.users[0]} description={copy.exportCards.users[1]} onClick={exportUsers} disabled={loading} buttonLabel={copy.actions.exportCsv} />
@@ -627,7 +635,7 @@ export function AdminReportsWorkspace({ kind }: { kind: ReportKind }) {
             <ExportCard title={copy.exportCards.rewardUnlocks[0]} description={copy.exportCards.rewardUnlocks[1]} onClick={exportUnlocks} disabled={loading} buttonLabel={copy.actions.exportCsv} />
           </section>
           {redemptions?.totals ? (
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className={styles.metrics}>
               <Kpi label={copy.kpis.totalRedemptions} value={Number(redemptions.totals.totalRedemptions || 0)} language={language} />
               <Kpi label={copy.kpis.activeTokens} value={Number(redemptions.totals.activeTokens || 0)} language={language} />
               <Kpi label={copy.kpis.expiredTokens} value={Number(redemptions.totals.expiredTokens || 0)} language={language} />
@@ -644,7 +652,7 @@ function Kpi({ label, value, language }: { label: string; value: number; languag
   return (
     <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
+      <p className="mt-2 text-2xl font-semibold text-[var(--gl-ink)]">{value.toLocaleString(language === "es" ? "es-ES" : "en-US")}</p>
     </div>
   );
 }
@@ -669,13 +677,13 @@ function SimpleTable({
   copy: AdminReportsCopy;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-[var(--gl-hairline)] p-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+    <section className="min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--gl-hairline)] p-4">
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
         {action}
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[640px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>{headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}</tr>
           </thead>
@@ -687,7 +695,7 @@ function SimpleTable({
             ) : (
               rows.slice(0, 200).map((row, index) => (
                 <tr key={index} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
-                  {row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} className="px-4 py-2.5">{String(cell ?? "-")}</td>)}
+                  {row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} data-label={headers[cellIndex]} className="px-4 py-2.5">{String(cell ?? "-")}</td>)}
                 </tr>
               ))
             )}
@@ -700,16 +708,16 @@ function SimpleTable({
 
 function EventTable({ events, loading, onExport, language, copy }: { events: PlatformEvent[]; loading: boolean; onExport: () => void; language: DashboardLanguage; copy: AdminReportsCopy }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-[var(--gl-hairline)] p-4">
+    <section className="min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--gl-hairline)] p-4">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.tables.platformRowsTitle}</h2>
+          <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.tables.platformRowsTitle}</h2>
           <p className="text-sm text-[var(--gl-ink-muted)]">{copy.tables.platformRowsDescription}</p>
         </div>
         <button onClick={onExport} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white">{copy.actions.exportEvents}</button>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[980px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               <th className="px-4 py-2.5">{copy.tables.headers.created}</th>
@@ -731,8 +739,8 @@ function EventTable({ events, loading, onExport, language, copy }: { events: Pla
                   <td className="px-4 py-2.5">{formatDate(event.created_at, language)}</td>
                   <td className="px-4 py-2.5">{event.product_name || copy.tables.unknownProduct}</td>
                   <td className="px-4 py-2.5">{event.city || "-"}</td>
-                  <td className="px-4 py-2.5">{event.units || 0}</td>
-                  <td className="px-4 py-2.5">{event.points_issued || 0}</td>
+                  <td data-label={copy.tables.headers.units} className="px-4 py-2.5">{event.units || 0}</td>
+                  <td data-label={copy.tables.headers.ecoPoints} className="px-4 py-2.5">{event.points_issued || 0}</td>
                   <td className="px-4 py-2.5">{event.display_name || event.email || "-"}</td>
                 </tr>
               ))
@@ -746,11 +754,11 @@ function EventTable({ events, loading, onExport, language, copy }: { events: Pla
 
 function ExportCard({ title, description, onClick, disabled, buttonLabel }: { title: string; description: string; onClick: () => void; disabled?: boolean; buttonLabel: string }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
-      <p className="mt-2 min-h-12 text-sm leading-6 text-[var(--gl-ink-muted)]">{description}</p>
-      <button disabled={disabled} onClick={onClick} className="mt-4 rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green)] disabled:opacity-60">
-        {buttonLabel}
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3">
+      <div className="min-w-0 flex-1"><h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
+      <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">{description}</p></div>
+      <button disabled={disabled} onClick={onClick} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">
+        <Download size={16} aria-hidden="true" />{buttonLabel}
       </button>
     </div>
   );

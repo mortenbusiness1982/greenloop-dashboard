@@ -1,6 +1,11 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import Link from "next/link";
+import styles from "@/components/crm/Workspace.module.css";
+import { WorkspaceTabs } from "@/components/crm/WorkspaceTabs";
+import { WorkspaceLabel, useWorkspaceLabels } from "@/components/crm/WorkspaceLabels";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
@@ -50,6 +55,7 @@ function isActive(redemption: PendingRedemption, now = new Date()) {
 
 export function PartnerCrmWorkspace({ kind }: { kind: PartnerWorkspaceKind }) {
   const router = useRouter();
+  const t = useWorkspaceLabels();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingRedemptions, setPendingRedemptions] = useState<PendingRedemption[]>([]);
@@ -93,27 +99,27 @@ export function PartnerCrmWorkspace({ kind }: { kind: PartnerWorkspaceKind }) {
   const session = getSession();
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className={`${styles.root} space-y-4`}>
+      <WorkspaceHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Partner CRM</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">{titleForKind(kind)}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">{descriptionForKind(kind)}</p>
+          <p className="sr-only"><WorkspaceLabel text="Partner CRM" /></p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{t(titleForKind(kind))}</h1>
+          <p className="sr-only">{descriptionForKind(kind)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/partner/unlocks" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            Unlock Queue
+            {t("Unlock Queue")}
           </Link>
-          <Link href="/partner/history" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-            History
+          <Link href="/partner/history" className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)]">
+            {t("History")}
           </Link>
         </div>
-      </div>
+      </WorkspaceHeader>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {kind !== "settings" ? (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className={styles.metrics}>
           <Kpi label="Active Unlocks" value={activeRedemptions.length} loading={loading} />
           <Kpi label="Assigned Rewards" value={activeRewardTitles.length} loading={loading} />
           <Kpi label="Used Rewards" value={history.length} loading={loading} />
@@ -121,22 +127,20 @@ export function PartnerCrmWorkspace({ kind }: { kind: PartnerWorkspaceKind }) {
         </div>
       ) : null}
 
-      {kind === "overview" ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <UnlockTable title="Upcoming unlocks" redemptions={activeRedemptions.slice(0, 8)} loading={loading} />
-          <aside className="space-y-5">
-            <RewardList rewards={activeRewardTitles} loading={loading} />
-            <RecentHistory history={history.slice(0, 6)} loading={loading} />
-          </aside>
-        </div>
-      ) : null}
+      {kind === "overview" ? <WorkspaceTabs label={t("Overview")} tabs={[
+        { id: "unlocks", label: `${t("Unlock Queue")} (${activeRedemptions.length})`, content: <UnlockTable title="Upcoming unlocks" redemptions={activeRedemptions} loading={loading} /> },
+        { id: "rewards", label: `${t("Active Rewards")} (${activeRewardTitles.length})`, content: <RewardList rewards={activeRewardTitles} loading={loading} /> },
+        { id: "history", label: `${t("History")} (${history.length})`, content: <RecentHistory history={history} loading={loading} /> },
+      ]} /> : null}
 
       {kind === "rewards" ? <RewardList rewards={activeRewardTitles} loading={loading} full /> : null}
       {kind === "unlocks" ? <UnlockTable title="Active and pending unlocks" redemptions={activeRedemptions} loading={loading} /> : null}
       {kind === "history" ? (
-        <div className="space-y-5">
-          <UnlockTable title="Expired unlocks" redemptions={expiredRedemptions} loading={loading} emptyText="No expired unlocks." />
-          <HistoryTable history={history} loading={loading} />
+        <div className={`${styles.root} space-y-4`}>
+          <WorkspaceTabs label={t("History")} tabs={[
+            { id: "used", label: t("Used reward history"), content: <HistoryTable history={history} loading={loading} /> },
+            { id: "expired", label: t("Expired unlocks"), content: <UnlockTable title="Expired unlocks" redemptions={expiredRedemptions} loading={loading} emptyText="No expired unlocks." /> },
+          ]} />
         </div>
       ) : null}
       {kind === "settings" ? <SettingsPanel email={session?.email} userId={session?.userId} /> : null}
@@ -167,10 +171,11 @@ function descriptionForKind(kind: PartnerWorkspaceKind) {
 }
 
 function Kpi({ label, value, loading }: { label: string; value: number; loading: boolean }) {
+  const t = useWorkspaceLabels();
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-bold text-slate-950">{loading ? "-" : value.toLocaleString()}</div>
+    <div className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{t(label)}</div>
+      <div className="mt-2 text-2xl font-bold text-[var(--gl-ink)]">{loading ? "-" : value.toLocaleString()}</div>
     </div>
   );
 }
@@ -186,34 +191,35 @@ function UnlockTable({
   loading: boolean;
   emptyText?: string;
 }) {
+  const t = useWorkspaceLabels();
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section className="min-w-0">
       <div className="border-b border-slate-200 p-4">
-        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-        <p className="text-sm text-slate-500">Partner-scoped reward tokens only.</p>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{t(title)}</h2>
+        <p className="text-sm text-[var(--gl-ink-muted)]"><WorkspaceLabel text="Partner-scoped reward tokens only." /></p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <table className={styles.table}>
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
-              <th className="px-4 py-2.5">Reward</th>
-              <th className="px-4 py-2.5">Customer</th>
-              <th className="px-4 py-2.5">Token</th>
-              <th className="px-4 py-2.5">Expires</th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Reward" /></th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Customer" /></th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Token" /></th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Expires" /></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading unlocks...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]"><WorkspaceLabel text="Loading unlocks..." /></td></tr>
             ) : redemptions.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">{emptyText}</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{t(emptyText)}</td></tr>
             ) : (
               redemptions.map((redemption) => (
                 <tr key={redemption.token} className="border-t border-slate-100 hover:bg-slate-50/70">
                   <td className="px-4 py-2.5 font-medium text-slate-900">{redemption.reward_title}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{redemption.user_email}</td>
-                  <td className="px-4 py-2.5 font-mono text-slate-700">{redemption.token}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{formatDateTime(redemption.expires_at)}</td>
+                  <td data-label={t("Customer")} className="px-4 py-2.5 text-slate-700">{redemption.user_email}</td>
+                  <td data-label={t("Token")} className="px-4 py-2.5 font-mono text-slate-700">{redemption.token}</td>
+                  <td data-label={t("Expires")} className="px-4 py-2.5 text-slate-700">{t(formatDateTime(redemption.expires_at))}</td>
                 </tr>
               ))
             )}
@@ -225,33 +231,34 @@ function UnlockTable({
 }
 
 function HistoryTable({ history, loading }: { history: RedemptionHistoryItem[]; loading: boolean }) {
+  const t = useWorkspaceLabels();
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section className="min-w-0">
       <div className="border-b border-slate-200 p-4">
-        <h2 className="text-lg font-semibold text-slate-950">Used reward history</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]"><WorkspaceLabel text="Used reward history" /></h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <table className={styles.table}>
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
-              <th className="px-4 py-2.5">Reward</th>
-              <th className="px-4 py-2.5">Customer</th>
-              <th className="px-4 py-2.5">Redeemed</th>
-              <th className="px-4 py-2.5">Partner</th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Reward" /></th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Customer" /></th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Redeemed" /></th>
+              <th className="px-4 py-2.5"><WorkspaceLabel text="Partner" /></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">Loading history...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]"><WorkspaceLabel text="Loading history..." /></td></tr>
             ) : history.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No used rewards yet.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]"><WorkspaceLabel text="No used rewards yet." /></td></tr>
             ) : (
               history.map((item, index) => (
                 <tr key={`${item.reward_title}-${item.user_email}-${item.redeemed_at ?? index}`} className="border-t border-slate-100 hover:bg-slate-50/70">
                   <td className="px-4 py-2.5 font-medium text-slate-900">{item.reward_title}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{item.user_email}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{formatDateTime(item.redeemed_at)}</td>
-                  <td className="px-4 py-2.5 text-slate-700">{item.redeemed_by_partner_email || "-"}</td>
+                  <td data-label={t("Customer")} className="px-4 py-2.5 text-slate-700">{item.user_email}</td>
+                  <td data-label={t("Redeemed")} className="px-4 py-2.5 text-slate-700">{formatDateTime(item.redeemed_at)}</td>
+                  <td data-label={t("Partner")} className="px-4 py-2.5 text-slate-700">{item.redeemed_by_partner_email || "-"}</td>
                 </tr>
               ))
             )}
@@ -264,13 +271,13 @@ function HistoryTable({ history, loading }: { history: RedemptionHistoryItem[]; 
 
 function RewardList({ rewards, loading, full = false }: { rewards: string[]; loading: boolean; full?: boolean }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${full ? "max-w-4xl" : ""}`}>
-      <h2 className="text-lg font-semibold text-slate-950">Assigned active rewards</h2>
+    <section className={`min-w-0 border-t border-[var(--gl-hairline)] py-3 ${full ? "w-full" : ""}`}>
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]"><WorkspaceLabel text="Assigned active rewards" /></h2>
       <div className="mt-4 space-y-3">
         {loading ? (
-          <p className="text-sm text-slate-500">Loading rewards...</p>
+          <p className="text-sm text-[var(--gl-ink-muted)]"><WorkspaceLabel text="Loading rewards..." /></p>
         ) : rewards.length === 0 ? (
-          <p className="text-sm text-slate-500">No active rewards assigned from current unlocks.</p>
+          <p className="text-sm text-[var(--gl-ink-muted)]"><WorkspaceLabel text="No active rewards assigned from current unlocks." /></p>
         ) : (
           rewards.map((reward) => (
             <div key={reward} className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800">
@@ -285,18 +292,18 @@ function RewardList({ rewards, loading, full = false }: { rewards: string[]; loa
 
 function RecentHistory({ history, loading }: { history: RedemptionHistoryItem[]; loading: boolean }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">Recent used rewards</h2>
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]"><WorkspaceLabel text="Recent used rewards" /></h2>
       <div className="mt-4 space-y-3">
         {loading ? (
-          <p className="text-sm text-slate-500">Loading history...</p>
+          <p className="text-sm text-[var(--gl-ink-muted)]"><WorkspaceLabel text="Loading history..." /></p>
         ) : history.length === 0 ? (
-          <p className="text-sm text-slate-500">No used rewards yet.</p>
+          <p className="text-sm text-[var(--gl-ink-muted)]"><WorkspaceLabel text="No used rewards yet." /></p>
         ) : (
           history.map((item, index) => (
             <div key={`${item.reward_title}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
               <div className="font-medium text-slate-900">{item.reward_title}</div>
-              <div className="text-xs text-slate-500">{formatDateTime(item.redeemed_at)}</div>
+              <div className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(item.redeemed_at)}</div>
             </div>
           ))
         )}
@@ -307,8 +314,8 @@ function RecentHistory({ history, loading }: { history: RedemptionHistoryItem[];
 
 function SettingsPanel({ email, userId }: { email?: string; userId?: string }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">Partner profile</h2>
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]"><WorkspaceLabel text="Partner profile" /></h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <Metric label="Signed-in email" value={email || "-"} />
         <Metric label="User ID" value={userId || "-"} />
@@ -320,10 +327,11 @@ function SettingsPanel({ email, userId }: { email?: string; userId?: string }) {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
+  const t = useWorkspaceLabels();
   return (
-    <div className="rounded-lg bg-slate-50 p-4">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-2 break-words text-lg font-semibold text-slate-950">{value}</div>
+    <div className="min-w-0 py-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{t(label)}</div>
+      <div className="mt-2 break-words text-base font-semibold text-[var(--gl-ink)]">{t(value)}</div>
     </div>
   );
 }

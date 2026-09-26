@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -7,14 +9,13 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   ArrowUpRight,
-  BarChart3,
   Building2,
   CheckCircle2,
+  ChevronDown,
   Coins,
   Flag,
   Gift,
   MapPin,
-  ShieldCheck,
   Store,
   TicketCheck,
   Users,
@@ -103,15 +104,6 @@ const emptyState: OverviewState = {
   partners: [],
 };
 
-const moduleLinks = [
-  { key: "users", href: "/admin/users", icon: Users },
-  { key: "activity", href: "/admin/activity", icon: Activity },
-  { key: "rewards", href: "/admin/rewards", icon: Gift },
-  { key: "challenges", href: "/admin/challenges", icon: Flag },
-  { key: "moderation", href: "/admin/moderation", icon: ShieldCheck },
-  { key: "reports", href: "/admin/reports", icon: BarChart3 },
-] as const;
-
 const adminOverviewCopy = {
   en: {
     loadError: "Unable to load admin overview",
@@ -143,6 +135,7 @@ const adminOverviewCopy = {
       { label: "Partners", helper: "Active partner locations" },
     ],
     activity: {
+      tab: "Activity",
       title: "Recent platform activity",
       subtitle: "Latest recycling events pulled from platform reporting.",
       open: "Open full activity",
@@ -159,6 +152,7 @@ const adminOverviewCopy = {
       unknownProduct: "Unknown product",
     },
     cities: {
+      tab: "Cities",
       title: "Top cities",
       subtitle: "Top city-attributed units",
       loading: "Loading city activity...",
@@ -210,6 +204,7 @@ const adminOverviewCopy = {
       { label: "Partners", helper: "Ubicaciones partner activas" },
     ],
     activity: {
+      tab: "Actividad",
       title: "Actividad reciente de plataforma",
       subtitle: "Últimos eventos de reciclaje desde los informes de plataforma.",
       open: "Abrir actividad completa",
@@ -226,6 +221,7 @@ const adminOverviewCopy = {
       unknownProduct: "Producto desconocido",
     },
     cities: {
+      tab: "Ciudades",
       title: "Ciudades principales",
       subtitle: "Unidades principales atribuidas a ciudad",
       loading: "Cargando actividad por ciudad...",
@@ -285,6 +281,7 @@ export function AdminOverviewWorkspace() {
   const [data, setData] = useState<OverviewState>(emptyState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mobilePane, setMobilePane] = useState<"activity" | "cities">("activity");
 
   const loadOverview = useCallback(async () => {
     const token = getToken();
@@ -391,139 +388,140 @@ export function AdminOverviewWorkspace() {
   ];
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-[var(--gl-hairline)] bg-[radial-gradient(circle_at_top_left,rgba(21,120,90,0.14),transparent_34%),linear-gradient(135deg,#ffffff_0%,#f3f0e2_58%,#d6ebe0_100%)] p-6 shadow-[var(--gl-shadow-sm)] md:p-7">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gl-green)]/30 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--gl-green)] shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-[var(--gl-green)]" />
-              {copy.hero.badge}
-            </div>
-            <h1 className="mt-4 text-4xl font-bold tracking-normal text-[var(--gl-ink)] md:text-5xl">{copy.hero.title}</h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-[var(--gl-ink-soft)]">
-              {copy.hero.description}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/admin/activity" className="inline-flex items-center gap-2 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2.5 text-sm font-semibold text-[var(--gl-ink)] shadow-sm transition-colors hover:bg-[var(--gl-card-cream)]">
-              {copy.hero.reviewActivity}
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
-            <Link href="/admin/reports/exports" className="inline-flex items-center gap-2 rounded-xl bg-[var(--gl-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--gl-green-deep)]">
-              {copy.hero.exportCenter}
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
+    <div className="min-w-0 space-y-4">
+      <WorkspaceHeader className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{copy.hero.title}</h1>
+        <Link href="/admin/reports/exports" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gl-green)]">
+          {copy.hero.exportCenter}
+          <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+        </Link>
+      </WorkspaceHeader>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{copy.summary.platformVolume}</p>
-            <p className="mt-2 text-2xl font-bold text-[var(--gl-ink)]">{loading ? "-" : formatNumber(kpis.totalUnits, language)}</p>
-            <p className="mt-1 text-sm text-[var(--gl-ink-soft)]">{copy.summary.unitsAcross(loading ? "-" : formatNumber(kpis.totalEvents, language))}</p>
-          </div>
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{copy.summary.network}</p>
-            <p className="mt-2 text-2xl font-bold text-[var(--gl-ink)]">{loading ? "-" : formatNumber(kpis.brands + kpis.partners, language)}</p>
-            <p className="mt-1 text-sm text-[var(--gl-ink-soft)]">{copy.summary.brandsAndPartners}</p>
-          </div>
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{copy.summary.rewardMotion}</p>
-            <p className="mt-2 text-2xl font-bold text-[var(--gl-ink)]">{loading ? "-" : formatNumber(kpis.ecoPoints, language)}</p>
-            <p className="mt-1 text-sm text-[var(--gl-ink-soft)]">{copy.summary.ecoPointsToDate}</p>
-          </div>
-        </div>
-      </section>
+      {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="crm-kpi-strip grid grid-cols-2 sm:grid-cols-5" aria-busy={loading}>
         {kpiCards.map((card) => (
           <Kpi key={card.label} {...card} loading={loading} language={language} />
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
-        <section className="overflow-hidden rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-[var(--gl-shadow-sm)]">
-          <div className="flex flex-col gap-2 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.activity.title}</h2>
-              <p className="text-sm text-[var(--gl-ink-muted)]">{copy.activity.subtitle}</p>
-            </div>
-            <Link href="/admin/activity" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--gl-green)] transition-colors hover:text-[var(--gl-green-deep)]">
+      <div className="flex gap-1 border-b border-[var(--gl-hairline)] xl:hidden" role="tablist" aria-label={copy.hero.title}>
+        {(["activity", "cities"] as const).map((pane) => (
+          <button
+            key={pane}
+            id={`overview-${pane}-tab`}
+            type="button"
+            role="tab"
+            aria-selected={mobilePane === pane}
+            aria-controls={`overview-${pane}`}
+            tabIndex={mobilePane === pane ? 0 : -1}
+            onClick={() => setMobilePane(pane)}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === "Home" ? "activity" : event.key === "End" ? "cities" : pane === "activity" ? "cities" : "activity";
+              setMobilePane(next);
+              document.getElementById(`overview-${next}-tab`)?.focus();
+            }}
+            className={`min-h-11 border-b-2 px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--gl-green)] ${mobilePane === pane ? "border-[var(--gl-green)] text-[var(--gl-green)]" : "border-transparent text-[var(--gl-ink-muted)] hover:text-[var(--gl-ink)]"}`}
+          >
+            {copy[pane].tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_16rem]">
+        <section id="overview-activity" role="tabpanel" tabIndex={0} aria-labelledby="overview-activity-heading" className={`min-w-0 ${mobilePane === "activity" ? "block" : "hidden"} xl:block`}>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3">
+            <h2 id="overview-activity-heading" className="text-base font-semibold text-[var(--gl-ink)]">{copy.activity.title}</h2>
+            <Link href="/admin/activity" className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">
               {copy.activity.open}
-              <ArrowUpRight className="h-4 w-4" />
+              <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
             </Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[780px] w-full text-left text-sm">
-              <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
+          <div className="hidden overflow-x-auto bg-[var(--gl-paper)] md:block">
+            <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+              <thead className="text-xs text-[var(--gl-ink-muted)]">
                 <tr>
-                  <th className="px-4 py-2.5">{copy.activity.when}</th>
-                  <th className="px-4 py-2.5">{copy.activity.user}</th>
-                  <th className="px-4 py-2.5">{copy.activity.product}</th>
-                  <th className="px-4 py-2.5">{copy.activity.units}</th>
-                  <th className="px-4 py-2.5">{copy.activity.city}</th>
-                  <th className="px-4 py-2.5">{copy.activity.points}</th>
-                  <th className="px-4 py-2.5">{copy.activity.status}</th>
+                  <th scope="col" className="w-[18%] px-3 py-2">{copy.activity.when} <span className="sr-only">/ {copy.activity.status}</span></th>
+                  <th scope="col" className="w-[24%] px-3 py-2">{copy.activity.user}</th>
+                  <th scope="col" className="w-[24%] px-3 py-2">{copy.activity.product}</th>
+                  <th scope="col" className="w-[10%] px-2 py-2 text-right">{copy.activity.units}</th>
+                  <th scope="col" className="w-[14%] px-3 py-2">{copy.activity.city}</th>
+                  <th scope="col" className="w-[10%] px-2 py-2 text-right">{copy.activity.points}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.activity.loading}</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-[var(--gl-ink-muted)]">{copy.activity.loading}</td></tr>
                 ) : recentEvents.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.activity.empty}</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-[var(--gl-ink-muted)]">{copy.activity.empty}</td></tr>
                 ) : (
                   recentEvents.map((event, index) => (
                     <tr key={`${event.created_at || "event"}-${index}`} className="border-t border-[var(--gl-hairline)] transition-colors hover:bg-[var(--gl-card-cream)]">
-                      <td className="px-4 py-3 text-[var(--gl-ink-soft)]">
+                      <td className="px-3 py-2 align-top text-xs text-[var(--gl-ink-soft)]">
                         <div className="font-medium text-[var(--gl-ink)]">{formatShortDate(event.created_at, language)}</div>
-                        <div className="text-xs text-[var(--gl-ink-muted)]">{formatTime(event.created_at, language)}</div>
+                        <div className="mb-1 text-[var(--gl-ink-muted)]">{formatTime(event.created_at, language)}</div>
+                        <StatusPill status={event.scan_status} />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="break-words px-3 py-2 align-top [overflow-wrap:anywhere]">
                         <div className="font-medium text-[var(--gl-ink)]">{event.display_name || copy.activity.unknownUser}</div>
                         <div className="text-xs text-[var(--gl-ink-muted)]">{event.email || "-"}</div>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="break-words px-3 py-2 align-top [overflow-wrap:anywhere]">
                         <div className="font-medium text-[var(--gl-ink)]">{event.product_name || copy.activity.unknownProduct}</div>
                         <div className="text-xs text-[var(--gl-ink-muted)]">{event.barcode || "-"}</div>
                       </td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.units || 0}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.city || "-"}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.points_issued || 0}</td>
-                      <td className="px-4 py-2.5">
-                        <StatusPill status={event.scan_status} />
-                      </td>
+                      <td className="px-2 py-2 text-right align-top tabular-nums text-[var(--gl-ink-soft)]">{event.units || 0}</td>
+                      <td className="break-words px-3 py-2 align-top text-[var(--gl-ink-soft)]">{event.city || "-"}</td>
+                      <td className="px-2 py-2 text-right align-top tabular-nums text-[var(--gl-ink-soft)]">{event.points_issued || 0}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
+          <div className="divide-y divide-[var(--gl-hairline)] bg-[var(--gl-paper)] md:hidden">
+            {loading || recentEvents.length === 0 ? (
+              <p className="px-3 py-6 text-sm text-[var(--gl-ink-muted)]">{loading ? copy.activity.loading : copy.activity.empty}</p>
+            ) : recentEvents.map((event, index) => (
+              <details key={`${event.created_at || "event"}-${index}`} className="group px-3 py-2.5 text-xs text-[var(--gl-ink-muted)] [overflow-wrap:anywhere]">
+                <summary className="cursor-pointer list-none space-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gl-green)] [&::-webkit-details-marker]:hidden">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-sm font-medium text-[var(--gl-ink)]">{event.product_name || copy.activity.unknownProduct}</p>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <StatusPill status={event.scan_status} />
+                    <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                  </div>
+                </div>
+                <p>{event.display_name || copy.activity.unknownUser} · {event.city || "-"}</p>
+                <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 tabular-nums">
+                  <p>{formatShortDate(event.created_at, language)} · {formatTime(event.created_at, language)}</p>
+                  <p>{copy.activity.units}: {event.units || 0} · {copy.activity.points}: {event.points_issued || 0}</p>
+                </div>
+                </summary>
+                <p className="pt-2">{event.email || "-"}<br />{event.barcode || "-"}</p>
+              </details>
+            ))}
+          </div>
         </section>
 
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-[var(--gl-shadow-sm)]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--gl-green-soft)] text-[var(--gl-green)]">
-                <MapPin className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.cities.title}</h2>
-                <p className="text-sm text-[var(--gl-ink-muted)]">{copy.cities.subtitle}</p>
-              </div>
+        <section id="overview-cities" role="tabpanel" tabIndex={0} aria-labelledby="overview-cities-heading" className={`min-w-0 ${mobilePane === "cities" ? "block" : "hidden"} xl:block`}>
+            <div className="mb-2 flex min-h-11 items-center gap-2">
+              <MapPin aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--gl-green)]" />
+              <h2 id="overview-cities-heading" className="text-base font-semibold text-[var(--gl-ink)]">{copy.cities.title}</h2>
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="space-y-4 bg-[var(--gl-paper)] px-3 py-3">
               {loading ? (
                 <p className="text-sm text-[var(--gl-ink-muted)]">{copy.cities.loading}</p>
               ) : cityRows.length === 0 ? (
                 <p className="text-sm text-[var(--gl-ink-muted)]">{copy.cities.empty}</p>
               ) : (
                 cityRows.map((city, index) => (
-                  <div key={`${city.city || "unknown"}-${index}`} className="rounded-xl bg-[var(--gl-card-cream)] px-3 py-3 text-sm">
+                  <div key={`${city.city || "unknown"}-${index}`} className="text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium text-[var(--gl-ink)]">{city.city || copy.cities.unknown}</span>
-                      <span className="shrink-0 text-[var(--gl-ink-muted)]">{formatNumber(city.units, language)} {copy.cities.units}</span>
+                      <span className="min-w-0 break-words font-medium text-[var(--gl-ink)]">{city.city || copy.cities.unknown}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-[var(--gl-ink-muted)]">{formatNumber(city.units, language)} {copy.cities.units}</span>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--gl-green-soft)]">
                       <div
@@ -549,28 +547,7 @@ export function AdminOverviewWorkspace() {
                 {copy.cities.diagnostics(formatNumber(eventCityMissingUnits, language), formatNumber(unresolvedCityUnits, language))}
               </p>
             ) : null}
-          </section>
-
-          <section className="rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-[var(--gl-shadow-sm)]">
-            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.modulesTitle}</h2>
-            <div className="mt-4 space-y-3">
-              {moduleLinks.map((module) => (
-                <Link key={module.href} href={module.href} className="group flex gap-3 rounded-xl border border-[var(--gl-hairline)] p-3 transition-colors hover:border-[var(--gl-green)]/40 hover:bg-[var(--gl-green-soft)]/40">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--gl-card-cream)] text-[var(--gl-ink-muted)] group-hover:bg-[var(--gl-paper)] group-hover:text-[var(--gl-green)]">
-                    <module.icon className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-[var(--gl-ink)]">{copy.modules[module.key][0]}</span>
-                      <ArrowUpRight className="h-4 w-4 shrink-0 text-[var(--gl-ink-faint)] group-hover:text-[var(--gl-green)]" />
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-[var(--gl-ink-muted)]">{copy.modules[module.key][1]}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </aside>
+        </section>
       </div>
     </div>
   );
@@ -587,7 +564,7 @@ function StatusPill({ status }: { status?: string | null }) {
       : "border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] text-[var(--gl-ink-muted)]";
 
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${classes}`}>
+    <span className={`inline-flex max-w-full shrink-0 break-words rounded border px-1.5 py-0.5 text-[11px] font-semibold capitalize ${classes}`}>
       {status || "-"}
     </span>
   );
@@ -611,17 +588,13 @@ function Kpi({
   language: DashboardLanguage;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-[var(--gl-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--gl-shadow-md)]" style={{ borderTopColor: accent, borderTopWidth: 4 }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</div>
-          <div className="mt-2 text-2xl font-bold text-[var(--gl-ink)]">{loading ? "-" : formatNumber(value, language)}</div>
-        </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--gl-card-cream)]" style={{ color: accent }}>
-          <Icon className="h-5 w-5" />
-        </div>
+    <div className="min-w-0 rounded-md bg-[var(--gl-paper)] px-3 py-2.5" title={helper}>
+      <div className="flex min-h-4 items-start justify-between gap-2">
+        <div className="min-w-0 text-xs font-medium text-[var(--gl-ink-muted)]">{label}</div>
+        <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" style={{ color: accent }} />
       </div>
-      <p className="mt-3 text-xs text-[var(--gl-ink-muted)]">{helper}</p>
+      <div className="break-words text-xl font-semibold tabular-nums text-[var(--gl-ink)]">{loading ? "-" : formatNumber(value, language)}</div>
+      <p className="sr-only">{helper}</p>
     </div>
   );
 }

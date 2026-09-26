@@ -1,10 +1,14 @@
 "use client";
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Archive, ArrowLeft, ChevronRight, ExternalLink, Plus, RotateCcw, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type Reward = {
   id: string | number;
@@ -189,6 +193,11 @@ function inventoryLabel(reward: Reward) {
 
 export function AdminRewardsWorkspace() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [creating, setCreating] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const paneTitle = useRef<HTMLHeadingElement>(null);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [categories, setCategories] = useState<RewardCategory[]>([]);
   const [form, setForm] = useState<RewardForm>(emptyForm);
@@ -199,6 +208,16 @@ export function AdminRewardsWorkspace() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const editorOpen = creating || editingId !== null;
+  const selectedReward = rewards.find((reward) => String(reward.id) === selectedId);
+  const busy = saving || actionId !== null;
+  useEffect(() => {
+    if (editorOpen || selectedId) paneTitle.current?.focus({ preventScroll: true });
+  }, [editorOpen, selectedId]);
+  function backToList() {
+    setSelectedId(null);
+    requestAnimationFrame(() => document.getElementById(`reward-row-${selectedId}`)?.focus({ preventScroll: true }));
+  }
 
   const loadRewards = useCallback(async () => {
     const token = getToken();
@@ -365,6 +384,7 @@ export function AdminRewardsWorkspace() {
 
       setForm(emptyForm);
       setEditingId(null);
+      setCreating(false);
       await loadRewards();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save reward");
@@ -418,19 +438,11 @@ export function AdminRewardsWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">Reward Engine</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">Reward Engine</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
-            Create catalog unlocks and challenge-only rewards, manage delivery, inventory, placement, and activation.
-          </p>
-        </div>
-        <Link href="/admin/rewards/unlocks" className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
-          View unlocks
-        </Link>
-      </div>
+    <div className="min-w-0 space-y-4">
+      <WorkspaceHeader hidden={editorOpen} className="flex flex-wrap items-center justify-between gap-3">
+        <h1 ref={paneTitle} tabIndex={-1} className="text-2xl font-semibold text-[var(--gl-ink)] outline-none">{tr("Rewards", "Recompensas")}</h1>
+        {!editorOpen && !selectedReward ? <button type="button" onClick={() => { setCreating(true); setForm(emptyForm); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--gl-green)] px-3 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)]"><Plus className="h-4 w-4" />{tr("New reward", "Nueva recompensa")}</button> : null}
+      </WorkspaceHeader>
 
       {error ? (
         <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">
@@ -438,88 +450,71 @@ export function AdminRewardsWorkspace() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Total rewards" value={kpis.total} />
-        <Kpi label="Active" value={kpis.active} />
-        <Kpi label="Archived" value={kpis.archived} />
-        <Kpi label="Challenge rewards" value={kpis.challenge} />
+      <div hidden={editorOpen || Boolean(selectedReward)} className="space-y-4">
+        <div className="grid grid-cols-2 bg-[var(--gl-paper)] sm:grid-cols-4">
+          <Kpi label={tr("Total rewards", "Total recompensas")} value={kpis.total} />
+          <Kpi label={tr("Active", "Activas")} value={kpis.active} />
+          <Kpi label={tr("Archived", "Archivadas")} value={kpis.archived} />
+          <Kpi label={tr("Challenge rewards", "Recompensas de retos")} value={kpis.challenge} />
+        </div>
+        <nav aria-label={tr("Reward workspace", "Área de recompensas")} className="flex gap-4 border-b border-[var(--gl-hairline)] text-sm">
+          <span aria-current="page" className="border-b-2 border-[var(--gl-green)] px-2 py-3 font-medium">{tr("All rewards", "Todas las recompensas")}</span>
+          <Link href="/admin/rewards/unlocks" className="px-2 py-3 text-[var(--gl-ink-muted)] hover:text-[var(--gl-green)]">{tr("Unlock history", "Historial de desbloqueos")}</Link>
+        </nav>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input aria-label={tr("Search rewards", "Buscar recompensas")} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tr("Search title or partner", "Buscar título o partner")} className="min-w-0 flex-1 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2.5 text-sm" />
+          <select aria-label={tr("Reward status", "Estado de recompensa")} value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2.5 text-sm">
+            <option value="all">{tr("All statuses", "Todos los estados")}</option>
+            <option value="draft">{tr("Draft", "Borrador")}</option>
+            <option value="active">{tr("Active", "Activas")}</option>
+            <option value="paused">{tr("Paused", "Pausadas")}</option>
+            <option value="expired">{tr("Expired", "Caducadas")}</option>
+            <option value="archived">{tr("Archived", "Archivadas")}</option>
+          </select>
+        </div>
+        <div role="region" aria-label={tr("Reward list", "Lista de recompensas")} className="max-h-[65dvh] overflow-auto bg-[var(--gl-paper)]">
+          {loading ? <p role="status" className="p-6 text-sm">{tr("Loading rewards...", "Cargando recompensas...")}</p> : !filteredRewards.length ? <p className="p-6 text-sm">{tr("No rewards match the current filters.", "Ninguna recompensa coincide con los filtros.")}</p> :
+            filteredRewards.map((reward) => <button key={reward.id} id={`reward-row-${reward.id}`} type="button" onClick={() => setSelectedId(String(reward.id))} aria-label={`${tr("Open", "Abrir")} ${reward.title}`} className="flex w-full items-center gap-3 border-b border-[var(--gl-hairline)] px-3 py-3 text-left hover:bg-[var(--gl-card-cream)]">
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-semibold">{reward.title}</p>
+                <p className="mt-1 break-words text-xs text-[var(--gl-ink-muted)]">{reward.partner_name || "-"} · {reward.acquisition_mode === "challenge_completion" ? tr("Challenge reward", "Recompensa de reto") : `${reward.cost_points} EcoPoints`}</p>
+              </div>
+              <Badge tone={reward.status === "archived" || !reward.active ? "neutral" : "green"}>{reward.status || (reward.active ? "active" : "inactive")}</Badge>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[var(--gl-ink-muted)]" />
+            </button>)
+          }
+        </div>
       </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">All rewards</h2>
-              <p className="text-sm text-[var(--gl-ink-muted)]">Archive instead of hard deleting whenever possible.</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or partner" className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
-              <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
-                <option value="all">All statuses</option>
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="expired">Expired</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-left text-sm">
-              <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                <tr>
-                  <th className="px-4 py-2.5">Reward</th>
-                  <th className="px-4 py-2.5">Partner</th>
-                  <th className="px-4 py-2.5">Type</th>
-                  <th className="px-4 py-2.5">Cost</th>
-                  <th className="px-4 py-2.5">Delivery</th>
-                  <th className="px-4 py-2.5">Inventory</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">Loading rewards...</td></tr>
-                ) : filteredRewards.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No rewards match the current filters.</td></tr>
-                ) : (
-                  filteredRewards.map((reward) => (
-                    <tr key={reward.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]">
-                      <td className="px-4 py-2.5">
-                        <div className="font-semibold text-[var(--gl-ink)]">{reward.title}</div>
-                        <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{reward.description || "No description"}</div>
-                      </td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.partner_name || "—"}</td>
-                      <td className="px-4 py-2.5">
-                        <Badge>{reward.acquisition_mode === "challenge_completion" ? "Challenge reward" : "Catalog unlock"}</Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.acquisition_mode === "challenge_completion" ? "—" : reward.cost_points}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{reward.redemption_type || reward.fulfillment_type}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{inventoryLabel(reward)}</td>
-                      <td className="px-4 py-2.5"><Badge tone={reward.status === "archived" ? "neutral" : reward.active ? "green" : "neutral"}>{reward.status || (reward.active ? "active" : "inactive")}</Badge></td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Link href={`/admin/rewards/${reward.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
-                          <button onClick={() => startEdit(reward)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
-                          {reward.status === "archived" || reward.archived_at ? (
-                            <button onClick={() => restoreReward(reward.id)} disabled={actionId === `restore-${reward.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">Restore</button>
-                          ) : (
-                            <>
-                              <button onClick={() => toggleReward(reward.id)} disabled={actionId === `toggle-${reward.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">{reward.active ? "Pause" : "Activate"}</button>
-                              <button onClick={() => archiveReward(reward.id)} disabled={actionId === `archive-${reward.id}`} className="rounded-md border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gl-coral-ink)] hover:opacity-90 disabled:opacity-60">Archive</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
+      {!editorOpen && selectedReward ? <section aria-label={tr("Reward details", "Detalles de recompensa")} className="space-y-4">
+        <button type="button" disabled={busy} onClick={backToList} className="inline-flex min-h-11 items-center gap-2 text-sm disabled:opacity-50"><ArrowLeft className="h-4 w-4" />{tr("Back to list", "Volver a la lista")}</button>
+        <div className="flex flex-col gap-4 sm:flex-row">
+          {selectedReward.banner_image_url ? <div className="flex h-32 w-full shrink-0 items-center justify-center bg-white sm:w-44">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={selectedReward.banner_image_url} alt={selectedReward.title} className="h-full w-full object-contain" />
+          </div> : null}
+          <div className="min-w-0 space-y-2"><h2 className="break-words text-xl font-semibold">{selectedReward.title}</h2><p className="whitespace-pre-wrap break-words text-sm text-[var(--gl-ink-muted)]">{selectedReward.full_description || selectedReward.description || tr("No description", "Sin descripción")}</p></div>
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 bg-[var(--gl-paper)] p-4 sm:grid-cols-3">
+          {[
+            [tr("Partner", "Partner"), selectedReward.partner_name || "-"],
+            [tr("Type", "Tipo"), selectedReward.acquisition_mode === "challenge_completion" ? tr("Challenge reward", "Recompensa de reto") : tr("Catalog unlock", "Desbloqueo de catálogo")],
+            [tr("Cost", "Coste"), selectedReward.acquisition_mode === "challenge_completion" ? "-" : `${selectedReward.cost_points} EcoPoints`],
+            [tr("Delivery", "Entrega"), selectedReward.redemption_type || selectedReward.fulfillment_type],
+            [tr("Inventory", "Inventario"), inventoryLabel(selectedReward)],
+            [tr("Status", "Estado"), selectedReward.status || (selectedReward.active ? "active" : "inactive")],
+          ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-[var(--gl-ink-muted)]">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value}</dd></div>)}
+        </dl>
+        <fieldset disabled={busy || loading} className="flex flex-wrap gap-2 disabled:opacity-60">
+          <button type="button" onClick={() => startEdit(selectedReward)} className="min-h-11 rounded-lg bg-[var(--gl-green)] px-4 text-sm font-semibold text-white">{tr("Edit reward", "Editar recompensa")}</button>
+          <Link href={`/admin/rewards/${selectedReward.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 text-sm"><ExternalLink className="h-4 w-4" />{tr("View record", "Ver registro")}</Link>
+          {selectedReward.status === "archived" || selectedReward.archived_at ?
+            <button type="button" onClick={() => restoreReward(selectedReward.id)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 text-sm"><RotateCcw className="h-4 w-4" />{tr("Restore", "Restaurar")}</button> : <>
+              <button type="button" onClick={() => toggleReward(selectedReward.id)} className="min-h-11 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 text-sm">{selectedReward.active ? tr("Pause", "Pausar") : tr("Activate", "Activar")}</button>
+              <button type="button" onClick={() => archiveReward(selectedReward.id)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-3 text-sm text-[var(--gl-coral-ink)]"><Archive className="h-4 w-4" />{tr("Archive", "Archivar")}</button>
+            </>}
+        </fieldset>
+      </section> : null}
+      {editorOpen ?
         <RewardFormPanel
           form={form}
           setForm={setForm}
@@ -529,11 +524,12 @@ export function AdminRewardsWorkspace() {
           onCancel={() => {
             setEditingId(null);
             setForm(emptyForm);
+            setCreating(false);
           }}
           onSubmit={handleSubmit}
           onRewardUpdated={loadRewards}
         />
-      </div>
+      : null}
     </div>
   );
 }
@@ -559,6 +555,17 @@ function RewardFormPanel({
 }) {
   const isChallengeReward = form.acquisition_mode === "challenge_completion";
   const isPromo = form.redemption_type === "link_with_code";
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [pane, setPane] = useState("details");
+  const invalidFocus = useRef(false);
+  const editorTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { editorTitle.current?.focus({ preventScroll: true }); }, []);
+  const panes = [
+    ["details", tr("Details", "Detalles")], ["delivery", tr("Delivery", "Entrega")],
+    ["limits", tr("Limits", "Límites")], ["visibility", tr("Visibility", "Visibilidad")],
+    ["preview", tr("Preview", "Vista previa")],
+  ];
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const handleUnlockTypeChange = (value: string) => {
@@ -637,30 +644,36 @@ function RewardFormPanel({
   };
 
   return (
-    <div className="space-y-5">
-      <form onSubmit={onSubmit} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{editingId ? "Edit reward" : "Create reward"}</h2>
-          <p className="text-sm text-[var(--gl-ink-muted)]">Reward Engine fields</p>
-        </div>
-        {editingId ? <button type="button" onClick={onCancel} className="text-sm font-semibold text-[var(--gl-ink-soft)] hover:text-[var(--gl-ink)]">Cancel</button> : null}
+    <div className="min-w-0 space-y-4">
+      <form onSubmit={onSubmit} onInvalidCapture={(event) => {
+        const target = event.target as HTMLInputElement;
+        const hiddenSection = target.closest<HTMLElement>("[data-reward-pane][hidden]");
+        if (!hiddenSection) return;
+        event.preventDefault();
+        if (invalidFocus.current) return;
+        invalidFocus.current = true;
+        setPane(hiddenSection.dataset.rewardPane || "details");
+        requestAnimationFrame(() => { target.focus(); target.reportValidity(); invalidFocus.current = false; });
+      }} className="min-w-0 space-y-4">
+      <WorkspaceHeader className="flex items-center justify-between gap-3">
+        <h1 ref={editorTitle} tabIndex={-1} className="text-2xl font-semibold text-[var(--gl-ink)] outline-none">{editingId ? tr("Edit reward", "Editar recompensa") : tr("Create reward", "Crear recompensa")}</h1>
+        <button type="button" disabled={saving || uploadingImage} onClick={onCancel} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--gl-ink-soft)] disabled:opacity-60"><ArrowLeft className="h-4 w-4" />{tr("Back", "Volver")}</button>
+      </WorkspaceHeader>
+      <div role="tablist" aria-label={tr("Reward editor", "Editor de recompensa")} className="sticky top-16 z-10 grid grid-cols-5 border-b border-[var(--gl-hairline)] bg-[var(--gl-bg-cream)] sm:flex">
+        {panes.map(([id, label], index) => <button key={id} type="button" role="tab" id={`reward-tab-${id}`} aria-selected={pane === id} aria-controls="reward-editor-panel" tabIndex={pane === id ? 0 : -1} disabled={saving || uploadingImage} onClick={() => setPane(id)} onKeyDown={(event) => {
+          const next = event.key === "Home" ? 0 : event.key === "End" ? panes.length - 1 : event.key === "ArrowRight" ? (index + 1) % panes.length : event.key === "ArrowLeft" ? (index + panes.length - 1) % panes.length : null;
+          if (next === null) return;
+          event.preventDefault(); setPane(panes[next][0]); document.getElementById(`reward-tab-${panes[next][0]}`)?.focus();
+        }} className={`min-h-11 min-w-0 break-words border-b-2 px-1 py-2 text-xs font-medium sm:px-4 sm:text-sm ${pane === id ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]" : "border-transparent text-[var(--gl-ink-muted)]"}`}>{label}</button>)}
       </div>
-      <div className="space-y-5">
-        <FormSection title="Basic Info">
+      <fieldset disabled={saving || uploadingImage} className="min-w-0 space-y-4 disabled:opacity-60">
+      <div id="reward-editor-panel" role="tabpanel" aria-labelledby={`reward-tab-${pane}`} className="min-w-0 space-y-5 bg-[var(--gl-paper)] p-4">
+        <FormSection title="Basic Info" pane="details" active={pane}>
           <Field label="Title" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} required />
+          <Field label="Partner name" value={form.partner_name} onChange={(value) => setForm((current) => ({ ...current, partner_name: value }))} required />
           <Textarea label="Short description" value={form.short_description} onChange={(value) => setForm((current) => ({ ...current, short_description: value, description: current.description || value }))} required />
           <Textarea label="Full description" value={form.full_description} onChange={(value) => setForm((current) => ({ ...current, full_description: value, description: current.description || value }))} />
-          <Field label="Partner name" value={form.partner_name} onChange={(value) => setForm((current) => ({ ...current, partner_name: value }))} required />
           <Field label="Brand ID" value={form.brand_id} onChange={(value) => setForm((current) => ({ ...current, brand_id: value }))} />
-          <ImageUploadField
-            label="Banner image"
-            imageUrl={form.banner_image_url}
-            uploading={uploadingImage}
-            error={imageUploadError}
-            onUpload={handleBannerImageUpload}
-            onClear={handleBannerImageClear}
-          />
           {categories.length ? (
             <Select label="Category" value={form.category_id} onChange={(value) => setForm((current) => ({ ...current, category_id: value }))}>
               <option value="">No category</option>
@@ -671,9 +684,17 @@ function RewardFormPanel({
           ) : (
             <Field label="Category ID" value={form.category_id} onChange={(value) => setForm((current) => ({ ...current, category_id: value }))} />
           )}
+          <ImageUploadField
+            label="Banner image"
+            imageUrl={form.banner_image_url}
+            uploading={uploadingImage}
+            error={imageUploadError}
+            onUpload={handleBannerImageUpload}
+            onClear={handleBannerImageClear}
+          />
         </FormSection>
 
-        <FormSection title="Reward Economics">
+        <FormSection title="Reward Economics" pane="limits" active={pane}>
           {!isChallengeReward ? <Field label="EcoPoints cost" type="number" min="0" value={form.cost_points} onChange={(value) => setForm((current) => ({ ...current, cost_points: value }))} required /> : null}
           <Field label="Estimated savings text" value={form.estimated_savings_text} onChange={(value) => setForm((current) => ({ ...current, estimated_savings_text: value }))} placeholder="Save up to 25%" />
           <div className="grid gap-3 sm:grid-cols-2">
@@ -686,7 +707,7 @@ function RewardFormPanel({
           </label>
         </FormSection>
 
-        <FormSection title="Reward Type">
+        <FormSection title="Reward Type" pane="details" active={pane}>
           <Select label="Reward type" value={form.acquisition_mode} onChange={(value) => setForm((current) => ({ ...current, acquisition_mode: value as RewardForm["acquisition_mode"], cost_points: value === "challenge_completion" ? "0" : current.cost_points }))}>
             <option value="redeem">Catalog unlock</option>
             <option value="challenge_completion">Challenge reward</option>
@@ -700,7 +721,7 @@ function RewardFormPanel({
           </Select>
         </FormSection>
 
-        <FormSection title="Unlock Type">
+        <FormSection title="Unlock Type" pane="delivery" active={pane}>
           <Select label="Unlock type" value={form.redemption_type} onChange={handleUnlockTypeChange}>
             <option value="link_only">Link only</option>
             <option value="link_with_code">Link + Promo Code</option>
@@ -709,7 +730,7 @@ function RewardFormPanel({
         </FormSection>
 
         {form.redemption_type !== "manual_claim" ? (
-          <FormSection title="Affiliate Tracking">
+          <FormSection title="Affiliate Tracking" pane="delivery" active={pane}>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Affiliate URL" value={form.affiliate_url} onChange={(value) => setForm((current) => ({ ...current, affiliate_url: value }))} required />
               <Field label="Affiliate network" value={form.affiliate_network} onChange={(value) => setForm((current) => ({ ...current, affiliate_network: value }))} />
@@ -718,7 +739,7 @@ function RewardFormPanel({
         ) : null}
 
         {isPromo ? (
-          <FormSection title="Promo Code">
+          <FormSection title="Promo Code" pane="delivery" active={pane}>
             <Select label="Code mode" value={form.code_mode} onChange={(value) => setForm((current) => ({ ...current, code_mode: value as RewardForm["code_mode"] }))}>
               <option value="shared">Shared code</option>
               <option value="pooled">Finite code pool</option>
@@ -728,13 +749,13 @@ function RewardFormPanel({
           </FormSection>
         ) : null}
 
-        <FormSection title="User Experience">
+        <FormSection title="User Experience" pane="delivery" active={pane}>
           <Field label="CTA text" value={form.cta_text} onChange={(value) => setForm((current) => ({ ...current, cta_text: value }))} placeholder="Unlock" />
           <Textarea label="Unlock instructions" value={form.instructions} onChange={(value) => setForm((current) => ({ ...current, instructions: value }))} />
           <Textarea label="Terms & conditions" value={form.terms_text} onChange={(value) => setForm((current) => ({ ...current, terms_text: value }))} placeholder="Optional internal note for now; detailed terms page support can be added next." />
         </FormSection>
 
-        <FormSection title="Visibility">
+        <FormSection title="Visibility" pane="visibility" active={pane}>
           <label className="flex items-center gap-2 text-sm font-medium text-[var(--gl-ink-soft)]">
             <input type="checkbox" checked={form.available_worldwide} onChange={(event) => setForm((current) => ({ ...current, available_worldwide: event.target.checked }))} className="h-4 w-4 rounded border-[var(--gl-hairline-strong)] text-[var(--gl-green)] focus:ring-[var(--gl-green-ring)]" />
             Available worldwide
@@ -768,12 +789,13 @@ function RewardFormPanel({
           </div>
         </FormSection>
 
-        <button disabled={saving} className="w-full rounded-lg bg-[var(--gl-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">
-          {saving ? "Saving..." : editingId ? "Update reward" : "Create reward"}
-        </button>
+        <div hidden={pane !== "preview"}><RewardPreviewCard form={form} /></div>
       </div>
+        <button disabled={saving || uploadingImage} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">
+          <Save className="h-4 w-4" />{saving ? tr("Saving...", "Guardando...") : editingId ? tr("Update reward", "Actualizar recompensa") : tr("Create reward", "Crear recompensa")}
+        </button>
+      </fieldset>
       </form>
-      <RewardPreviewCard form={form} />
     </div>
   );
 }
@@ -785,9 +807,9 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
   const title = form.title.trim() || "Reward title";
   const imageUrl = form.banner_image_url.trim();
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">What users will see after unlock</p>
-      <div className="mt-4 rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4 text-center">
+    <div className="mx-auto w-full max-w-md">
+      <p className="text-center text-xs font-semibold text-[var(--gl-ink-muted)]">What users will see after unlock</p>
+      <div className="mt-4 bg-[var(--gl-card-cream)] p-4 text-center">
         {imageUrl ? (
           <div className="mx-auto mb-4 flex h-24 max-w-[220px] items-center justify-center overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -795,11 +817,11 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
           </div>
         ) : null}
         <p className="text-lg font-bold text-[var(--gl-ink)]">{isPromo ? "Code Revealed 🎉" : "Reward Unlocked 🎉"}</p>
-        <p className="mt-1 text-sm font-semibold text-[var(--gl-ink-soft)]">{title}</p>
+        <p className="mt-1 break-words text-sm font-semibold text-[var(--gl-ink-soft)]">{title}</p>
         {isPromo ? (
           <div className="mx-auto mt-4 max-w-[240px] rounded-xl border border-[var(--gl-green-soft)] bg-[var(--gl-paper)] px-4 py-2.5 shadow-sm">
             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--gl-ink-muted)]">Promo code</p>
-            <p className="mt-1 text-lg font-extrabold tracking-[0.2em] text-[var(--gl-ink)]">{code}</p>
+            <p className="mt-1 break-all text-lg font-bold text-[var(--gl-ink)]">{code}</p>
           </div>
         ) : null}
         <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -812,41 +834,20 @@ function RewardPreviewCard({ form }: { form: RewardForm }) {
   );
 }
 
-function FormSection({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function FormSection({ title, children, pane, active }: { title: string; children: ReactNode; pane: string; active: string }) {
   return (
-    <div className="space-y-4">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between border-b border-[var(--gl-hairline)] pb-2 text-left"
-      >
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{title}</span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`text-[var(--gl-ink-muted)] transition-transform ${open ? "rotate-180" : ""}`}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {open ? children : null}
+    <div hidden={pane !== active} data-reward-pane={pane}>
+      <h3 className="mb-3 text-xs font-semibold text-[var(--gl-ink-muted)]">{title}</h3>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2 [&>*]:min-w-0">{children}</div>
     </div>
   );
 }
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
+    <div className="p-3 sm:p-4">
+      <p className="text-xs text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
@@ -886,7 +887,7 @@ function ImageUploadField({
   onClear: () => void;
 }) {
   return (
-    <div className="block">
+    <div className="lg:col-span-2">
       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
       <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3">
         {imageUrl ? (
@@ -932,7 +933,7 @@ function Textarea({ label, value, onChange, ...props }: Omit<React.TextareaHTMLA
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
-      <textarea {...props} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
+      <textarea {...props} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
     </label>
   );
 }
@@ -941,7 +942,7 @@ function Select({ label, value, onChange, children }: { label: string; value: st
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
+      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
         {children}
       </select>
     </label>

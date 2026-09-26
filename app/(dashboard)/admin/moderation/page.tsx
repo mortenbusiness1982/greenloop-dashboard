@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ExternalLink, Maximize2, RefreshCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type EventRow = {
   id: string | number;
@@ -297,82 +301,95 @@ async function moderationFetch(path: string, token: string, method = "GET") {
   return apiFetch(path, { token, method });
 }
 
-function ImageSlot({
-  label,
-  imageUrl,
-  alt,
-  context,
-}: {
+type PhotoPreview = { url: string; label: string; context: ScanContext };
+
+function ImageSlot({ label, imageUrl, alt, context, onOpen }: {
   label: string;
   imageUrl: string | null;
   alt: string;
   context: ScanContext;
+  onOpen: (photo: PhotoPreview, trigger: HTMLButtonElement) => void;
 }) {
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [failed, setFailed] = useState(false);
   const isLegacyImage = isLocalFileUrl(imageUrl);
-
+  const available = Boolean(imageUrl && !isLegacyImage);
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
-      <div className="border-b border-[var(--gl-hairline)] px-3 py-2 text-xs font-medium uppercase tracking-wide text-[var(--gl-ink-muted)]">
-        {label}
-      </div>
-      <div className="flex h-56 items-center justify-center p-2 xl:h-72">
-        {imageUrl && !isLegacyImage ? (
-          <Image
-            src={imageUrl}
-            alt={alt}
-            width={520}
-            height={320}
-            unoptimized
-            className="h-full w-full rounded-md border border-[var(--gl-hairline)] object-cover"
-          />
-        ) : isLegacyImage ? (
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-[var(--gl-amber)]/40 bg-[var(--gl-amber-soft)] text-sm text-[var(--gl-amber-ink)]">
-            Legacy image (not available)
-          </div>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] text-sm text-[var(--gl-ink-muted)]">
-            Missing
-          </div>
-        )}
-      </div>
-      <div className="space-y-1 border-t border-[var(--gl-hairline)] px-3 py-2">
-        {isLocalFileUrl(imageUrl) ? (
-          <p className="text-[11px] text-[var(--gl-amber-ink)]">Local mobile file path — not browser accessible</p>
-        ) : null}
-        <div className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Scan context</p>
-          <dl className="mt-2 grid gap-1.5 text-[11px]">
-            <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
-              <dt className="font-medium text-[var(--gl-ink-muted)]">When</dt>
-              <dd className="min-w-0 text-[var(--gl-ink)]">{formatScanDate(context.createdAt)}</dd>
-            </div>
-            <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
-              <dt className="font-medium text-[var(--gl-ink-muted)]">Where</dt>
-              <dd className="min-w-0 text-[var(--gl-ink)]">{formatScanLocation(context)}</dd>
-            </div>
-            <div className="grid grid-cols-[58px_minmax(0,1fr)] gap-2">
-              <dt className="font-medium text-[var(--gl-ink-muted)]">User</dt>
-              <dd className="min-w-0 break-words text-[var(--gl-ink)]">{formatScanUser(context)}</dd>
-            </div>
-          </dl>
+    <figure className="min-w-0">
+      <figcaption className="mb-1 text-xs font-medium text-[var(--gl-ink-muted)]">{label}</figcaption>
+      {available && !failed ? (
+        <button type="button" onClick={(event) => onOpen({ url: imageUrl!, label, context }, event.currentTarget)}
+          aria-label={tr("Enlarge", "Ampliar") + " " + label}
+          className="relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-md bg-[var(--gl-card-cream)] focus-visible:outline-2 focus-visible:outline-[var(--gl-green)] sm:aspect-[4/3]">
+          <Image src={imageUrl!} alt={alt} width={800} height={600} unoptimized onError={() => setFailed(true)} className="h-full w-full object-contain" />
+          <span className="absolute bottom-2 right-2 rounded bg-[var(--gl-paper)] p-2 text-[var(--gl-ink)]"><Maximize2 size={18} aria-hidden="true" /></span>
+        </button>
+      ) : (
+        <div role="status" className="flex aspect-[3/4] items-center justify-center rounded-md bg-[var(--gl-card-cream)] p-4 text-center text-sm text-[var(--gl-ink-muted)] sm:aspect-[4/3]">
+          {isLegacyImage ? tr("Legacy image (not available)", "Imagen antigua (no disponible)") : failed ? tr("Photo could not be loaded", "No se pudo cargar la foto") : tr("Missing photo", "Foto no disponible")}
         </div>
-        {imageUrl && !isLegacyImage ? (
-          <a
-            href={imageUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex text-[11px] font-semibold text-[var(--gl-green-deep)] underline-offset-2 hover:underline"
-          >
-            Open uploaded photo
-          </a>
-        ) : null}
+      )}
+      {available ? <a href={imageUrl!} target="_blank" rel="noreferrer" className="mt-1 inline-flex min-h-9 items-center gap-1 text-xs text-[var(--gl-green)]">
+        <ExternalLink size={13} aria-hidden="true" />{tr("Open original", "Abrir original")}
+      </a> : null}
+    </figure>
+  );
+}
+
+function PhotoViewer({ photo, onClose }: { photo: PhotoPreview; onClose: () => void }) {
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [zoomed, setZoomed] = useState(false);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { element?.close(); document.body.style.overflow = overflow; };
+  }, []);
+  return (
+    <dialog ref={dialog} aria-labelledby="photo-preview-title" onCancel={onClose}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      className="fixed inset-0 m-auto max-h-[100dvh] w-full max-w-6xl border-0 bg-[var(--gl-paper)] p-0 text-[var(--gl-ink)] backdrop:bg-black/70 sm:w-[calc(100%-2rem)] sm:rounded-lg">
+      <div className="flex h-[94dvh] flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+          <h2 id="photo-preview-title" className="min-w-0 text-base font-semibold">{photo.label}</h2>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" aria-label={tr(zoomed ? "Zoom out" : "Zoom in", zoomed ? "Alejar" : "Acercar")} title={tr(zoomed ? "Zoom out" : "Zoom in", zoomed ? "Alejar" : "Acercar")} aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)} className="p-3">
+              {zoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
+            </button>
+            <a href={photo.url} target="_blank" rel="noreferrer" aria-label={tr("Open original", "Abrir original")} title={tr("Open original", "Abrir original")} className="p-3"><ExternalLink size={20} /></a>
+            <button type="button" autoFocus onClick={onClose} aria-label={tr("Close photo", "Cerrar foto")} title={tr("Close photo", "Cerrar foto")} className="p-3"><X size={20} /></button>
+          </div>
+        </header>
+        <div tabIndex={0} aria-label={tr("Photo", "Foto")} className="min-h-0 flex-1 overflow-auto overscroll-contain bg-[var(--gl-card-cream)]">
+          <div className={zoomed ? "h-[200%] w-[200%]" : "h-full w-full"}>
+            <Image src={photo.url} alt={photo.label} width={1600} height={1200} unoptimized className="h-full w-full object-contain" />
+          </div>
+        </div>
+        <footer className="shrink-0 space-y-1 px-3 py-2 text-xs [overflow-wrap:anywhere]">
+          <p className="font-medium">{formatScanUser(photo.context)}</p>
+          <p className="text-[var(--gl-ink-muted)]">{formatScanDate(photo.context.createdAt)} · {formatScanLocation(photo.context)}</p>
+        </footer>
       </div>
-    </div>
+    </dialog>
   );
 }
 
 export default function ModerationPage() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  const [mobileReviewOpen, setMobileReviewOpen] = useState(false);
+  const [photo, setPhoto] = useState<PhotoPreview | null>(null);
+  const [page, setPage] = useState(0);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const queueScroll = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const photoOpener = useRef<HTMLButtonElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<ModerationEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -499,13 +516,26 @@ export default function ModerationPage() {
     );
   }
 
+  const reviewedEvent = filteredEvents.find((event) => event.id === reviewId) ?? filteredEvents[0];
+  const busy = bulkBusy || !!activeEventId;
+  async function runBulk(ids: string[], action: "approve" | "reject") {
+    setBulkBusy(true);
+    try {
+      if (action === "approve") await handleApproveSelected(ids);
+      else await handleRejectSelected(ids);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isTypingTarget(event.target)) return;
-      if (activeEventId) return;
+      if (busy || document.querySelector("dialog[open]")) return;
+      if (!document.getElementById("scan-review-pane")?.getClientRects().length) return;
       if (activeFilter !== "pending") return;
 
-      const firstVisiblePendingEvent = filteredEvents[0];
+      const firstVisiblePendingEvent = reviewedEvent;
       if (!firstVisiblePendingEvent) return;
 
       const key = event.key.toLowerCase();
@@ -522,293 +552,186 @@ export default function ModerationPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeEventId, activeFilter, filteredEvents, handleModerationAction]);
+  }, [busy, activeFilter, reviewedEvent, handleModerationAction]);
+
+  const filters: { id: FilterKey; label: string }[] = [
+    { id: "pending", label: tr("Pending", "Pendientes") },
+    { id: "approved", label: tr("Approved", "Aprobados") },
+    { id: "rejected", label: tr("Rejected", "Rechazados") },
+  ];
+  const pageSize = 25;
+  const pageCount = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const queueEvents = filteredEvents.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const reviewIndex = reviewedEvent ? filteredEvents.indexOf(reviewedEvent) : -1;
+  const context: ScanContext | null = reviewedEvent ? {
+    eventId: reviewedEvent.id, userId: reviewedEvent.userId, userName: reviewedEvent.userName,
+    userEmail: reviewedEvent.userEmail, createdAt: reviewedEvent.createdAt, city: reviewedEvent.city,
+    province: reviewedEvent.province, country: reviewedEvent.country, lat: reviewedEvent.lat, lng: reviewedEvent.lng,
+  } : null;
+  const commandClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
+  const riskLabel = (tier: RiskTier) => tr(getRiskLabel(tier), ({ high: "Alto", review: "Revisar", low: "Bajo", unknown: "Desconocido" })[tier]);
+  function changeFilter(filter: FilterKey) {
+    setActiveFilter(filter);
+    setReviewId(null);
+    setMobileReviewOpen(false);
+    setPage(0);
+  }
+  function stepReview(next: number) {
+    const event = filteredEvents[next];
+    if (!event) return;
+    setReviewId(event.id);
+    setPage(Math.floor(next / pageSize));
+  }
+  function closeReview() {
+    setMobileReviewOpen(false);
+    setReviewId(null);
+    requestAnimationFrame(() => opener.current?.focus({ preventScroll: true }));
+  }
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-7xl space-y-5">
-        <div>
-          <div className="h-10 w-56 rounded bg-[var(--gl-hairline)]" />
-          <div className="mt-3 flex gap-2">
-            <div className="h-9 w-24 rounded-full bg-[var(--gl-hairline)]" />
-            <div className="h-9 w-24 rounded-full bg-[var(--gl-hairline)]" />
-            <div className="h-9 w-24 rounded-full bg-[var(--gl-hairline)]" />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {[0, 1, 2].map((item) => (
-            <div key={item} className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="h-56 rounded-lg bg-[var(--gl-hairline)] xl:h-72" />
-                <div className="h-56 rounded-lg bg-[var(--gl-hairline)] xl:h-72" />
-              </div>
-              <div className="mt-3 h-4 w-40 rounded bg-[var(--gl-hairline)]" />
-              <div className="mt-3 flex gap-3">
-                <div className="h-10 w-28 rounded bg-[var(--gl-hairline)]" />
-                <div className="h-10 w-28 rounded bg-[var(--gl-hairline)]" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <p role="status" className="text-sm text-[var(--gl-ink-muted)]">{tr("Loading moderation queue...", "Cargando cola de moderación...")}</p>;
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <header>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
-          Admin · Operations
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
-          Moderation queue
-        </h1>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(["pending", "approved", "rejected"] as FilterKey[]).map((filter) => {
-            const isActive = activeFilter === filter;
-
-            return (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setActiveFilter(filter)}
-                className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition ${
-                  isActive
-                    ? "bg-[var(--gl-green-deep)] text-white"
-                    : "border border-[var(--gl-hairline)] bg-[var(--gl-paper)] text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]"
-                }`}
-              >
-                {filter}
-              </button>
-            );
-          })}
-        </div>
-      </header>
-
-      {error ? (
-        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">{error}</div>
-      ) : null}
-
-      {actionError ? (
-        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">{actionError}</div>
-      ) : null}
+    <div className="space-y-3 text-[var(--gl-ink)]">
+      <WorkspaceHeader className={(mobileReviewOpen ? "hidden xl:flex " : "flex ") + "items-center justify-between gap-3"}>
+        <h1 className="text-2xl font-semibold">{tr("Moderation", "Moderación")}</h1>
+        <button type="button" disabled={busy} onClick={() => void loadEvents()} className={commandClass}
+          aria-label={tr("Refresh queue", "Actualizar cola")} title={tr("Refresh queue", "Actualizar cola")}><RefreshCw size={18} /></button>
+      </WorkspaceHeader>
+      <div role="tablist" aria-label={tr("Moderation status", "Estado de moderación")} className={(mobileReviewOpen ? "hidden xl:flex " : "flex ") + "gap-1 border-b border-[var(--gl-hairline)]"}>
+        {filters.map((filter, index) => (
+          <button type="button" key={filter.id} id={`moderation-tab-${filter.id}`} role="tab" aria-selected={activeFilter === filter.id}
+            aria-controls="moderation-workspace" tabIndex={activeFilter === filter.id ? 0 : -1} disabled={busy}
+            onClick={() => changeFilter(filter.id)}
+            onKeyDown={(event) => {
+              let next = index;
+              if (event.key === "ArrowRight") next = (index + 1) % filters.length;
+              else if (event.key === "ArrowLeft") next = (index + filters.length - 1) % filters.length;
+              else if (event.key === "Home") next = 0;
+              else if (event.key === "End") next = filters.length - 1;
+              else return;
+              event.preventDefault();
+              changeFilter(filters[next].id);
+              document.getElementById(`moderation-tab-${filters[next].id}`)?.focus();
+            }}
+            className={"min-h-11 border-b-2 px-3 text-sm font-medium disabled:opacity-50 " + (activeFilter === filter.id ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]" : "border-transparent text-[var(--gl-ink-muted)]")}>
+            {filter.label}
+          </button>
+        ))}
+      </div>
+      {error || actionError ? <div role="alert" className="rounded-md bg-[var(--gl-coral-soft)] px-4 py-3 text-sm text-[var(--gl-coral-ink)]">{error}{error && actionError ? <br /> : null}{actionError}</div> : null}
 
       {activeFilter === "pending" ? (
-        <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2.5 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm text-[var(--gl-ink-muted)]">
-              {selectedEventIds.length > 0
-                ? `${selectedEventIds.length} selected`
-                : `${pendingVisibleEventIds.length} pending in view`}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleApproveSelected(selectedEventIds)}
-                disabled={selectedEventIds.length === 0 || !!activeEventId}
-                className="rounded bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Approve Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleRejectSelected(selectedEventIds)}
-                disabled={selectedEventIds.length === 0 || !!activeEventId}
-                className="rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Reject Selected{selectedEventIds.length > 0 ? ` (${selectedEventIds.length})` : ""}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleApproveSelected(pendingVisibleEventIds)}
-                disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
-                className="rounded bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Approve All
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleRejectSelected(pendingVisibleEventIds)}
-                disabled={pendingVisibleEventIds.length === 0 || !!activeEventId}
-                className="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Reject All
-              </button>
-            </div>
+        <div className={(mobileReviewOpen ? "hidden xl:block " : "") + "space-y-2"}>
+          <div aria-label={tr("Risk summary", "Resumen de riesgo")} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            {(["high", "review", "low", "unknown"] as RiskTier[]).map((tier) => <span key={tier} className={getRiskClasses(tier).label}>{riskLabel(tier)} <strong>{pendingRiskSummary[tier]}</strong></span>)}
+            {autoApprovableEventIds.length > 0 ? <span className="text-[var(--gl-ink-muted)]">{autoApprovableEventIds.length} {tr("auto-approvable", "con aprobación automática")}</span> : null}
           </div>
-          <p className="mt-2 text-xs text-[var(--gl-ink-muted)]">
-            {autoApprovableEventIds.length > 0
-              ? `${autoApprovableEventIds.length} events are marked for true auto-approval`
-              : "Bulk moderation stays available while you work through the pending queue."}
-          </p>
-        </div>
-      ) : null}
-
-      {activeFilter === "pending" ? (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            High risk: {pendingRiskSummary.high}
-          </div>
-          <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-3 py-2 text-sm text-[var(--gl-amber-ink)]">
-            Review: {pendingRiskSummary.review}
-          </div>
-          <div className="rounded-lg border border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] px-3 py-2 text-sm text-[var(--gl-green)]">
-            Low risk: {pendingRiskSummary.low}
-          </div>
-          <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2 text-sm text-[var(--gl-ink-soft)]">
-            Unknown: {pendingRiskSummary.unknown}
-          </div>
-        </div>
-      ) : null}
-
-      {!hasEvents ? (
-        <div className="rounded-xl border border-dashed border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] p-10 text-center text-sm text-[var(--gl-ink-muted)]">
-          No {activeFilter} events.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredEvents.map((event) => {
-            const isSubmitting = activeEventId === event.id;
-            const isSelected = selectedEventIds.includes(event.id);
-            const showSelection = activeFilter === "pending";
-            const riskTier = getRiskTier(event);
-            const riskClasses = getRiskClasses(riskTier);
-            const scanContext: ScanContext = {
-              eventId: event.id,
-              userId: event.userId,
-              userName: event.userName,
-              userEmail: event.userEmail,
-              createdAt: event.createdAt,
-              city: event.city,
-              province: event.province,
-              country: event.country,
-              lat: event.lat,
-              lng: event.lng,
-            };
-
-            return (
-              <section
-                key={event.id}
-                className={`relative rounded-xl border bg-[var(--gl-paper)] p-4 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md ${riskClasses.card} ${
-                  isSelected ? "border-[var(--gl-green)] ring-2 ring-[var(--gl-green-soft)]" : "border-[var(--gl-hairline)]"
-                }`}
-              >
-                {showSelection ? (
-                  <label className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-[var(--gl-paper)]/90 px-2 py-1 text-xs font-medium text-[var(--gl-ink-soft)] shadow-sm">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelectedEvent(event.id)}
-                      className="h-4 w-4 rounded border-[var(--gl-hairline)] text-[var(--gl-green)] focus:ring-[var(--gl-green-ring)]"
-                    />
-                    Select
-                  </label>
-                ) : null}
-
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    <ImageSlot
-                      label="Bag"
-                      imageUrl={event.bagImageUrl}
-                      alt={`Bag evidence for event ${event.id}`}
-                      context={scanContext}
-                    />
-                    <ImageSlot
-                      label="Container"
-                      imageUrl={event.containerImageUrl}
-                      alt={`Container evidence for event ${event.id}`}
-                      context={scanContext}
-                    />
-                  </div>
-
-                  <aside className={`rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 ${showSelection ? "pt-9" : ""}`}>
-                    <div className="space-y-2 text-xs text-[var(--gl-ink-muted)]">
-                      <p>
-                        <span className="font-semibold text-[var(--gl-ink-soft)]">Event:</span>{" "}
-                        {shortenEventId(event.id)}
-                      </p>
-                      <p className="capitalize">
-                        <span className="font-semibold text-[var(--gl-ink-soft)]">Status:</span>{" "}
-                        {event.verificationStatus}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 font-semibold ${riskClasses.badge}`}>
-                          AI {event.validationScore === null ? "—" : Math.round(event.validationScore)}
-                        </span>
-                        <span className={riskClasses.label}>{getRiskLabel(riskTier)}</span>
-                        {isAutoApprovable(event) ? (
-                          <span className="rounded-full bg-[var(--gl-green-soft)] px-2 py-0.5 font-semibold text-[var(--gl-green)]">Auto</span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                        Recycler & place
-                      </p>
-                      <dl className="mt-2 grid gap-2 text-xs">
-                        <div>
-                          <dt className="font-semibold text-[var(--gl-ink-soft)]">User</dt>
-                          <dd className="mt-0.5 break-words text-[var(--gl-ink)]">{formatScanUser(scanContext)}</dd>
-                        </div>
-                        <div>
-                          <dt className="font-semibold text-[var(--gl-ink-soft)]">Recycled at</dt>
-                          <dd className="mt-0.5 text-[var(--gl-ink)]">{formatScanLocation(scanContext)}</dd>
-                        </div>
-                        <div>
-                          <dt className="font-semibold text-[var(--gl-ink-soft)]">GPS</dt>
-                          <dd className="mt-0.5 font-mono text-[11px] text-[var(--gl-ink-muted)]">
-                            {formatScanCoordinates(scanContext)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="font-semibold text-[var(--gl-ink-soft)]">Time</dt>
-                          <dd className="mt-0.5 text-[var(--gl-ink)]">{formatScanDate(scanContext.createdAt)}</dd>
-                        </div>
-                      </dl>
-                    </div>
-
-                    {event.validationFlags.length > 0 ? (
-                      <div className="mt-4">
-                        <p className="mb-1 text-xs font-semibold text-[var(--gl-ink-soft)]">Flags</p>
-                        <div className="flex flex-wrap gap-2">
-                          {event.validationFlags.map((flag) => (
-                            <span key={`${event.id}-${flag}`} className={`rounded-full px-2 py-0.5 text-xs font-medium ${riskClasses.flag}`}>
-                              {flag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="mt-4 grid gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleModerationAction(event.id, "approve")}
-                        disabled={isSubmitting}
-                        className="rounded bg-[var(--gl-green)] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleModerationAction(event.id, "reject")}
-                        disabled={isSubmitting}
-                        className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Reject
-                      </button>
-                    </div>
-
-                    {isSubmitting ? <p className="mt-3 text-xs text-[var(--gl-ink-muted)]">Submitting...</p> : null}
-                  </aside>
+          <details className="text-sm">
+            <summary className="w-fit cursor-pointer py-2 text-[var(--gl-ink-soft)]">{tr("Bulk actions", "Acciones en lote")} · {selectedEventIds.length} {tr("selected", "seleccionados")}</summary>
+            <div className="flex flex-wrap gap-x-6 gap-y-3 py-2">
+              <div><p className="mb-1 text-xs text-[var(--gl-ink-muted)]">{tr("Selected events", "Eventos seleccionados")} ({selectedEventIds.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void runBulk(selectedEventIds, "approve")} disabled={selectedEventIds.length === 0 || busy} className={commandClass + " bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"}><Check size={16} />{tr("Approve selected", "Aprobar seleccionados")}</button>
+                  <button type="button" onClick={() => void runBulk(selectedEventIds, "reject")} disabled={selectedEventIds.length === 0 || busy} className={commandClass + " bg-red-50 text-red-700"}><X size={16} />{tr("Reject selected", "Rechazar seleccionados")}</button>
                 </div>
-              </section>
-            );
-          })}
+              </div>
+              <div><p className="mb-1 text-xs text-[var(--gl-ink-muted)]">{tr("Entire pending queue", "Toda la cola pendiente")} ({pendingVisibleEventIds.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void runBulk(pendingVisibleEventIds, "approve")} disabled={!pendingVisibleEventIds.length || busy} className={commandClass + " bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"}><Check size={16} />{tr("Approve all", "Aprobar todos")}</button>
+                  <button type="button" onClick={() => void runBulk(pendingVisibleEventIds, "reject")} disabled={!pendingVisibleEventIds.length || busy} className={commandClass + " bg-red-50 text-red-700"}><X size={16} />{tr("Reject all", "Rechazar todos")}</button>
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
-      )}
+      ) : null}
+
+      <div id="moderation-workspace" role="tabpanel" aria-labelledby={`moderation-tab-${activeFilter}`} tabIndex={0}>
+        {!hasEvents ? <div className="flex flex-wrap items-center gap-3 py-8 text-sm text-[var(--gl-ink-muted)]">
+          <p>{tr("No events in this queue.", "No hay eventos en esta cola.")}</p>
+          {mobileReviewOpen ? <button type="button" onClick={closeReview} className={commandClass}><ArrowLeft size={16} />{tr("Back to queue", "Volver a la cola")}</button> : null}
+        </div> : (
+          <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+            <section aria-label={tr("Scan queue", "Cola de escaneos")} className={(mobileReviewOpen ? "hidden xl:block " : "") + "min-w-0"}>
+              <div className="mb-1 flex items-center justify-between gap-1 text-xs text-[var(--gl-ink-muted)]">
+                <p>{currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, filteredEvents.length)} / {filteredEvents.length}</p>
+                <div className="flex">
+                  <button type="button" disabled={currentPage === 0 || busy} aria-label={tr("Previous page", "Página anterior")} title={tr("Previous page", "Página anterior")} className={commandClass}
+                    onClick={() => { setPage(currentPage - 1); queueScroll.current?.scrollTo({ top: 0 }); }}><ChevronLeft size={16} /></button>
+                  <button type="button" disabled={currentPage + 1 >= pageCount || busy} aria-label={tr("Next page", "Página siguiente")} title={tr("Next page", "Página siguiente")} className={commandClass}
+                    onClick={() => { setPage(currentPage + 1); queueScroll.current?.scrollTo({ top: 0 }); }}><ChevronRight size={16} /></button>
+                </div>
+              </div>
+              <div ref={queueScroll} tabIndex={0} className="max-h-[max(18rem,calc(100dvh-20rem))] overflow-auto bg-[var(--gl-paper)]">
+                {queueEvents.map((event) => (
+                  <div key={event.id} className={"flex items-start border-b border-[var(--gl-hairline)] " + (reviewedEvent?.id === event.id ? "bg-[var(--gl-green-soft)]" : "")}>
+                    {activeFilter === "pending" ? <label className="flex min-h-11 w-11 shrink-0 items-center justify-center">
+                      <input type="checkbox" disabled={busy} checked={selectedEventIds.includes(event.id)} onChange={() => toggleSelectedEvent(event.id)}
+                        aria-label={tr("Select event", "Seleccionar evento") + " " + event.id} className="h-4 w-4 accent-[var(--gl-green)]" />
+                    </label> : null}
+                    <button type="button" disabled={busy} aria-pressed={reviewedEvent?.id === event.id} onClick={(click) => { opener.current = click.currentTarget; setReviewId(event.id); setMobileReviewOpen(true); requestAnimationFrame(() => document.getElementById("scan-review-heading")?.focus({ preventScroll: true })); }}
+                      className="min-w-0 flex-1 space-y-1 py-3 pl-3 pr-3 text-left disabled:opacity-50 [overflow-wrap:anywhere]">
+                      <p className="text-sm font-medium">{event.userName || event.userEmail || tr("Unknown user", "Usuario desconocido")}</p>
+                      <p className="text-xs text-[var(--gl-ink-muted)]">{formatScanDate(event.createdAt)}</p>
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-xs"><span>{event.city || event.province || tr("Unknown city", "Ciudad desconocida")}</span>
+                        <span className={getRiskClasses(getRiskTier(event)).label}>{riskLabel(getRiskTier(event))}</span></div>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {reviewedEvent && context ? (
+              <section id="scan-review-pane" aria-label={tr("Scan review", "Revisión del escaneo")} className={(mobileReviewOpen ? "" : "hidden xl:block ") + "min-w-0 space-y-3"}>
+                <div className="flex items-center justify-between gap-2">
+                  <button type="button" disabled={busy} onClick={closeReview} className={commandClass + " xl:hidden"}><ArrowLeft size={17} />{tr("Queue", "Cola")}</button>
+                  <p className="text-xs text-[var(--gl-ink-muted)]">{reviewIndex + 1} / {filteredEvents.length}</p>
+                  <div className="ml-auto flex">
+                    <button type="button" disabled={reviewIndex <= 0 || busy} onClick={() => stepReview(reviewIndex - 1)} aria-label={tr("Previous scan", "Escaneo anterior")} title={tr("Previous scan", "Escaneo anterior")} className={commandClass}><ChevronLeft size={18} /></button>
+                    <button type="button" disabled={reviewIndex + 1 >= filteredEvents.length || busy} onClick={() => stepReview(reviewIndex + 1)} aria-label={tr("Next scan", "Siguiente escaneo")} title={tr("Next scan", "Siguiente escaneo")} className={commandClass}><ChevronRight size={18} /></button>
+                  </div>
+                </div>
+                <header className="space-y-1 [overflow-wrap:anywhere]">
+                  <h2 id="scan-review-heading" tabIndex={-1} className="text-lg font-semibold outline-none">{reviewedEvent.userName || reviewedEvent.userEmail || tr("Unknown user", "Usuario desconocido")}</h2>
+                  <p className="text-sm text-[var(--gl-ink-muted)]">{formatScanDate(context.createdAt)} · {formatScanLocation(context)}</p>
+                </header>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className={"rounded px-2 py-1 font-medium " + getRiskClasses(getRiskTier(reviewedEvent)).badge}>AI {reviewedEvent.validationScore === null ? "—" : Math.round(reviewedEvent.validationScore)} · {riskLabel(getRiskTier(reviewedEvent))}</span>
+                  {isAutoApprovable(reviewedEvent) ? <span className="py-1 text-[var(--gl-green)]">{tr("Auto-approvable", "Aprobación automática")}</span> : null}
+                  {reviewedEvent.validationFlags.map((flag) => <span key={flag} className="max-w-full rounded bg-red-50 px-2 py-1 text-red-700 [overflow-wrap:anywhere]">{flag}</span>)}
+                </div>
+                <div className="bg-[var(--gl-paper)] p-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    {(["bag", "container"] as const).map((slot) => <div key={slot} id={`photo-panel-${slot}`} className="min-w-0">
+                      <ImageSlot key={reviewedEvent.id + slot} label={slot === "bag" ? tr("Bag", "Bolsa") : tr("Container", "Contenedor")}
+                        imageUrl={slot === "bag" ? reviewedEvent.bagImageUrl : reviewedEvent.containerImageUrl}
+                        alt={tr("Recycling evidence", "Evidencia de reciclaje") + " " + reviewedEvent.id + " " + slot} context={context} onOpen={(next, trigger) => { photoOpener.current = trigger; setPhoto(next); }} />
+                    </div>)}
+                  </div>
+                </div>
+                <details open className="text-xs text-[var(--gl-ink-muted)]">
+                  <summary className="w-fit cursor-pointer py-2">{tr("Scan details", "Detalles del escaneo")} · {shortenEventId(reviewedEvent.id)}</summary>
+                  <dl className="grid gap-2 py-2 sm:grid-cols-2 [overflow-wrap:anywhere]">
+                    <div><dt className="font-medium">{tr("User", "Usuario")}</dt><dd>{formatScanUser(context)}</dd></div>
+                    <div><dt className="font-medium">GPS</dt><dd>{formatScanCoordinates(context)}</dd></div>
+                    <div><dt className="font-medium">{tr("Event ID", "ID del evento")}</dt><dd>{reviewedEvent.id}</dd></div>
+                    <div><dt className="font-medium">{tr("Status", "Estado")}</dt><dd>{filters.find((filter) => filter.id === reviewedEvent.verificationStatus)?.label ?? reviewedEvent.verificationStatus}</dd></div>
+                  </dl>
+                </details>
+                <div className="sticky bottom-0 z-10 grid grid-cols-2 gap-2 border-t border-[var(--gl-hairline)] bg-[var(--gl-paper)] py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                  <button type="button" disabled={busy} onClick={() => void handleModerationAction(reviewedEvent.id, "approve")} className={commandClass + " bg-[var(--gl-green)] text-white"}><Check size={18} />{tr("Approve", "Aprobar")}</button>
+                  <button type="button" disabled={busy} onClick={() => void handleModerationAction(reviewedEvent.id, "reject")} className={commandClass + " border border-red-200 text-red-700"}><X size={18} />{tr("Reject", "Rechazar")}</button>
+                </div>
+                {busy ? <p role="status" className="text-xs text-[var(--gl-ink-muted)]">{tr("Submitting...", "Enviando...")}</p> : null}
+              </section>
+            ) : null}
+          </div>
+        )}
+      </div>
+      {photo ? <PhotoViewer photo={photo} onClose={() => { setPhoto(null); requestAnimationFrame(() => photoOpener.current?.focus({ preventScroll: true })); }} /> : null}
     </div>
   );
 }

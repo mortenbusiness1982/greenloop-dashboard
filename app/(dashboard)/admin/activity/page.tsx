@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type ActivityEvent = {
   created_at?: string;
@@ -73,6 +77,12 @@ function getTime(value?: string | null) {
 
 export default function AdminActivityPage() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [pane, setPane] = useState("events");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const listScroll = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<PlatformActivityResponse | null>(null);
@@ -228,235 +238,173 @@ export default function AdminActivityPage() {
     );
   }, [userOptions, userSearch]);
 
+  const panes = [
+    { id: "events", label: tr("Events", "Eventos"), count: events.length },
+    { id: "daily", label: tr("Daily totals", "Totales diarios"), count: dailyTrend.length },
+    { id: "locations", label: tr("Locations", "Ubicaciones"), count: topCities.length },
+  ];
+  const pageCount = Math.max(1, Math.ceil(events.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleEvents = events.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const inputClass = "min-w-0 w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]";
+  const commandClass = "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
+  const cellClass = "px-3 py-3 align-top [overflow-wrap:anywhere]";
+  function changePage(next: number) {
+    setPage(next);
+    listScroll.current?.scrollTo({ top: 0 });
+  }
+
   if (loading) {
-    return (
-      <div className="space-y-5">
-        <p className="text-sm text-[var(--gl-ink-muted)]">Loading recycling activity...</p>
-      </div>
-    );
+    return <p role="status" className="text-sm text-[var(--gl-ink-muted)]">{tr("Loading recycling activity...", "Cargando actividad de reciclaje...")}</p>;
   }
 
   return (
-    <div className="space-y-5">
-      <header>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
-          Admin · Operations
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
-          Recycling activity
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
-          Review platform-wide recycling history across all users.
-        </p>
-      </header>
+    <div className="space-y-4 text-[var(--gl-ink)]">
+      <WorkspaceHeader className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">{tr("Recycling activity", "Actividad de reciclaje")}</h1>
+        <button type="button" onClick={exportSelectedActivityCsv} disabled={events.length === 0}
+          className={commandClass + " bg-[var(--gl-green)] text-white hover:bg-[var(--gl-green-deep)]"}
+          title={tr("Export all returned rows", "Exportar todas las filas devueltas")}>
+          <Download size={16} aria-hidden="true" />{tr("Export CSV", "Exportar CSV")}
+        </button>
+      </WorkspaceHeader>
 
-      {error ? (
-        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">
-          {error}
-        </div>
-      ) : null}
+      {error ? <div role="alert" className="rounded-md bg-[var(--gl-coral-soft)] px-4 py-3 text-sm text-[var(--gl-coral-ink)]">{error}</div> : null}
 
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Filters</h2>
-          <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-            Filter by day range, location, or user name.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">From</span>
-            <input
-              type="date"
-              value={filters.from}
-              onChange={(e) => setFilters((current) => ({ ...current, from: e.target.value }))}
-              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            />
+      <section aria-label={tr("Activity filters", "Filtros de actividad")} className="space-y-2">
+        <div className="grid grid-cols-2 items-end gap-2 xl:grid-cols-[1fr_1fr_1.3fr_1.5fr]">
+          <label className="min-w-0 text-xs text-[var(--gl-ink-muted)]">
+            {tr("From", "Desde")}
+            <input type="date" value={filters.from} className={inputClass + " mt-1"}
+              onChange={(e) => { setPage(0); setFilters((current) => ({ ...current, from: e.target.value })); }} />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">To</span>
-            <input
-              type="date"
-              value={filters.to}
-              onChange={(e) => setFilters((current) => ({ ...current, to: e.target.value }))}
-              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            />
+          <label className="min-w-0 text-xs text-[var(--gl-ink-muted)]">
+            {tr("To", "Hasta")}
+            <input type="date" value={filters.to} className={inputClass + " mt-1"}
+              onChange={(e) => { setPage(0); setFilters((current) => ({ ...current, to: e.target.value })); }} />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">City</span>
-            <select
-              value={filters.city}
-              onChange={(e) => setFilters((current) => ({ ...current, city: e.target.value }))}
-              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            >
-              <option value="">All cities</option>
-              {filteredCityOptions.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
+          <label className="min-w-0 text-xs text-[var(--gl-ink-muted)]">
+            {tr("City", "Ciudad")}
+            <select aria-label={tr("City", "Ciudad")} value={filters.city} className={inputClass + " mt-1"}
+              onChange={(e) => { setPage(0); setFilters((current) => ({ ...current, city: e.target.value })); }}>
+              <option value="">{tr("All cities", "Todas las ciudades")}</option>
+              {filteredCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
             </select>
-            <input
-              value={citySearch}
-              onChange={(e) => setCitySearch(e.target.value)}
-              placeholder="Search city"
-              className="mt-2 w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">User Name</span>
-            <select
-              value={filters.userId}
-              onChange={(e) => setFilters((current) => ({ ...current, userId: e.target.value }))}
-              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            >
-              <option value="">All users</option>
-              {filteredUserOptions.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.label}{user.email ? ` · ${user.email}` : ""}
-                </option>
-              ))}
+          <label className="min-w-0 text-xs text-[var(--gl-ink-muted)]">
+            {tr("User", "Usuario")}
+            <select aria-label={tr("User", "Usuario")} value={filters.userId} className={inputClass + " mt-1"}
+              onChange={(e) => { setPage(0); setFilters((current) => ({ ...current, userId: e.target.value })); }}>
+              <option value="">{tr("All users", "Todos los usuarios")}</option>
+              {filteredUserOptions.map((user) => <option key={user.id} value={user.id}>{user.label}{user.email ? ` · ${user.email}` : ""}</option>)}
             </select>
-            <input
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              placeholder="Search user"
-              className="mt-2 w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            />
           </label>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => loadReport(filters)}
-            className="rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)]"
-          >
-            Review Activity
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setCitySearch("");
-              setUserSearch("");
-              loadReport({
-                from: "",
-                to: "",
-                city: "",
-                userId: "",
-              });
+        <div className="flex items-start justify-between gap-2">
+          <details className="min-w-0 flex-1 text-sm">
+            <summary className="w-fit cursor-pointer py-2.5 text-[var(--gl-ink-muted)]">{tr("Find a city or user", "Buscar ciudad o usuario")}{citySearch || userSearch ? ` (${Number(Boolean(citySearch)) + Number(Boolean(userSearch))})` : ""}</summary>
+            <div className="mt-1 grid gap-2 sm:grid-cols-2">
+              <input aria-label={tr("Search city", "Buscar ciudad")} placeholder={tr("Search city", "Buscar ciudad")} value={citySearch} onChange={(e) => setCitySearch(e.target.value)} className={inputClass} />
+              <input aria-label={tr("Search user", "Buscar usuario")} placeholder={tr("Search user", "Buscar usuario")} value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className={inputClass} />
+            </div>
+          </details>
+          <div className="flex shrink-0 gap-1">
+            <button type="button" onClick={() => loadReport(filters)} title={tr("Refresh activity", "Actualizar actividad")} aria-label={tr("Refresh activity", "Actualizar actividad")}
+              className={commandClass + " hover:bg-[var(--gl-green-soft)]"}><RefreshCw size={17} /></button>
+            <button type="button" title={tr("Reset filters", "Restablecer filtros")} aria-label={tr("Reset filters", "Restablecer filtros")}
+              onClick={() => { setPage(0); setCitySearch(""); setUserSearch(""); loadReport({ from: "", to: "", city: "", userId: "" }); }}
+              className={commandClass + " hover:bg-[var(--gl-green-soft)]"}><RotateCcw size={17} /></button>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label={tr("Activity totals", "Totales de actividad")} className="grid grid-cols-2 gap-x-4 gap-y-3 bg-[var(--gl-paper)] px-4 py-3 sm:grid-cols-4">
+        <MetricCard label={tr("Units recycled", "Unidades recicladas")} value={String(report?.totals?.totalUnits ?? 0)} />
+        <MetricCard label={tr("Recycling events", "Eventos de reciclaje")} value={String(report?.totals?.totalEvents ?? 0)} />
+        <MetricCard label={tr("Unique users", "Usuarios únicos")} value={String(report?.totals?.uniqueConsumers ?? 0)} />
+        <MetricCard label={tr("EcoPoints issued", "EcoPoints emitidos")} value={String(report?.totals?.ecoPointsIssued ?? 0)} />
+      </section>
+
+      <div role="tablist" aria-label={tr("Activity views", "Vistas de actividad")} className="flex gap-1 border-b border-[var(--gl-hairline)]">
+        {panes.map((item, index) => (
+          <button key={item.id} type="button" role="tab" id={`activity-tab-${item.id}`} aria-controls={`activity-panel-${item.id}`}
+            aria-selected={pane === item.id} tabIndex={pane === item.id ? 0 : -1} onClick={() => setPane(item.id)}
+            onKeyDown={(event) => {
+              let next = index;
+              if (event.key === "ArrowRight") next = (index + 1) % panes.length;
+              else if (event.key === "ArrowLeft") next = (index + panes.length - 1) % panes.length;
+              else if (event.key === "Home") next = 0;
+              else if (event.key === "End") next = panes.length - 1;
+              else return;
+              event.preventDefault();
+              setPane(panes[next].id);
+              document.getElementById(`activity-tab-${panes[next].id}`)?.focus();
             }}
-            className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
-          >
-            Reset
+            className={"min-w-0 border-b-2 px-2 py-2.5 text-sm font-medium sm:px-3 " + (pane === item.id ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]" : "border-transparent text-[var(--gl-ink-muted)] hover:text-[var(--gl-ink)]")}>
+            {item.label}<span className="ml-1.5 hidden text-xs font-normal text-[var(--gl-ink-muted)] sm:inline">{item.count}</span>
           </button>
-          <button
-            type="button"
-            onClick={exportSelectedActivityCsv}
-            disabled={events.length === 0}
-            className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Export Selected CSV
-          </button>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Units Recycled" value={String(report?.totals?.totalUnits ?? 0)} />
-        <MetricCard label="Recycling Events" value={String(report?.totals?.totalEvents ?? 0)} />
-        <MetricCard label="Unique Users" value={String(report?.totals?.uniqueConsumers ?? 0)} />
-        <MetricCard label="EcoPoints Issued" value={String(report?.totals?.ecoPointsIssued ?? 0)} />
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
-        <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-[var(--gl-ink)]">Daily Recycling Totals</h2>
-          <div className="space-y-2">
-            {dailyTrend.length === 0 ? (
-              <p className="text-sm text-[var(--gl-ink-muted)]">No daily recycling activity for this filter.</p>
-            ) : (
-              dailyTrend.map((day) => (
-                <div key={day.date} className="flex items-center justify-between rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
-                  <span className="font-medium text-[var(--gl-ink)]">{day.date}</span>
-                  <span className="text-[var(--gl-ink-soft)]">{Number(day.units || 0)} units</span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-[var(--gl-ink)]">Top Locations</h2>
-          <div className="space-y-2">
-            {topCities.length === 0 ? (
-              <p className="text-sm text-[var(--gl-ink-muted)]">No location data for this filter.</p>
-            ) : (
-              topCities.map((location, index) => (
-                <div key={`${location.city}-${index}`} className="flex items-center justify-between rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink)]">{location.city || "Unknown city"}</p>
-                    <p className="text-xs text-[var(--gl-ink-muted)]">{Number(location.consumers || 0)} users</p>
-                  </div>
-                  <span className="text-[var(--gl-ink-soft)]">{Number(location.units || 0)} units</span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        ))}
       </div>
 
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">Recycling Events</h2>
-          <button
-            type="button"
-            onClick={exportSelectedActivityCsv}
-            disabled={events.length === 0}
-            className="inline-flex rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Export to CSV
-          </button>
+      <section role="tabpanel" id="activity-panel-events" aria-labelledby="activity-tab-events" hidden={pane !== "events"} tabIndex={0}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--gl-ink-muted)]">
+          <p aria-live="polite" title={tr("Returned rows", "Filas devueltas")}>{events.length ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, events.length)} / {events.length}<span className="sr-only sm:not-sr-only"> {tr("returned rows", "filas devueltas")}</span></p>
+          <div className="flex items-center gap-1">
+            <label className="flex items-center gap-2"><span className="sr-only sm:not-sr-only">{tr("Rows", "Filas")}</span>
+              <select aria-label={tr("Rows", "Filas")} className="rounded border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-2 py-1.5 text-sm" value={pageSize}
+                onChange={(event) => { setPageSize(Number(event.target.value)); changePage(0); }}>
+                {[25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+            <button type="button" disabled={currentPage === 0} title={tr("Previous page", "Página anterior")} aria-label={tr("Previous page", "Página anterior")} onClick={() => changePage(currentPage - 1)} className={commandClass}><ChevronLeft size={16} /></button>
+            <button type="button" disabled={currentPage + 1 >= pageCount} title={tr("Next page", "Página siguiente")} aria-label={tr("Next page", "Página siguiente")} onClick={() => changePage(currentPage + 1)} className={commandClass}><ChevronRight size={16} /></button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[1100px] w-full border-collapse text-left">
-            <thead className="bg-[var(--gl-card-cream)]">
-              <tr className="border-b border-[var(--gl-hairline)]">
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Date</th>
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">User</th>
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Location</th>
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Product</th>
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Barcode</th>
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Units</th>
-                <th className="px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">EcoPoints</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-[var(--gl-ink-muted)]">
-                    No recycling events found for the current filter.
-                  </td>
+        <div ref={listScroll} role="region" aria-label={tr("Recycling rows", "Filas de reciclaje")} tabIndex={0} className="max-h-[max(16rem,calc(100dvh-28rem))] overflow-auto bg-[var(--gl-paper)]">
+          {events.length === 0 ? <p className="p-4 text-sm text-[var(--gl-ink-muted)]">{tr("No recycling events found for the current filter.", "No hay eventos de reciclaje para estos filtros.")}</p> : <>
+            <table className="hidden w-full table-fixed border-collapse text-left text-sm xl:table">
+              <colgroup><col className="w-[17%]" /><col className="w-[23%]" /><col className="w-[17%]" /><col className="w-[25%]" /><col className="w-[8%]" /><col className="w-[10%]" /></colgroup>
+              <thead className="sticky top-0 bg-[var(--gl-card-cream)] text-xs text-[var(--gl-ink-muted)]">
+                <tr>{[tr("When", "Cuándo"), tr("User", "Usuario"), tr("City", "Ciudad"), tr("Product / barcode", "Producto / código"), tr("Units", "Unidades"), "EcoPoints"].map((label) => <th key={label} className="px-3 py-2.5 font-medium">{label}</th>)}</tr>
+              </thead>
+              <tbody>{visibleEvents.map((event, index) => (
+                <tr key={`${event.event_id}-${index}`} className="border-b border-[var(--gl-hairline)] hover:bg-[var(--gl-card-cream)]">
+                  <td className={cellClass}>{formatDateTime(event.created_at)}</td>
+                  <td className={cellClass}><p className="font-medium">{event.display_name || tr("Unknown user", "Usuario desconocido")}</p><p className="mt-0.5 text-xs text-[var(--gl-ink-muted)]">{event.email || event.user_id || "—"}</p></td>
+                  <td className={cellClass}>{event.city || tr("Unknown city", "Ciudad desconocida")}</td>
+                  <td className={cellClass}>{event.product_name || tr("Unknown product", "Producto desconocido")}<p className="mt-0.5 text-xs text-[var(--gl-ink-muted)]">{event.barcode || "—"}</p></td>
+                  <td className={cellClass + " tabular-nums"}>{Number(event.units || 0)}</td>
+                  <td className={cellClass + " font-medium tabular-nums text-[var(--gl-green)]"}>{Number(event.points_issued || 0)}</td>
                 </tr>
-              ) : (
-                events.map((event, index) => (
-                  <tr key={`${event.event_id}-${index}`} className="border-b border-[var(--gl-hairline)]">
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{formatDateTime(event.created_at)}</td>
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">
-                      <div>
-                        <p className="font-medium text-[var(--gl-ink)]">{event.display_name || "Unknown user"}</p>
-                        <p className="text-xs text-[var(--gl-ink-muted)]">{event.email || event.user_id || "—"}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.city || "Unknown city"}</td>
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.product_name || "Unknown product"}</td>
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{event.barcode || "—"}</td>
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{Number(event.units || 0)}</td>
-                    <td className="px-4 py-2.5 text-sm font-medium text-[var(--gl-green)]">{Number(event.points_issued || 0)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              ))}</tbody>
+            </table>
+            <div className="divide-y divide-[var(--gl-hairline)] xl:hidden">
+              {visibleEvents.map((event, index) => (
+                <article key={`${event.event_id}-${index}`} className="space-y-2 px-3 py-3 text-sm [overflow-wrap:anywhere]">
+                  <div className="flex items-start justify-between gap-3"><p className="min-w-0 font-medium">{event.product_name || tr("Unknown product", "Producto desconocido")}</p><p className="shrink-0 tabular-nums">{Number(event.units || 0)} {tr("units", "unidades")}</p></div>
+                  <p className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(event.created_at)} · {event.city || tr("Unknown city", "Ciudad desconocida")}</p>
+                  <div className="flex items-start justify-between gap-3"><p className="min-w-0">{event.display_name || tr("Unknown user", "Usuario desconocido")}</p><p className="shrink-0 text-xs font-medium text-[var(--gl-green)]">{Number(event.points_issued || 0)} EcoPoints</p></div>
+                  <details className="text-xs text-[var(--gl-ink-muted)]"><summary className="w-fit cursor-pointer py-1">{tr("Details", "Detalles")}</summary>
+                    <dl className="mt-1 space-y-1"><div><dt className="inline">{tr("Email / user ID", "Correo / ID de usuario")}: </dt><dd className="inline">{event.email || event.user_id || "—"}</dd></div>
+                      <div><dt className="inline">{tr("Barcode", "Código de barras")}: </dt><dd className="inline">{event.barcode || "—"}</dd></div></dl>
+                  </details>
+                </article>
+              ))}
+            </div>
+          </>}
         </div>
+      </section>
+
+      <section role="tabpanel" id="activity-panel-daily" aria-labelledby="activity-tab-daily" hidden={pane !== "daily"} tabIndex={0} className="max-h-[max(16rem,calc(100dvh-26rem))] overflow-auto bg-[var(--gl-paper)]">
+        {dailyTrend.length === 0 ? <p className="p-4 text-sm text-[var(--gl-ink-muted)]">{tr("No daily recycling activity for this filter.", "No hay actividad diaria para estos filtros.")}</p> :
+          <table className="w-full text-left text-sm"><thead className="sticky top-0 bg-[var(--gl-card-cream)] text-xs text-[var(--gl-ink-muted)]"><tr><th className="px-4 py-2.5 font-medium">{tr("Date", "Fecha")}</th><th className="px-4 py-2.5 text-right font-medium">{tr("Units recycled", "Unidades recicladas")}</th></tr></thead>
+            <tbody>{dailyTrend.map((day) => <tr key={day.date} className="border-b border-[var(--gl-hairline)]"><td className="px-4 py-3">{day.date}</td><td className="px-4 py-3 text-right tabular-nums">{Number(day.units || 0)}</td></tr>)}</tbody></table>}
+      </section>
+
+      <section role="tabpanel" id="activity-panel-locations" aria-labelledby="activity-tab-locations" hidden={pane !== "locations"} tabIndex={0} className="max-h-[max(16rem,calc(100dvh-26rem))] overflow-auto bg-[var(--gl-paper)]">
+        {topCities.length === 0 ? <p className="p-4 text-sm text-[var(--gl-ink-muted)]">{tr("No location data for this filter.", "No hay ubicaciones para estos filtros.")}</p> :
+          <table className="w-full table-fixed text-left text-sm"><thead className="sticky top-0 bg-[var(--gl-card-cream)] text-xs text-[var(--gl-ink-muted)]"><tr><th className="w-1/2 px-4 py-2.5 font-medium">{tr("City", "Ciudad")}</th><th className="px-4 py-2.5 text-right font-medium">{tr("Users", "Usuarios")}</th><th className="px-4 py-2.5 text-right font-medium">{tr("Units", "Unidades")}</th></tr></thead>
+            <tbody>{topCities.map((location, index) => <tr key={`${location.city}-${index}`} className="border-b border-[var(--gl-hairline)]"><td className="px-4 py-3 [overflow-wrap:anywhere]">{location.city || tr("Unknown city", "Ciudad desconocida")}</td><td className="px-4 py-3 text-right tabular-nums">{Number(location.consumers || 0)}</td><td className="px-4 py-3 text-right tabular-nums">{Number(location.units || 0)}</td></tr>)}</tbody></table>}
       </section>
     </div>
   );
@@ -464,9 +412,9 @@ export default function AdminActivityPage() {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-1 text-3xl font-semibold text-[var(--gl-ink)]">{value}</p>
+    <div className="min-w-0">
+      <p className="text-xs text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 break-words text-2xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }

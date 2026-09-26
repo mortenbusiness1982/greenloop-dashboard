@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run test:design-contract && next build",
+    "test:design-contract": "node --test test/designContract.test.mjs",
+    "release:check": "node scripts/check-release.mjs && npm run build",
     "start": "next start",
     "lint": "eslint"
   },

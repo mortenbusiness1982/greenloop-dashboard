@@ -1,7 +1,11 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import styles from "@/components/crm/Workspace.module.css";
+import { WorkspaceTabs } from "@/components/crm/WorkspaceTabs";
 import { useRouter } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, apiFetchBlob } from "@/lib/api";
@@ -601,12 +605,12 @@ export function BrandCrmWorkspace({ kind }: { kind: BrandWorkspaceKind }) {
   const description = descriptionForKind(kind, brandName, language);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className={`${styles.root} space-y-4`}>
+      <WorkspaceHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">{copy.brandCrm}</p>
-          <h1 className="mt-2 text-3xl font-bold text-[var(--gl-ink)]">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{description}</p>
+          <p className="sr-only">{copy.brandCrm}</p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{title}</h1>
+          <p className="sr-only">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/brand/products" className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
@@ -616,10 +620,14 @@ export function BrandCrmWorkspace({ kind }: { kind: BrandWorkspaceKind }) {
             {copy.exports}
           </Link>
         </div>
-      </div>
+      </WorkspaceHeader>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 
+      {['reports','recycling','campaigns','behavior','geo','exports'].includes(kind) ? <nav aria-label={language==='es'?'Informes de marca':'Brand reports'} className="flex overflow-x-auto border-b border-[var(--gl-hairline)]">
+        <Link href="/brand/reports" aria-current={kind==='reports'?'page':undefined} className={`shrink-0 border-b-2 px-3 py-2 text-sm ${kind==='reports'?'border-[var(--gl-green)] text-[var(--gl-green)]':'border-transparent'}`}>{language==='es'?'Resumen':'Overview'}</Link>
+        {copy.reports.map(report => <Link key={report.href} href={report.href} aria-current={report.href.endsWith('/'+kind)?'page':undefined} className={`shrink-0 border-b-2 px-3 py-2 text-sm ${report.href.endsWith('/'+kind)?'border-[var(--gl-green)] text-[var(--gl-green)]':'border-transparent text-[var(--gl-ink-muted)]'}`}>{report.title}</Link>)}
+      </nav> : null}
       {kind === "settings" ? <SettingsPanel brand={data.meta} loading={loading} copy={copy} /> : null}
 
       {kind !== "settings" ? (
@@ -648,7 +656,7 @@ export function BrandCrmWorkspace({ kind }: { kind: BrandWorkspaceKind }) {
       ) : null}
 
       {kind !== "settings" && kind !== "overview" && kind !== "exports" ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={styles.metrics}>
           <Kpi label={copy.kpis.verifiedUnits} value={derived.totalUnits} loading={loading} language={language} />
           <Kpi label={copy.kpis.engagedConsumers} value={derived.uniqueUsers} loading={loading} language={language} />
           <Kpi label={copy.kpis.ecoPointsIssued} value={derived.totalPoints} loading={loading} language={language} />
@@ -663,15 +671,17 @@ export function BrandCrmWorkspace({ kind }: { kind: BrandWorkspaceKind }) {
       {kind === "reports" ? <ReportHub copy={copy} /> : null}
       {kind === "recycling" ? <ActivityTable events={languageAwareEvents} loading={loading} language={language} copy={copy} /> : null}
       {kind === "campaigns" || kind === "challenges" ? (
-        <div className="space-y-5">
-          {kind === "challenges" ? <SponsoredChallengeManager products={data.products} /> : null}
-          <CampaignChart campaigns={data.campaigns} copy={copy} />
-          <CampaignTable campaigns={data.campaigns} loading={loading} language={language} copy={copy} />
+        <div className={`${styles.root} space-y-4`}>
+          <WorkspaceTabs label={title} tabs={[
+            ...(kind === "challenges" ? [{ id: "manage", label: language === "es" ? "Gestionar" : "Manage", content: <SponsoredChallengeManager products={data.products} /> }] : []),
+            { id: "performance", label: copy.campaigns.performance, content: <CampaignTable campaigns={data.campaigns} loading={loading} language={language} copy={copy} /> },
+            { id: "chart", label: language === "es" ? "Gráfico" : "Chart", content: <CampaignChart campaigns={data.campaigns} copy={copy} /> },
+          ]} />
         </div>
       ) : null}
       {kind === "behavior" ? <BehaviorPanel behavior={data.behavior} derived={derived} loading={loading} language={language} copy={copy} /> : null}
       {kind === "geo" ? (
-        <div className="space-y-5">
+        <div className={`${styles.root} space-y-4`}>
           <CityChart cities={derived.topCities} copy={copy} />
           <CityTable cities={derived.topCities} loading={loading} language={language} copy={copy} />
         </div>
@@ -685,7 +695,7 @@ export function BrandCrmWorkspace({ kind }: { kind: BrandWorkspaceKind }) {
         />
       ) : null}
       {kind === "rewards" ? (
-        <div className="space-y-5">
+        <div className={`${styles.root} space-y-4`}>
           <RewardsPanel reports={data.reports} loading={loading} language={language} copy={copy} />
           <RewardsChart reports={data.reports} copy={copy} />
         </div>
@@ -722,16 +732,16 @@ function Filters({
   copy: BrandCopy;
 }) {
   return (
-    <section className="grid gap-3 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:grid-cols-3">
-      <label className="text-sm font-medium text-[var(--gl-ink-soft)]">
+    <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <label className="min-w-0 text-xs font-medium text-[var(--gl-ink-soft)]">
         {copy.filters.from}
         <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
       </label>
-      <label className="text-sm font-medium text-[var(--gl-ink-soft)]">
+      <label className="min-w-0 text-xs font-medium text-[var(--gl-ink-soft)]">
         {copy.filters.to}
         <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
       </label>
-      <label className="text-sm font-medium text-[var(--gl-ink-soft)]">
+      <label className="min-w-0 text-xs font-medium text-[var(--gl-ink-soft)]">
         {copy.filters.city}
         <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
           {cities.map((city) => <option key={city} value={city}>{city === "all" ? copy.filters.allCities : city}</option>)}
@@ -743,7 +753,7 @@ function Filters({
 
 function Kpi({ label, value, loading, language = "en" }: { label: string; value: number; loading: boolean; language?: DashboardLanguage }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+    <div className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</div>
       <div className="mt-2 text-2xl font-bold tabular-nums text-[var(--gl-ink)]">{loading ? "-" : formatNumber(value, 0, language)}</div>
     </div>
@@ -752,13 +762,13 @@ function Kpi({ label, value, loading, language = "en" }: { label: string; value:
 
 function ActivityTable({ events, loading, language, copy }: { events: EventItem[]; loading: boolean; language: DashboardLanguage; copy: BrandCopy }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
+    <section className="min-w-0">
       <div className="border-b border-[var(--gl-hairline)] p-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.activity.title}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.activity.title}</h2>
         <p className="text-sm text-[var(--gl-ink-muted)]">{copy.activity.subtitle}</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[860px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               <th className="px-4 py-2.5">{copy.activity.date}</th>
@@ -781,8 +791,8 @@ function ActivityTable({ events, loading, language, copy }: { events: EventItem[
                   <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{formatDate(event.recycled_at, language)}</td>
                   <td className="px-4 py-2.5 font-medium text-[var(--gl-ink)]">{event.product_name}</td>
                   <td className="px-4 py-2.5 text-[var(--gl-ink-muted)]">{event.barcode}</td>
-                  <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.units}</td>
-                  <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.points}</td>
+                  <td data-label={copy.activity.units} className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.units}</td>
+                  <td data-label={copy.activity.points} className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.points}</td>
                   <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.city || "-"}</td>
                   <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{event.scan_status || "-"}</td>
                 </tr>
@@ -837,16 +847,16 @@ function BrandOverview({
   }, [filteredEvents]);
 
   return (
-    <div className="space-y-5">
+    <div className={`${styles.root} space-y-4`}>
       <section
-        className="overflow-hidden rounded-2xl border border-[var(--gl-hairline)] text-white shadow-sm"
-        style={{ background: "linear-gradient(135deg, var(--gl-green-deep), var(--gl-green-forest))" }}
+        className="min-w-0 border-y border-[var(--gl-hairline)] text-[var(--gl-ink)]"
+        style={{ background: "var(--gl-paper)" }}
       >
-        <div className="flex flex-col gap-6 p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3 p-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">{copy.overview.brandImpact}</p>
-            <h2 className="mt-2 break-words text-3xl font-bold leading-tight md:text-4xl">{brandName}</h2>
-            <p className="mt-2 max-w-md text-sm text-white/70">{copy.overview.performance}</p>
+            <p className="sr-only">{copy.overview.brandImpact}</p>
+            <h2 className="break-words text-xl font-semibold">{brandName}</h2>
+            <p className="sr-only">{copy.overview.performance}</p>
           </div>
           <div className="grid grid-cols-3 gap-5 sm:gap-6">
             <HeroStat label={copy.overview.verifiedUnits} value={loading ? "-" : formatNumber(derived.totalUnits, 0, language)} />
@@ -856,7 +866,7 @@ function BrandOverview({
         </div>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className={styles.metrics}>
         <Kpi label={copy.kpis.repeatUsers} value={derived.repeatUsers} loading={loading} language={language} />
         <Kpi label={copy.kpis.products} value={data.products.length} loading={loading} language={language} />
         <Kpi label={copy.kpis.verifiedProducts} value={derived.verifiedProducts} loading={loading} language={language} />
@@ -864,7 +874,8 @@ function BrandOverview({
         <Kpi label={copy.kpis.activeRewards} value={data.reports?.totals?.activeTokens || 0} loading={loading} language={language} />
       </div>
 
-      <ChartCard title={copy.overview.recyclingVolume} subtitle={copy.overview.verifiedUnitsPerDay}>
+      <WorkspaceTabs label={copy.overview.brandImpact} tabs={[
+        { id: "trend", label: copy.overview.recyclingVolume, content: (<ChartCard title={copy.overview.recyclingVolume} subtitle={copy.overview.verifiedUnitsPerDay}>
         {loading ? (
           <EmptyChart message={copy.activity.loading} />
         ) : dailyTrend.length === 0 ? (
@@ -890,9 +901,8 @@ function BrandOverview({
             </AreaChart>
           </ResponsiveContainer>
         )}
-      </ChartCard>
-
-      <div className="grid gap-6 xl:grid-cols-2">
+      </ChartCard>) },
+        { id: "ranking", label: language === "es" ? "Productos y ciudades" : "Products & cities", content: (<div className="grid gap-6 xl:grid-cols-2">
         <ChartCard title={copy.overview.topProducts} subtitle={copy.overview.verifiedUnits}>
           {derived.topProducts.length === 0 ? (
             <EmptyChart message={copy.overview.noProductActivity} />
@@ -930,12 +940,12 @@ function BrandOverview({
             </ResponsiveContainer>
           )}
         </ChartCard>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      </div>) },
+        { id: "activity", label: copy.activity.title, content: (<div className="grid min-w-0 gap-4">
         <ActivityTable events={filteredEvents.slice(0, 8)} loading={loading} language={language} copy={copy} />
         <BehaviorSnapshot derived={derived} campaigns={data.campaigns} behavior={data.behavior} language={language} copy={copy} />
-      </div>
+      </div>) },
+      ]} />
     </div>
   );
 }
@@ -943,17 +953,17 @@ function BrandOverview({
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-2xl font-bold tabular-nums md:text-3xl">{value}</div>
-      <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-white/60">{label}</div>
+      <div className="text-xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 text-xs text-[var(--gl-ink-muted)]">{label}</div>
     </div>
   );
 }
 
 function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
         {subtitle ? <p className="text-sm text-[var(--gl-ink-muted)]">{subtitle}</p> : null}
       </div>
       {children}
@@ -983,8 +993,8 @@ function BehaviorSnapshot({
   copy: BrandCopy;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.overview.behaviorSnapshot}</h2>
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.overview.behaviorSnapshot}</h2>
       <div className="mt-4 space-y-2 text-sm">
         <div className="flex justify-between"><span className="text-[var(--gl-ink-muted)]">{copy.overview.avgEventsUser}</span><strong className="text-[var(--gl-ink)]">{formatNumber(derived.avgEventsPerUser, 1, language)}</strong></div>
         <div className="flex justify-between"><span className="text-[var(--gl-ink-muted)]">{copy.kpis.redeemers}</span><strong className="text-[var(--gl-ink)]">{formatNumber(behavior?.redeemerCount, 0, language)}</strong></div>
@@ -1003,7 +1013,7 @@ function ReportHub({ copy }: { copy: BrandCopy }) {
           <Link
             key={report.href}
             href={report.href}
-            className="group flex flex-col rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm transition hover:border-[var(--gl-green)] hover:shadow-md"
+            className="group flex flex-col rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3 transition hover:border-[var(--gl-green)]"
           >
             <div className="flex items-start justify-between">
               <span className="grid h-10 w-10 place-items-center rounded-lg bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]">
@@ -1011,7 +1021,7 @@ function ReportHub({ copy }: { copy: BrandCopy }) {
               </span>
               <ArrowRight className="h-4 w-4 text-[var(--gl-ink-faint)] transition group-hover:translate-x-0.5 group-hover:text-[var(--gl-green)]" />
             </div>
-            <h2 className="mt-4 text-lg font-semibold text-[var(--gl-ink)]">{report.title}</h2>
+            <h2 className="mt-2 text-base font-semibold text-[var(--gl-ink)]">{report.title}</h2>
             <p className="mt-1 text-sm leading-6 text-[var(--gl-ink-muted)]">{report.description}</p>
           </Link>
         );
@@ -1052,12 +1062,12 @@ function CampaignChart({ campaigns, copy }: { campaigns: Campaign[]; copy: Brand
 
 function CampaignTable({ campaigns, loading, language, copy }: { campaigns: Campaign[]; loading: boolean; language: DashboardLanguage; copy: BrandCopy }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
+    <section className="min-w-0">
       <div className="border-b border-[var(--gl-hairline)] p-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.campaigns.performance}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.campaigns.performance}</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               <th className="px-4 py-2.5">{copy.campaigns.campaign}</th>
@@ -1076,10 +1086,10 @@ function CampaignTable({ campaigns, loading, language, copy }: { campaigns: Camp
             ) : campaigns.map((campaign) => (
               <tr key={campaign.challengeId} className="border-t border-[var(--gl-hairline)]">
                 <td className="px-4 py-2.5 font-medium text-[var(--gl-ink)]">{campaign.title}</td>
-                <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{campaign.participants}</td>
-                <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{campaign.completed}</td>
-                <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{formatPercent(campaign.completionRate, language)}</td>
-                <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{formatNumber(campaign.bonusPointsIssued, 0, language)}</td>
+                <td data-label={copy.campaigns.participants} className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{campaign.participants}</td>
+                <td data-label={copy.campaigns.completed} className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{campaign.completed}</td>
+                <td data-label={copy.campaigns.completion} className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{formatPercent(campaign.completionRate, language)}</td>
+                <td data-label={copy.campaigns.bonusPoints} className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{formatNumber(campaign.bonusPointsIssued, 0, language)}</td>
                 <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{formatDate(campaign.startsAt, language)} - {formatDate(campaign.endsAt, language)}</td>
               </tr>
             ))}
@@ -1110,7 +1120,7 @@ function BehaviorPanel({
       <Kpi label={copy.kpis.uniqueRecyclers} value={derived.uniqueUsers} loading={loading} language={language} />
       <LiftChart behavior={behavior} copy={copy} />
       <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:col-span-2 xl:col-span-3">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.behavior.brandLift}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.behavior.brandLift}</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <Metric label={copy.behavior.redeemerShare} value={formatPercent(behavior?.brandShareRedeemers, language)} />
           <Metric label={copy.behavior.nonRedeemerShare} value={formatPercent(behavior?.brandShareNonRedeemers, language)} />
@@ -1124,9 +1134,9 @@ function BehaviorPanel({
 
 function CityTable({ cities, loading, language, copy }: { cities: { name: string; units: number; consumers: number }[]; loading: boolean; language: DashboardLanguage; copy: BrandCopy }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
+    <section className="min-w-0">
       <div className="border-b border-[var(--gl-hairline)] p-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.geo.cityPerformance}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.geo.cityPerformance}</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[560px] w-full text-left text-sm">
@@ -1152,7 +1162,7 @@ function MapPanel({ events, loading, copy }: { events: EventItem[]; loading: boo
   return (
     <section className="overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
       <div className="border-b border-[var(--gl-hairline)] p-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.maps.title}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.maps.title}</h2>
         <p className="text-sm text-[var(--gl-ink-muted)]">{loading ? copy.maps.loading : copy.maps.mappedEvents(events.filter((event) => typeof event.lat === "number" && typeof event.lng === "number").length)}</p>
       </div>
       <div className="h-[640px]">
@@ -1214,8 +1224,8 @@ function RewardsPanel({ reports, loading, language, copy }: { reports: ReportsRe
 
 function SettingsPanel({ brand, loading, copy }: { brand: BrandMeta | null; loading: boolean; copy: BrandCopy }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.settings.brandProfile}</h2>
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.settings.brandProfile}</h2>
       {loading ? <p className="mt-4 text-sm text-[var(--gl-ink-muted)]">{copy.settings.loading}</p> : (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <Metric label={copy.settings.brandName} value={brand?.name || "-"} />
@@ -1232,7 +1242,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</div>
-      <div className="mt-2 break-words text-lg font-semibold text-[var(--gl-ink)]">{value}</div>
+      <div className="mt-2 break-words text-base font-semibold text-[var(--gl-ink)]">{value}</div>
     </div>
   );
 }
@@ -1266,7 +1276,7 @@ function LiftChart({ behavior, copy }: { behavior: BehaviorResponse | null; copy
 
   return (
     <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:col-span-2 xl:col-span-3">
-      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.behavior.shareComparison}</h2>
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.behavior.shareComparison}</h2>
       <p className="text-sm text-[var(--gl-ink-muted)]">{copy.behavior.shareDescription}</p>
       <div className="mt-4">
         {redeemerShare === 0 && nonRedeemerShare === 0 ? (

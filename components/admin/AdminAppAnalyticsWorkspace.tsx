@@ -1,7 +1,11 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import styles from "@/components/crm/Workspace.module.css";
+import { WorkspaceTabs } from "@/components/crm/WorkspaceTabs";
 import { useRouter } from "next/navigation";
 import { Activity, AlertTriangle, BarChart3, GitBranch, HeartPulse, Route, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -364,12 +368,12 @@ export function AdminAppAnalyticsWorkspace() {
   );
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className={`${styles.root} space-y-4`}>
+      <WorkspaceHeader className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">{copy.eyebrow}</p>
-          <h1 className="mt-2 text-3xl font-bold text-[var(--gl-ink)]">{copy.title}</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">
+          <p className="sr-only">{copy.eyebrow}</p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{copy.title}</h1>
+          <p className="sr-only">
             {copy.description}
           </p>
         </div>
@@ -378,13 +382,13 @@ export function AdminAppAnalyticsWorkspace() {
             {copy.reportsHub}
           </Link>
         </div>
-      </header>
+      </WorkspaceHeader>
 
       {error ? <div role="alert" className="rounded-lg border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] p-4 text-sm text-[var(--gl-coral-ink)]">{error}</div> : null}
 
       <FiltersPanel filters={filters} setFilters={setFilters} options={options} copy={copy} />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className={styles.metrics}>
         <Kpi icon={Activity} label={copy.kpis.totalEvents} value={loading ? "-" : formatNumber(totals?.totalEvents, 0, language)} />
         <Kpi icon={BarChart3} label={copy.kpis.trackedUsers} value={loading ? "-" : formatNumber(totals?.trackedUsers, 0, language)} />
         <Kpi icon={Route} label={copy.kpis.trackedSessions} value={loading ? "-" : formatNumber(totals?.trackedSessions, 0, language)} />
@@ -392,18 +396,21 @@ export function AdminAppAnalyticsWorkspace() {
         <Kpi icon={HeartPulse} label={copy.kpis.avgSessionDuration} value={loading ? "-" : formatDuration(totals?.averageSessionDurationMs, copy, language)} />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
+      <WorkspaceTabs label={copy.title} tabs={[
+        { id: "health", label: language === "es" ? "Calidad" : "Health", content: (<>      <section className="grid min-w-0 gap-4 xl:grid-cols-2">
         <HealthCard health={health} loading={loading} copy={copy} language={language} />
         <PrivacyCard privacy={data?.privacy} frictionTotal={frictionTotal} copy={copy} language={language} />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
+</>) },
+        { id: "funnels", label: language === "es" ? "Embudos" : "Funnels", content: (<>      <section className="grid gap-6 xl:grid-cols-3">
         <FunnelCard title={copy.funnels.recycling} data={data?.funnels.recycling} loading={loading} copy={copy} language={language} />
         <FunnelCard title={copy.funnels.rewards} data={data?.funnels.rewards} loading={loading} copy={copy} language={language} />
         <FunnelCard title={copy.funnels.challenges} data={data?.funnels.challenges} loading={loading} copy={copy} language={language} />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
+</>) },
+        { id: "movement", label: language === "es" ? "Navegación" : "Navigation", content: (<>      <section className="grid gap-6 xl:grid-cols-2">
         <SimpleTable
           title={copy.tables.dailyTrackedUsers}
           headers={[copy.tables.headers.day, copy.tables.headers.events, copy.tables.headers.users, copy.tables.headers.sessions]}
@@ -478,7 +485,8 @@ export function AdminAppAnalyticsWorkspace() {
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
+</>) },
+        { id: "friction", label: language === "es" ? "Fricción" : "Friction", content: (<>      <section className="grid min-w-0 gap-4">
         <SimpleTable
           title={copy.tables.frictionByScreen}
           headers={[copy.tables.headers.event, copy.tables.headers.screen, copy.tables.headers.platform, copy.tables.headers.locale, copy.tables.headers.version, copy.tables.headers.events, copy.tables.headers.users]}
@@ -495,13 +503,15 @@ export function AdminAppAnalyticsWorkspace() {
         />
       </section>
 
-      <SimpleTable
+</>) },
+        { id: "outcomes", label: language === "es" ? "Resultados" : "Outcomes", content: (<>      <SimpleTable
         title={copy.tables.behaviorOutcomes}
         headers={[copy.tables.headers.outcome, copy.tables.headers.viewedUsers, copy.tables.headers.outcomeUsers, copy.tables.headers.overlapUsers, copy.tables.headers.overlapConversion]}
         loading={loading}
         rows={(data?.outcomes ?? []).map((row) => [humanize(row.outcome), row.viewedUsers, row.outcomeUsers, row.overlapUsers, formatPercent(row.conversionRate, language)])}
         copy={copy}
-      />
+      /></>) },
+      ]} />
     </div>
   );
 }
@@ -518,8 +528,8 @@ function FiltersPanel({
   copy: AppAnalyticsCopy;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+    <section className="min-w-0 py-2">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <FilterInput label={copy.filters.from} type="date" value={filters.from} onChange={(value) => setFilters((current) => ({ ...current, from: value }))} />
         <FilterInput label={copy.filters.to} type="date" value={filters.to} onChange={(value) => setFilters((current) => ({ ...current, to: value }))} />
         <FilterSelect label={copy.filters.platform} value={filters.platform} options={options.platforms} allLabel={copy.filters.all} onChange={(value) => setFilters((current) => ({ ...current, platform: value }))} />
@@ -534,7 +544,7 @@ function FiltersPanel({
 
 function FilterInput({ label, type, value, onChange }: { label: string; type: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="block text-sm font-medium text-[var(--gl-ink-soft)]">
+    <label className="block min-w-0 text-xs font-medium text-[var(--gl-ink-soft)]">
       {label}
       <input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]" />
     </label>
@@ -543,7 +553,7 @@ function FilterInput({ label, type, value, onChange }: { label: string; type: st
 
 function FilterSelect({ label, value, options, allLabel, onChange }: { label: string; value: string; options: string[]; allLabel: string; onChange: (value: string) => void }) {
   return (
-    <label className="block text-sm font-medium text-[var(--gl-ink-soft)]">
+    <label className="block min-w-0 text-xs font-medium text-[var(--gl-ink-soft)]">
       {label}
       <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
         <option value="">{allLabel}</option>
@@ -555,7 +565,7 @@ function FilterSelect({ label, value, options, allLabel, onChange }: { label: st
 
 function Kpi({ icon: Icon, label, value }: { icon: typeof Activity; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+    <div className="min-w-0 py-2">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
         <Icon className="h-4 w-4 text-[var(--gl-green)]" />
         {label}
@@ -567,10 +577,10 @@ function Kpi({ icon: Icon, label, value }: { icon: typeof Activity; label: strin
 
 function HealthCard({ health, loading, copy, language }: { health?: AppAnalyticsResponse["health"]; loading: boolean; copy: AppAnalyticsCopy; language: DashboardLanguage }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-5 w-5 text-[var(--gl-green)]" />
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.health.title}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.health.title}</h2>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Metric label={copy.health.latestEvent} value={loading ? "-" : formatDate(health?.latestAppEventAt, language)} />
@@ -586,10 +596,10 @@ function HealthCard({ health, loading, copy, language }: { health?: AppAnalytics
 
 function PrivacyCard({ privacy, frictionTotal, copy, language }: { privacy?: AppAnalyticsResponse["privacy"]; frictionTotal: number; copy: AppAnalyticsCopy; language: DashboardLanguage }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
       <div className="flex items-center gap-2">
         <AlertTriangle className="h-5 w-5 text-[var(--gl-amber)]" />
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.safety.title}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{copy.safety.title}</h2>
       </div>
       <div className="mt-4 space-y-3">
         <Metric label={copy.safety.frictionEvents} value={formatNumber(frictionTotal, 0, language)} />
@@ -603,7 +613,7 @@ function PrivacyCard({ privacy, frictionTotal, copy, language }: { privacy?: App
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3">
+    <div className="min-w-0 py-2">
       <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</div>
       <div className="mt-1 break-words text-sm font-semibold text-[var(--gl-ink)]">{value}</div>
     </div>
@@ -613,8 +623,8 @@ function Metric({ label, value }: { label: string; value: string }) {
 function FunnelCard({ title, data, loading, copy, language }: { title: string; data?: AppAnalyticsResponse["funnels"]["recycling"]; loading: boolean; copy: AppAnalyticsCopy; language: DashboardLanguage }) {
   const maxUsers = Math.max(...(data?.steps ?? []).map((step) => Number(step.users || 0)), 1);
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+    <section className="min-w-0 border-t border-[var(--gl-hairline)] py-3">
+      <h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
       {data?.largestDropOff ? (
         <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
           {copy.funnels.largestDropOff}: {humanize(data.largestDropOff.from)} → {humanize(data.largestDropOff.to)} ({formatNumber(data.largestDropOff.users, 0, language)} {copy.funnels.users})
@@ -655,12 +665,12 @@ function SimpleTable({
   copy: AppAnalyticsCopy;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
+    <section className="min-w-0">
       <div className="border-b border-[var(--gl-hairline)] p-4">
-        <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+        <h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[620px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>{headers.map((header) => <th key={header} className="px-4 py-3">{header}</th>)}</tr>
           </thead>
@@ -671,7 +681,7 @@ function SimpleTable({
               <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.tables.empty}</td></tr>
             ) : rows.slice(0, 200).map((row, index) => (
               <tr key={index} className="border-t border-[var(--gl-hairline)] hover:bg-[var(--gl-card-cream)]">
-                {row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} className="px-4 py-3 text-[var(--gl-ink-soft)]">{String(cell ?? "-")}</td>)}
+                {row.map((cell, cellIndex) => <td key={`${index}-${cellIndex}`} data-label={headers[cellIndex]} className="px-4 py-3 text-[var(--gl-ink-soft)]">{String(cell ?? "-")}</td>)}
               </tr>
             ))}
           </tbody>

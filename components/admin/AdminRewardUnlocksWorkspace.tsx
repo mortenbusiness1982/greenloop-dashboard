@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -179,6 +182,34 @@ export function AdminRewardUnlocksWorkspace() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const selected = unlocks.find((unlock) => unlock.id === selectedId);
+  const pages = Math.max(1, Math.ceil(unlocks.length / 25));
+  const currentPage = Math.min(page, pages);
+  const visibleUnlocks = unlocks.slice((currentPage - 1) * 25, currentPage * 25);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listPageScroll = useRef(0);
+  useEffect(() => {
+    if (selectedId) {
+      window.scrollTo({ top: 0 });
+      titleRef.current?.focus({ preventScroll: true });
+    }
+  }, [selectedId]);
+  function backToList() {
+    setSelectedId(null);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: listPageScroll.current });
+      document.getElementById(`unlock-row-${selectedId}`)?.focus({ preventScroll: true });
+    });
+  }
+  function turnPage(next: number) {
+    setPage(next);
+    listRef.current?.scrollTo({ top: 0 });
+    listRef.current?.focus({ preventScroll: true });
+  }
 
   const loadUnlocks = useCallback(async () => {
     const token = getToken();
@@ -286,24 +317,13 @@ export function AdminRewardUnlocksWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green)]">{copy.eyebrow}</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)]">{copy.title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
-            {copy.description}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/rewards" className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">
-            {copy.rewardEngine}
-          </Link>
-          <button onClick={exportCsv} className="rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)]">
-            {copy.exportCsv}
-          </button>
-        </div>
-      </div>
+    <div className="min-w-0 space-y-4">
+      <WorkspaceHeader className="flex items-center justify-between gap-3">
+        <h1 ref={titleRef} tabIndex={-1} className="min-w-0 text-2xl font-semibold text-[var(--gl-ink)] outline-none">{copy.title}</h1>
+        {!selected ? <button type="button" onClick={exportCsv} disabled={loading || !unlocks.length} aria-label={copy.exportCsv} title={copy.exportCsv} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--gl-green)] px-3 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)] disabled:opacity-60">
+          <Download aria-hidden="true" className="h-4 w-4" /><span className="hidden sm:inline">{copy.exportCsv}</span>
+        </button> : null}
+      </WorkspaceHeader>
 
       {error ? (
         <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">
@@ -311,7 +331,8 @@ export function AdminRewardUnlocksWorkspace() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div hidden={Boolean(selected)} className="space-y-4">
+      <div className="grid grid-cols-3 bg-[var(--gl-paper)] sm:grid-cols-5">
         <Kpi label={copy.kpis.loaded} value={totals.total} />
         <Kpi label={copy.kpis.active} value={totals.active} />
         <Kpi label={copy.kpis.used} value={totals.used} />
@@ -319,20 +340,20 @@ export function AdminRewardUnlocksWorkspace() {
         <Kpi label={copy.kpis.clicks} value={totals.clicks} />
       </div>
 
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{copy.table.title}</h2>
-            <p className="text-sm text-[var(--gl-ink-muted)]">{copy.table.description}</p>
-          </div>
+      <nav aria-label={tr("Reward workspace", "Área de recompensas")} className="flex gap-4 border-b border-[var(--gl-hairline)] text-sm">
+        <Link href="/admin/rewards" className="px-2 py-3 text-[var(--gl-ink-muted)] hover:text-[var(--gl-green)]">{tr("All rewards", "Todas las recompensas")}</Link>
+        <span aria-current="page" className="border-b-2 border-[var(--gl-green)] px-2 py-3 font-medium">{tr("Unlock history", "Historial de desbloqueos")}</span>
+      </nav>
+      <section aria-label={copy.table.title} className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => { setSearch(event.target.value); setPage(1); setSelectedId(null); }}
+              aria-label={copy.table.search}
               placeholder={copy.table.search}
-              className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
+              className="min-w-0 flex-1 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2.5 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
             />
-            <select value={status} onChange={(event) => setStatus(event.target.value as "" | UnlockStatus)} className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
+            <select aria-label={tr("Unlock status", "Estado del desbloqueo")} value={status} onChange={(event) => { setStatus(event.target.value as "" | UnlockStatus); setPage(1); setSelectedId(null); }} className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2.5 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
               <option value="">{copy.table.allStatuses}</option>
               <option value="active">{copy.statuses.active}</option>
               <option value="expired">{copy.statuses.expired}</option>
@@ -340,93 +361,75 @@ export function AdminRewardUnlocksWorkspace() {
               <option value="cancelled">{copy.statuses.cancelled}</option>
             </select>
           </div>
+        <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Up to 1,000 results · Search user, reward, token or promo code", "Hasta 1.000 resultados · Busca usuario, recompensa, token o código")}</p>
+        <div ref={listRef} role="region" aria-label={tr("Unlock list", "Lista de desbloqueos")} tabIndex={0} className="max-h-[60dvh] overflow-auto bg-[var(--gl-paper)] focus-visible:outline-2 focus-visible:outline-[var(--gl-green)]">
+          {loading ? <p role="status" className="p-6 text-sm">{copy.table.loading}</p> : !unlocks.length ? <p className="p-6 text-sm">{copy.table.empty}</p> : visibleUnlocks.map((unlock) => (
+            <button id={`unlock-row-${unlock.id}`} key={unlock.id} type="button" aria-label={`${tr("Open unlock", "Abrir desbloqueo")} ${unlock.id}`} onClick={() => { listPageScroll.current = window.scrollY; setSelectedId(unlock.id); }} className="flex w-full items-center gap-3 border-b border-[var(--gl-hairline)] px-3 py-3 text-left hover:bg-[var(--gl-card-cream)]">
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-semibold">{unlock.reward.title || copy.table.unknownReward}</p>
+                <p className="mt-1 break-words text-xs text-[var(--gl-ink-muted)]">{unlock.user.display_name || unlock.user.email || copy.table.unknownUser} · {unlock.reward.partner_name || copy.table.noPartner}</p>
+                <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">{copy.table.created}: {formatDateTime(unlock.created_at, language)}</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${statusClasses(unlock.unlock_status)}`}>{copy.statuses[unlock.unlock_status]}</span>
+              <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--gl-ink-muted)]" />
+            </button>
+          ))}
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[1280px] w-full text-left text-sm">
-            <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
-              <tr>
-                {copy.table.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.table.loading}</td></tr>
-              ) : unlocks.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">{copy.table.empty}</td></tr>
-              ) : (
-                unlocks.map((unlock) => (
-                  <tr key={unlock.id} className="border-t border-[var(--gl-hairline)] align-top hover:bg-[var(--gl-card-cream)]">
-                    <td className="px-4 py-2.5">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusClasses(unlock.unlock_status)}`}>
-                        {copy.statuses[unlock.unlock_status]}
-                      </span>
-                      <div className="mt-2 font-mono text-xs text-[var(--gl-ink-muted)]">{unlock.token}</div>
-                      <div className="mt-1 text-xs capitalize text-[var(--gl-ink-muted)]">{unlock.unlock_method || "-"}</div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.user.display_name || unlock.user.email || copy.table.unknownUser}</div>
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{unlock.user.email || unlock.user_id}</div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.reward.title || copy.table.unknownReward}</div>
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{unlock.reward.partner_name || copy.table.noPartner}</div>
-                      {unlock.challenge_title ? <div className="mt-1 text-xs text-[var(--gl-amber-ink)]">{copy.table.challenge}: {unlock.challenge_title}</div> : null}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="capitalize text-[var(--gl-ink-soft)]">{unlock.reward.redemption_type || "manual_claim"}</div>
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{unlock.fulfillment_type || "qr_token"}</div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="font-mono text-xs text-[var(--gl-ink-soft)]">{unlock.promo_code || "-"}</div>
-                      {unlock.reward.affiliate_url ? (
-                        <a href={unlock.reward.affiliate_url} target="_blank" rel="noreferrer" className="mt-1 block max-w-[210px] truncate text-xs font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">
-                          {unlock.reward.affiliate_url}
-                        </a>
-                      ) : null}
-                      {unlock.instructions ? <div className="mt-1 max-w-[240px] truncate text-xs text-[var(--gl-ink-muted)]">{unlock.instructions}</div> : null}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="font-semibold text-[var(--gl-ink)]">{unlock.click_count || 0}</div>
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(unlock.last_clicked_at, language)}</div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="text-xs text-[var(--gl-ink-muted)]">{copy.table.created}</div>
-                      <div className="text-[var(--gl-ink-soft)]">{formatDateTime(unlock.created_at, language)}</div>
-                      <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">{copy.table.expires}</div>
-                      <div className="text-[var(--gl-ink-soft)]">{formatDateTime(unlock.expires_at, language)}</div>
-                      {unlock.redeemed_at ? <div className="mt-2 text-xs text-[var(--gl-ink-muted)]">{copy.table.used} {formatDateTime(unlock.redeemed_at, language)}</div> : null}
-                    </td>
-                    <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{unlock.redeemed_by_partner_email || "-"}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-col gap-2">
-                        {UNLOCK_ACTIONS.filter((action) => action.next !== unlock.unlock_status).map((action) => (
-                          <button
-                            key={action.next}
-                            disabled={actionId === `${unlock.id}-${action.next}`}
-                            onClick={() => updateStatus(unlock.id, action.next)}
-                            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${actionToneClasses[action.tone]}`}
-                          >
-                            {copy.actions[action.next]}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="flex items-center justify-between gap-3 text-xs text-[var(--gl-ink-muted)]">
+          <span>{unlocks.length ? (currentPage - 1) * 25 + 1 : 0}–{Math.min(currentPage * 25, unlocks.length)} / {unlocks.length}</span>
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label={tr("Previous page", "Página anterior")} title={tr("Previous page", "Página anterior")} disabled={loading || currentPage === 1} onClick={() => turnPage(currentPage - 1)} className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-white disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+            <span>{currentPage} / {pages}</span>
+            <button type="button" aria-label={tr("Next page", "Página siguiente")} title={tr("Next page", "Página siguiente")} disabled={loading || currentPage === pages} onClick={() => turnPage(currentPage + 1)} className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-white disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+          </div>
         </div>
       </section>
+      </div>
+      {selected ? <section aria-label={tr("Unlock details", "Detalles del desbloqueo")} className="min-w-0 space-y-4">
+        <button type="button" onClick={backToList} disabled={Boolean(actionId)} className="inline-flex min-h-11 items-center gap-2 text-sm disabled:opacity-60"><ArrowLeft className="h-4 w-4" />{tr("Back to list", "Volver a la lista")}</button>
+        <div className="space-y-2">
+          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusClasses(selected.unlock_status)}`}>{copy.statuses[selected.unlock_status]}</span>
+          <h2 className="break-words text-xl font-semibold">{selected.reward.title || copy.table.unknownReward}</h2>
+          <p className="break-words text-sm">{selected.user.display_name || selected.user.email || copy.table.unknownUser}</p>
+          <p className="break-all text-sm text-[var(--gl-ink-muted)]">{selected.user.email || selected.user_id}</p>
+        </div>
+        <fieldset disabled={loading || Boolean(actionId)} className="flex flex-wrap gap-2 disabled:opacity-60">
+          {UNLOCK_ACTIONS.filter((action) => action.next !== selected.unlock_status).map((action) => <button key={action.next} type="button" onClick={() => updateStatus(selected.id, action.next)} className={`min-h-11 rounded-lg px-4 text-sm font-semibold ${actionToneClasses[action.tone]}`}>{copy.actions[action.next]}</button>)}
+        </fieldset>
+        <div className="space-y-4 bg-[var(--gl-paper)] p-4">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Detail label={tr("Promo code", "Código promocional")} value={selected.promo_code || "-"} />
+            <Detail label="Token" value={selected.token} />
+          </dl>
+          {selected.reward.affiliate_url ? <div><p className="mb-1 text-xs text-[var(--gl-ink-muted)]">{tr("Reward link", "Enlace de recompensa")}</p><a href={selected.reward.affiliate_url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-start gap-2 break-all text-sm text-[var(--gl-green)] underline"><ExternalLink aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" />{selected.reward.affiliate_url}</a></div> : null}
+          {selected.instructions ? <div><p className="mb-1 text-xs text-[var(--gl-ink-muted)]">{tr("Instructions", "Instrucciones")}</p><p className="whitespace-pre-wrap break-words text-sm">{selected.instructions}</p></div> : null}
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 bg-[var(--gl-paper)] p-4 lg:grid-cols-3">
+          <Detail label={tr("Partner", "Partner")} value={selected.reward.partner_name || copy.table.noPartner} />
+          <Detail label={copy.table.challenge} value={selected.challenge_title || "-"} />
+          <Detail label={tr("Unlock method", "Método de desbloqueo")} value={selected.unlock_method || "-"} />
+          <Detail label={copy.table.headers[3]} value={`${selected.reward.redemption_type || "manual_claim"} · ${selected.fulfillment_type || "qr_token"}`} />
+          <Detail label={copy.table.created} value={formatDateTime(selected.created_at, language)} />
+          <Detail label={copy.table.expires} value={formatDateTime(selected.expires_at, language)} />
+          <Detail label={copy.table.used} value={formatDateTime(selected.redeemed_at, language)} />
+          <Detail label={copy.table.headers[7]} value={selected.redeemed_by_partner_email || "-"} />
+          <Detail label={copy.table.headers[5]} value={String(selected.click_count || 0)} />
+          <Detail label={tr("Last click", "Último clic")} value={formatDateTime(selected.last_clicked_at, language)} />
+        </dl>
+      </section> : null}
     </div>
   );
 }
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
+    <div className="p-3 sm:p-4">
+      <p className="text-xs text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
     </div>
   );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><dt className="text-xs text-[var(--gl-ink-muted)]">{label}</dt><dd className="mt-1 break-words text-sm font-medium [overflow-wrap:anywhere]">{value}</dd></div>;
 }

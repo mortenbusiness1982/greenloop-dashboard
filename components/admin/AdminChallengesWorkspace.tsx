@@ -1,6 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+import { RecordSplit, RecordPaneContent } from "@/components/crm/RecordSplit";
+import { ActionMenu } from "@/components/crm/ActionMenu";
+
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ChevronRight, Download, Plus, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiFetchBlob, apiUpload } from "@/lib/api";
@@ -477,6 +482,12 @@ function formatOwnerLabel(owner: AdminChallengeOwner) {
 export function AdminChallengesWorkspace() {
   const router = useRouter();
   const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const [recordKey, setRecordKey] = useState<string | null>(null);
+  const [requestKind, setRequestKind] = useState("community");
+  const [creating, setCreating] = useState(false);
+  const [imageExpanded, setImageExpanded] = useState(false);
+  const [exportLanguage, setExportLanguage] = useState<CertificatePdfLanguage>("en");
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengeRequests, setChallengeRequests] = useState<ChallengeRequest[]>([]);
   const [sponsoredReviews, setSponsoredReviews] = useState<SponsoredChallengeReview[]>([]);
@@ -521,20 +532,6 @@ export function AdminChallengesWorkspace() {
     }, 50);
     return () => window.clearTimeout(timer);
   }, [activeSection, editingId, pendingEditorFocus]);
-
-  useEffect(() => {
-    if (!editingId) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") resetForm();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [editingId]);
 
   const loadData = useCallback(async () => {
     const token = getToken();
@@ -700,6 +697,7 @@ export function AdminChallengesWorkspace() {
   }
 
   function startEdit(challenge: Challenge, focusImage = false) {
+    setImageExpanded(focusImage);
     setEditingId(challenge.id);
     setForm({
       challengeType: challenge.challengeType || "personal",
@@ -729,6 +727,7 @@ export function AdminChallengesWorkspace() {
   }
 
   function resetForm() {
+    setCreating(false);
     setEditingId(null);
     setForm(emptyForm);
     setChallengeImagePrompt("");
@@ -901,6 +900,7 @@ export function AdminChallengesWorkspace() {
       });
       setForm(emptyForm);
       setEditingId(null);
+      setCreating(false);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save challenge");
@@ -1252,98 +1252,89 @@ export function AdminChallengesWorkspace() {
     }
   }
 
+  const editorOpen = editingId !== null || creating;
+  const busy = saving || uploadingChallengeImage || generatingChallengeImage || !!actionId || !!requestActionId || !!sponsoredReviewActionId || !!certificateActionId;
+  const validRecordKeys = activeSection === "requests"
+    ? requestKind === "community" ? filteredChallengeRequests.map((item) => "request-" + item.id) : sponsoredReviews.map((item) => "sponsored-" + item.id)
+    : activeSection === "community" ? communityChallenges.map((item) => "certificate-" + item.id) : filteredChallenges.map((item) => "challenge-" + item.id);
+  const selectedRecord = recordKey && validRecordKeys.includes(recordKey) ? recordKey : null;
+  const commandClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
+  const recordProps = (key: string) => ({ recordKey: key, selection: selectedRecord, busy, onOpen: () => setRecordKey(key), onBack: () => setRecordKey(null) });
+
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-medium text-[var(--gl-green)]">Superadmin CRM</p>
-          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">Challenge Manager</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
-            Manage personal, global, and community challenges with target rules, completion rewards, dates, and activation.
-          </p>
+    <div className="space-y-3 text-[var(--gl-ink)] [overflow-wrap:anywhere] [&_input]:min-w-0 [&_select]:min-w-0 [&_button]:min-h-11">
+      <WorkspaceHeader className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold">{tr("Challenges", "Retos")}</h1>
+        {!editorOpen ? <button type="button" disabled={busy || loading} onClick={() => { resetForm(); setImageExpanded(false); setCreating(true); setActiveSection("all"); }} className={commandClass + " bg-[var(--gl-green)] text-white"}>
+          <Plus size={17} />{tr("New challenge", "Nuevo reto")}
+        </button> : null}
+      </WorkspaceHeader>
+      {error ? <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {requestMessage ? <div role={requestMessage.type === "error" ? "alert" : "status"} className={"rounded-md px-3 py-2 text-sm " + (requestMessage.type === "error" ? "bg-red-50 text-red-700" : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]")}>{requestMessage.text}</div> : null}
+      {!editorOpen ? <>
+        <div aria-label={tr("Challenge totals", "Totales de retos")} className="grid grid-cols-2 gap-x-4 gap-y-2 bg-[var(--gl-paper)] px-4 py-3 sm:grid-cols-4">
+          <Kpi label={tr("Total challenges", "Total de retos")} value={kpis.total} />
+          <Kpi label={tr("Active", "Activos")} value={kpis.active} />
+          <Kpi label="Global" value={kpis.global} />
+          <Kpi label={tr("Community", "Comunidad")} value={kpis.community} />
         </div>
-      </div>
-
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Total challenges" value={kpis.total} />
-        <Kpi label="Active" value={kpis.active} />
-        <Kpi label="Global" value={kpis.global} />
-        <Kpi label="Community" value={kpis.community} />
-      </div>
-
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white p-2 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-3">
-          {sectionTabs.map((tab) => {
-            const selected = activeSection === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveSection(tab.key)}
-                className={`rounded-lg border px-4 py-3 text-left transition ${
-                  selected
-                    ? "border-[var(--gl-green)] bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)] shadow-sm"
-                    : "border-transparent bg-white text-[var(--gl-ink-soft)] hover:border-[var(--gl-hairline)] hover:bg-[var(--gl-card-cream)]"
-                }`}
-              >
-                <span className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold">{tab.label}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${selected ? "bg-[var(--gl-green)] text-white" : "bg-[var(--gl-card-cream)] text-[var(--gl-ink-soft)]"}`}>
-                    {tab.count}
-                  </span>
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-[var(--gl-ink-muted)]">{tab.description}</span>
-              </button>
-            );
-          })}
+        <div role="tablist" aria-label={tr("Challenge workspaces", "Áreas de retos")} className="flex border-b border-[var(--gl-hairline)]">
+          {sectionTabs.map((tab, index) => <button key={tab.key} type="button" role="tab" id={`challenge-tab-${tab.key}`} aria-controls="challenge-workspace" aria-selected={activeSection === tab.key} tabIndex={activeSection === tab.key ? 0 : -1} disabled={busy}
+            onClick={() => { setActiveSection(tab.key); setRecordKey(null); }}
+            onKeyDown={(event) => {
+              let next = index;
+              if (event.key === "ArrowRight") next = (index + 1) % sectionTabs.length;
+              else if (event.key === "ArrowLeft") next = (index + sectionTabs.length - 1) % sectionTabs.length;
+              else if (event.key === "Home") next = 0;
+              else if (event.key === "End") next = sectionTabs.length - 1;
+              else return;
+              event.preventDefault(); setActiveSection(sectionTabs[next].key); setRecordKey(null);
+              document.getElementById(`challenge-tab-${sectionTabs[next].key}`)?.focus();
+            }}
+            className={"min-w-0 border-b-2 px-2 py-2 text-sm font-medium sm:px-3 " + (activeSection === tab.key ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]" : "border-transparent text-[var(--gl-ink-muted)]")}>
+            {tab.key === "requests" ? tr("Requests", "Solicitudes") : tab.key === "community" ? tr("Certificates", "Certificados") : tr("All challenges", "Todos los retos")}
+            <span className="ml-1.5 hidden text-xs font-normal sm:inline">{tab.count}</span>
+          </button>)}
         </div>
-      </section>
+      </> : null}
 
-      {activeSection === "requests" ? (
-      <>
-      {pendingUserCommunityChallenges.length ? (
-        <section className="rounded-xl border border-[var(--gl-green)]/30 bg-white shadow-sm">
-          <div className="border-b border-[var(--gl-hairline)] p-4">
-            <p className="text-sm font-medium text-[var(--gl-green)]">Public community review</p>
-            <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Review user-created public challenges</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">Creators can already use and share these challenges. Approval only controls appearance in public discovery.</p>
-          </div>
-          <div className="divide-y divide-[var(--gl-hairline)]">
-            {pendingUserCommunityChallenges.map((challenge) => (
-              <article key={challenge.id} className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--gl-ink)]">{challenge.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-[var(--gl-ink-muted)]">{challenge.description || "No description provided."}</p>
-                  <p className="mt-2 text-xs text-[var(--gl-ink-muted)]">Owner: {challenge.ownerDisplayName || challenge.ownerEmail || "Authenticated user"}</p>
-                </div>
-                <div className="grid content-start gap-2">
-                  <button type="button" onClick={() => reviewUserCommunityChallenge(challenge, "approved")} disabled={Boolean(communityReviewActionId)} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">Approve for discovery</button>
-                  <button type="button" onClick={() => reviewUserCommunityChallenge(challenge, "rejected")} disabled={Boolean(communityReviewActionId)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-60">Reject and remove</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      <section className="rounded-xl border border-[var(--gl-amber)]/35 bg-white shadow-sm">
-        <div className="border-b border-[var(--gl-hairline)] p-4">
-          <p className="text-sm font-medium text-[var(--gl-amber-ink)]">Sponsored Challenge Reviews</p>
-          <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Review brand-funded campaigns</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">
-            Brand submissions stay hidden until approved. Approval activates both the challenge and its linked completion benefit.
-          </p>
-        </div>
-        {loading ? (
-          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">Loading sponsored challenges...</div>
-        ) : sponsoredReviews.length === 0 ? (
-          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">No sponsored challenges have been submitted.</div>
-        ) : (
-          <div className="divide-y divide-[var(--gl-card-cream)]">
-            {sponsoredReviews.map((challenge) => (
-              <article key={challenge.id} className="grid gap-5 p-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="min-w-0 space-y-4">
+      <div id="challenge-workspace" role={editorOpen ? undefined : "tabpanel"} aria-labelledby={editorOpen ? undefined : `challenge-tab-${activeSection}`}>
+        {activeSection === "requests" ? <div className="space-y-3">
+          {pendingUserCommunityChallenges.length ? (
+            <section aria-label={tr("Public community review", "Revisión de retos públicos")} className="border-b border-[var(--gl-hairline)] py-3">
+              <h2 className="text-base font-semibold">{tr("Review user-created public challenges", "Revisar retos públicos de usuarios")}</h2>
+              <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">{tr("Creators can already use and share these challenges. Approval only controls appearance in public discovery.", "Los creadores ya pueden usar y compartir estos retos. La aprobación solo controla su aparición en el descubrimiento público.")}</p>
+              <div className="divide-y divide-[var(--gl-hairline)]">
+                {pendingUserCommunityChallenges.map((challenge) => (
+                  <article key={challenge.id} className="grid gap-3 py-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                    <div className="min-w-0 break-words">
+                      <h3 className="font-semibold">{challenge.title}</h3>
+                      <p className="text-sm text-[var(--gl-ink-muted)]">{challenge.description || tr("No description provided.", "Sin descripción.")}</p>
+                      <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">{tr("Owner", "Organizador")}: {challenge.ownerDisplayName || challenge.ownerEmail || tr("Authenticated user", "Usuario autenticado")}</p>
+                    </div>
+                    <div className="grid content-start gap-2">
+                      <button type="button" onClick={() => reviewUserCommunityChallenge(challenge, "approved")} disabled={Boolean(communityReviewActionId)} className="rounded-md bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">{tr("Approve for discovery", "Aprobar para descubrir")}</button>
+                      <button type="button" onClick={() => reviewUserCommunityChallenge(challenge, "rejected")} disabled={Boolean(communityReviewActionId)} className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-60">{tr("Reject and remove", "Rechazar y retirar")}</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <fieldset disabled={busy} className="flex flex-wrap items-center gap-2 text-sm">
+            <legend className="sr-only">{tr("Request source", "Origen de solicitud")}</legend>
+            {[["community", tr("Community", "Comunidad")], ["sponsored", tr("Sponsored", "Patrocinados")]].map(([value, label]) => <label key={value} className="flex min-h-11 cursor-pointer items-center gap-2 pr-3">
+              <input type="radio" name="request-source" value={value} checked={requestKind === value} onChange={() => { setRequestKind(value); setRecordKey(null); }} className="h-4 w-4 accent-[var(--gl-green)]" />
+              {label}
+            </label>)}
+          </fieldset>
+          {requestKind === "sponsored" ? <section aria-label={tr("Sponsored requests", "Solicitudes patrocinadas")} className="space-y-3">
+            <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Approval publishes the challenge and its linked reward.", "La aprobación publica el reto y su recompensa vinculada.")}</p>
+            {loading ? <p role="status">{tr("Loading sponsored challenges...", "Cargando retos patrocinados...")}</p> : sponsoredReviews.length === 0 ? <p className="py-6 text-sm text-[var(--gl-ink-muted)]">{tr("No sponsored challenges have been submitted.", "No se han enviado retos patrocinados.")}</p> :
+              <RecordSplit selected={Boolean(selectedRecord)}>
+                {sponsoredReviews.map((challenge) => <ChallengeRecordPane key={challenge.id} {...recordProps("sponsored-" + challenge.id)} title={challenge.title} meta={challenge.sponsor_brand_name || "Brand"} status={challenge.review_status.replace(/_/g, " ")}>
+                  <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="min-w-0 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1357,13 +1348,13 @@ export function AdminChallengesWorkspace() {
                     </div>
                     <span className="text-xs text-[var(--gl-ink-muted)]">Submitted {formatDateTime(challenge.created_at)}</span>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                     <CertificateMetric label="Eligibility" value={String(challenge.target_kind || "any").replace(/_/g, " ")} />
                     <CertificateMetric label="Individual goal" value={`${formatNumber(Number(challenge.required_count || 0))} recycles`} />
                     <CertificateMetric label="Access" value={challenge.visibility === "private" ? "Private" : "Public"} />
                     <CertificateMetric label="Participants" value={formatNumber(Number(challenge.participants || 0))} />
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                     <CertificateMetric label="Reward" value={challenge.reward_title || "No linked reward"} />
                     <CertificateMetric label="Reward flow" value={String(challenge.redemption_type || "-").replace(/_/g, " ")} />
                     <CertificateMetric label="Starts" value={formatDateTime(challenge.starts_at)} />
@@ -1376,14 +1367,15 @@ export function AdminChallengesWorkspace() {
                     {challenge.collective_goal_count ? ` · collective target ${formatNumber(challenge.collective_goal_count)}` : ""}
                   </div>
                 </div>
-                <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+                <div className="space-y-3 bg-[var(--gl-card-cream)] p-3">
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Brand review notes</span>
                     <textarea
+                      aria-label="Brand review notes"
                       value={sponsoredReviewNotes[challenge.id] || ""}
                       onChange={(event) => setSponsoredReviewNotes((current) => ({ ...current, [challenge.id]: event.target.value }))}
                       placeholder="Reason for approval, requested edits, or rejection notes..."
-                      className="min-h-32 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15"
+                      className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15"
                     />
                   </label>
                   <div className="mt-4 grid gap-2">
@@ -1414,60 +1406,29 @@ export function AdminChallengesWorkspace() {
                       </button>
                     </div>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+                </div></div>
+                </ChallengeRecordPane>)}
+              </RecordSplit>}
+          </section> : <section aria-label={tr("Community requests", "Solicitudes comunitarias")} className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <select aria-label={tr("Request status", "Estado de solicitud")} disabled={busy} value={requestStatusFilter} onChange={(event) => { setRequestStatusFilter(event.target.value as "all" | ChallengeRequestStatus); setRecordKey(null); }}
+                className="min-h-11 max-w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 text-sm">
+                <option value="all">{tr("All statuses", "Todos los estados")}</option>
+                {challengeRequestStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <MiniKpi label={tr("Total", "Total")} value={requestKpis.total} />
+                <MiniKpi label={tr("Pending", "Pendientes")} value={requestKpis.pending} />
+                <MiniKpi label={tr("Rejected", "Rechazados")} value={requestKpis.rejected} />
+                <MiniKpi label={tr("Converted", "Convertidos")} value={requestKpis.converted} />
+              </div>
+            </div>
+            {loading ? <p role="status">{tr("Loading challenge requests...", "Cargando solicitudes...")}</p> : filteredChallengeRequests.length === 0 ? <p className="py-6 text-sm text-[var(--gl-ink-muted)]">{tr("No community challenge requests match this filter.", "No hay solicitudes para este filtro.")}</p> :
+              <RecordSplit selected={Boolean(selectedRecord)}>
+                {filteredChallengeRequests.map((request) => <ChallengeRecordPane key={request.id} {...recordProps("request-" + request.id)} title={request.challengeName || tr("Community request", "Solicitud comunitaria")} meta={`${request.communityName || ""} · ${formatNumber(Number(request.targetItems || 0))} · ${formatDateTime(request.createdAt)}`} status={getChallengeRequestStatusLabel(request.status)}>
 
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
-        <div className="border-b border-[var(--gl-hairline)] p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-sm font-medium text-[var(--gl-amber-ink)]">Community Challenge Requests</p>
-              <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Review requested community challenges</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">
-                Requests submitted from the app are review-only. Approving a request publishes it as a live Community challenge.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-              <MiniKpi label="Total" value={requestKpis.total} />
-              <MiniKpi label="Pending" value={requestKpis.pending} />
-              <MiniKpi label="Rejected" value={requestKpis.rejected} />
-              <MiniKpi label="Converted" value={requestKpis.converted} />
-            </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <select
-              value={requestStatusFilter}
-              onChange={(event) => setRequestStatusFilter(event.target.value as "all" | ChallengeRequestStatus)}
-              className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15 sm:w-56"
-            >
-              <option value="all">All statuses</option>
-              {challengeRequestStatuses.map((status) => (
-                <option key={status.value} value={status.value}>{status.label}</option>
-              ))}
-            </select>
-            <span className="text-sm text-[var(--gl-ink-muted)]">{filteredChallengeRequests.length} request{filteredChallengeRequests.length === 1 ? "" : "s"} shown</span>
-          </div>
-          {requestMessage ? (
-            <div className={`mt-4 rounded-lg border px-3 py-2 text-sm ${requestMessage.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] text-[var(--gl-green)]"}`}>
-              {requestMessage.text}
-            </div>
-          ) : null}
-        </div>
-
-        {loading ? (
-          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">Loading challenge requests...</div>
-        ) : filteredChallengeRequests.length === 0 ? (
-          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">No community challenge requests match this filter.</div>
-        ) : (
-          <div className="divide-y divide-[var(--gl-card-cream)]">
-            {filteredChallengeRequests.map((request) => (
-              <article key={request.id} className="p-4">
                 <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-                  <div className="min-w-0 space-y-4">
+                  <div className="min-w-0 space-y-3">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -1497,7 +1458,7 @@ export function AdminChallengesWorkspace() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-5">
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                       <CertificateMetric label="Type" value={String(request.communityType || "other").replace(/_/g, " ")} />
                       <CertificateMetric
                         label="Access"
@@ -1510,13 +1471,13 @@ export function AdminChallengesWorkspace() {
                       <CertificateMetric label="End" value={formatDateTime(request.endDate)} />
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                       <CertificateMetric label="Contact" value={request.contactName || "-"} />
                       <CertificateMetric label="Email" value={request.contactEmail || "-"} />
                       <CertificateMetric label="City" value={request.city || "-"} />
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-3">
                       <CertificateMetric label="Reward idea" value={request.rewardIdea || "-"} />
                       <CertificateMetric label="Requester" value={request.requesterDisplayName || request.requesterEmail || "-"} />
                     </div>
@@ -1538,14 +1499,15 @@ export function AdminChallengesWorkspace() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+                  <div className="space-y-3 bg-[var(--gl-card-cream)] p-3">
                     <label className="block">
                       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Admin notes</span>
                       <textarea
+                        aria-label="Admin notes"
                         value={requestAdminNotes[request.id] || ""}
                         onChange={(event) => updateRequestAdminNotes(request.id, event.target.value)}
                         placeholder="Review notes, edits needed, follow-up owner..."
-                        className="min-h-32 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15"
+                        className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15"
                       />
                     </label>
                     <div className="mt-4 grid gap-2">
@@ -1602,53 +1564,29 @@ export function AdminChallengesWorkspace() {
                     </div>
                   </div>
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-      </>
-      ) : null}
+                </ChallengeRecordPane>)}
+              </RecordSplit>}
+          </section>}
+        </div> : null}
 
-      {activeSection === "community" ? (
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-        <div className="border-b border-[var(--gl-hairline)] p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-sm font-medium text-[var(--gl-green)]">Community Challenges</p>
-              <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Impact Certificates</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">
-                Certificates are automatically derived from users who joined the community challenge and recycled during the challenge window.
-                Only approved recycling events are counted in the certificate metrics.
-              </p>
-            </div>
-            <span className="inline-flex w-fit rounded-full border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-1 text-xs font-semibold text-[var(--gl-ink-soft)]">
-              {communityChallenges.length} community challenges
-            </span>
-          </div>
-        </div>
+        {activeSection === "community" ? <section aria-label={tr("Impact certificates", "Certificados de impacto")} className="space-y-3">
+          <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Automatically calculated from joined participants. Only approved recycling within the challenge period counts.", "Cálculo automático a partir de los participantes inscritos. Solo cuenta el reciclaje aprobado durante el periodo del reto.")}</p>
+          {loading ? <p role="status">{tr("Loading certificates...", "Cargando certificados...")}</p> : communityChallenges.length === 0 ? <p className="py-6 text-sm text-[var(--gl-ink-muted)]">{tr("No community challenges are available for certificates yet.", "Aún no hay retos comunitarios disponibles para certificados.")}</p> :
+            <RecordSplit selected={Boolean(selectedRecord)}>
+              {communityChallenges.map((challenge) => {
+                const id = String(challenge.id);
+                const draft = certificateDrafts[id] || getCertificateDraft(challenge);
+                const message = certificateMessages[id];
+                const preview = certificatePreviews[id];
+                const progress = Number(challenge.sharedProgressCount || 0);
+                const required = Number(challenge.required_count || 0);
+                const progressPercent = required > 0 ? Math.min(100, Math.round((progress / required) * 100)) : 0;
+                const stage = getChallengeStage(challenge);
+                const status = getCertificateStatus(challenge);
+                return <ChallengeRecordPane key={id} {...recordProps("certificate-" + id)} title={challenge.title} meta={`${formatNumber(progress)} / ${formatNumber(required)} · ${challenge.certificateRecipientName || tr("No recipient", "Sin destinatario")} · ${stage}`} status={status}>
 
-        {communityChallenges.length === 0 ? (
-          <div className="p-6 text-sm text-[var(--gl-ink-muted)]">
-            No community challenges are available for certificates yet. Create a community challenge to enable certificate controls.
-          </div>
-        ) : (
-          <div className="divide-y divide-[var(--gl-hairline)]">
-            {communityChallenges.map((challenge) => {
-              const id = String(challenge.id);
-              const draft = certificateDrafts[id] || getCertificateDraft(challenge);
-              const message = certificateMessages[id];
-              const preview = certificatePreviews[id];
-              const progress = Number(challenge.sharedProgressCount || 0);
-              const required = Number(challenge.required_count || 0);
-              const progressPercent = required > 0 ? Math.min(100, Math.round((progress / required) * 100)) : 0;
-              const stage = getChallengeStage(challenge);
-              const status = getCertificateStatus(challenge);
-
-              return (
-                <article key={challenge.id} className="p-4">
                   <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-                    <div className="min-w-0 space-y-4">
+                    <div className="min-w-0 space-y-3">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1689,12 +1627,12 @@ export function AdminChallengesWorkspace() {
                       </div>
 
                       {preview ? (
-                        <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+                        <div className="space-y-3 bg-[var(--gl-card-cream)] p-3">
                           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                             <h4 className="text-sm font-semibold text-[var(--gl-ink)]">Preview certificate data</h4>
                             <span className="text-xs text-[var(--gl-ink-muted)]">Generated {formatDateTime(preview.generatedAt)}</span>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                             <CertificateMetric label="Approved events" value={formatNumber(preview.metrics.totalRecyclingEvents)} />
                             <CertificateMetric label="Products recycled" value={formatNumber(preview.metrics.totalProductsRecycled)} />
                             <CertificateMetric label="CO2 saved" value={`${formatNumber(preview.metrics.estimatedCO2Saved, 2)} kg`} />
@@ -1707,7 +1645,7 @@ export function AdminChallengesWorkspace() {
                       ) : null}
                     </div>
 
-                    <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-4">
+                    <div className="space-y-3 bg-[var(--gl-card-cream)] p-3">
                       <div className="space-y-3">
                         <label className="block">
                           <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Recipient name</span>
@@ -1721,6 +1659,7 @@ export function AdminChallengesWorkspace() {
                         <label className="block">
                           <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Recipient type</span>
                           <select
+                            aria-label="Recipient type"
                             value={draft.recipientType}
                             onChange={(event) => updateCertificateDraft(challenge.id, { recipientType: event.target.value as CertificateRecipientType | "" })}
                             className="w-full rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
@@ -1783,37 +1722,17 @@ export function AdminChallengesWorkspace() {
                           >
                             {certificateActionId === `preview-${id}` ? "Saving + loading..." : "Save + preview data"}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadCertificatePdf(challenge, "en")}
-                            disabled={certificateActionId === `download-en-${id}`}
-                            className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
-                          >
-                            {certificateActionId === `download-en-${id}` ? "Saving + downloading..." : "Save + download PDF EN"}
+                          <label className="block text-xs text-[var(--gl-ink-muted)]">
+                            {tr("Export language", "Idioma de exportación")}
+                            <select aria-label={tr("Export language", "Idioma de exportación")} value={exportLanguage} onChange={(event) => setExportLanguage(event.target.value as CertificatePdfLanguage)} className="mt-1 min-h-11 w-full rounded-md border border-[var(--gl-hairline)] bg-white px-3 text-sm text-[var(--gl-ink)]">
+                              <option value="en">English</option><option value="es">Español</option>
+                            </select>
+                          </label>
+                          <button type="button" onClick={() => downloadCertificatePdf(challenge, exportLanguage)} disabled={!!certificateActionId} className={commandClass + " bg-[var(--gl-paper)] text-[var(--gl-green-deep)]"}>
+                            <Download size={16} />{tr("Save + download PDF", "Guardar + descargar PDF")}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadCertificatePdf(challenge, "es")}
-                            disabled={certificateActionId === `download-es-${id}`}
-                            className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
-                          >
-                            {certificateActionId === `download-es-${id}` ? "Guardando + descargando..." : "Save + download PDF ES"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadChallengeActionsXlsx(challenge, "en")}
-                            disabled={certificateActionId === `download-actions-en-${id}`}
-                            className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
-                          >
-                            {certificateActionId === `download-actions-en-${id}` ? "Downloading actions..." : "Download recycling actions XLSX EN"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadChallengeActionsXlsx(challenge, "es")}
-                            disabled={certificateActionId === `download-actions-es-${id}`}
-                            className="rounded-lg border border-[var(--gl-hairline-strong)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] hover:bg-white disabled:opacity-60"
-                          >
-                            {certificateActionId === `download-actions-es-${id}` ? "Descargando acciones..." : "Descargar acciones de reciclaje XLSX ES"}
+                          <button type="button" onClick={() => downloadChallengeActionsXlsx(challenge, exportLanguage)} disabled={!!certificateActionId} className={commandClass + " bg-[var(--gl-paper)] text-[var(--gl-green-deep)]"}>
+                            <Download size={16} />{tr("Recycling actions XLSX", "Acciones de reciclaje XLSX")}
                           </button>
                           <button
                             type="button"
@@ -1832,174 +1751,59 @@ export function AdminChallengesWorkspace() {
                       </div>
                     </div>
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-      ) : null}
+                </ChallengeRecordPane>;
+              })}
+            </RecordSplit>}
+        </section> : null}
 
-      {activeSection === "all" ? (
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">All challenges</h2>
-              <p className="text-sm text-[var(--gl-ink-muted)]">Global is per user; community is shared progress.</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or target" className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
-              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
-                <option value="all">All types</option>
-                <option value="personal">Personal</option>
-                <option value="global">Global</option>
-                <option value="community">Community</option>
+        {activeSection === "all" ? <div className="space-y-3">
+          <section hidden={editorOpen} aria-label={tr("Challenge inventory", "Inventario de retos")} className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <input aria-label={tr("Search challenges", "Buscar retos")} value={query} onChange={(event) => { setQuery(event.target.value); setRecordKey(null); }} placeholder={tr("Search title or target", "Buscar título u objetivo")} className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--gl-hairline)] bg-white px-3 text-sm" />
+              <select aria-label={tr("Challenge type filter", "Filtro de tipo de reto")} value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setRecordKey(null); }} className="min-h-11 max-w-full rounded-md border border-[var(--gl-hairline)] bg-white px-3 text-sm">
+                <option value="all">{tr("All types", "Todos los tipos")}</option><option value="personal">{tr("Personal", "Personal")}</option><option value="global">Global</option><option value="community">{tr("Community", "Comunidad")}</option>
               </select>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[1180px] w-full text-left text-sm">
-              <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                <tr>
-                  <th className="px-4 py-2.5">Challenge</th>
-                  <th className="px-4 py-2.5">Type</th>
-                  <th className="px-4 py-2.5">Target</th>
-                  <th className="px-4 py-2.5">Required</th>
-                  <th className="px-4 py-2.5">Progress</th>
-                  <th className="px-4 py-2.5">Bonus</th>
-                  <th className="px-4 py-2.5">Owner</th>
-                  <th className="px-4 py-2.5">Reward</th>
-                  <th className="px-4 py-2.5">Dates</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">Loading challenges...</td></tr>
-                ) : filteredChallenges.length === 0 ? (
-                  <tr><td colSpan={11} className="px-4 py-8 text-center text-[var(--gl-ink-muted)]">No challenges match the current filters.</td></tr>
-                ) : (
-                  filteredChallenges.map((challenge) => (
-                    <tr
-                      key={challenge.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => startEdit(challenge)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          startEdit(challenge);
-                        }
-                      }}
-                      className="cursor-pointer border-t border-[var(--gl-card-cream)] align-top transition hover:bg-[var(--gl-card-cream)]/70 focus:bg-[var(--gl-green-soft)] focus:outline-none"
-                    >
-                      <td className="px-4 py-2.5">
-                        <div className="flex gap-3">
-                          {challenge.heroImageUrl ? (
-                            <div className="h-12 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--gl-hairline)] bg-white">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={challenge.heroImageUrl} alt="" className="h-full w-full object-cover" />
-                            </div>
-                          ) : null}
-                          <div className="min-w-0">
-                            <div className="font-semibold text-[var(--gl-ink)]">{challenge.title}</div>
-                            <div className="mt-1 max-w-xs truncate text-xs text-[var(--gl-ink-muted)]">{challenge.description || "No description"}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${typeTone(challenge.challengeType)}`}>{challenge.challengeType}</span>
-                        <div className="mt-1 text-xs font-semibold capitalize text-[var(--gl-ink-muted)]">{challenge.visibility || "public"}</div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="capitalize text-[var(--gl-ink-muted)]">{challenge.targetKind || "brand"}</div>
-                        <div className="font-medium text-[var(--gl-ink-soft)]">{getTargetValue(challenge) || "-"}</div>
-                      </td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.required_count}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">
-                        <div className="max-w-[180px] truncate font-medium text-[var(--gl-ink)]" title={challenge.ownerEmail || undefined}>
-                          {challenge.ownerDisplayName || challenge.ownerEmail || "-"}
-                        </div>
-                        {challenge.ownerDisplayName && challenge.ownerEmail ? (
-                          <div className="max-w-[180px] truncate text-xs text-[var(--gl-ink-muted)]">{challenge.ownerEmail}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">{challenge.completionRewardTitle || "-"}</td>
-                      <td className="px-4 py-2.5 text-[var(--gl-ink-soft)]">
-                        <div>{formatDateTime(challenge.starts_at)}</div>
-                        <div className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(challenge.ends_at)}</div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {(() => {
-                          const visibility = getVisibilityStatus(challenge);
-                          return (
-                            <div className="space-y-1">
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${visibility.className}`}>
-                                {visibility.label}
-                              </span>
-                              <div className="max-w-[170px] text-xs leading-5 text-[var(--gl-ink-muted)]">{visibility.detail}</div>
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-2.5" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex flex-wrap gap-2">
-                          <Link href={`/admin/challenges/${challenge.id}`} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">View</Link>
-                          <button onClick={() => startEdit(challenge)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)]">Edit</button>
-                          <button onClick={() => startEdit(challenge, true)} className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-green-deep)] hover:border-[var(--gl-green)] hover:bg-[var(--gl-green-soft)]">Change image</button>
-                          <button onClick={() => toggleChallenge(challenge.id)} disabled={actionId === `toggle-${challenge.id}`} className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-white disabled:opacity-60">Toggle</button>
-                          <button onClick={() => deleteChallenge(challenge)} disabled={actionId === `delete-${challenge.id}`} className="rounded-md bg-red-600 px-3 py-1.5 text-white disabled:opacity-60">
-                            {actionId === `delete-${challenge.id}` ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {editingId ? (
-          <button
-            type="button"
-            aria-label="Close challenge editor"
-            onClick={resetForm}
-            className="fixed inset-0 z-40 cursor-default bg-[var(--gl-ink)]/45 backdrop-blur-[2px]"
-          />
-        ) : null}
-        <form
-          id="challenge-editor"
-          onSubmit={handleSubmit}
-          className={
-            editingId
-              ? "fixed inset-y-4 left-1/2 z-50 w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border border-[var(--gl-hairline)] bg-white p-5 shadow-2xl"
-              : "scroll-mt-6 rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm"
-          }
-        >
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{editingId ? "Edit challenge" : "Create challenge"}</h2>
-              <p className="text-sm text-[var(--gl-ink-muted)]">{editingId ? form.title : "Target, timing, progress, and reward"}</p>
+            {loading ? <p role="status">{tr("Loading challenges...", "Cargando retos...")}</p> : filteredChallenges.length === 0 ? <p className="py-6 text-sm text-[var(--gl-ink-muted)]">{tr("No challenges match the current filters.", "No hay retos para estos filtros.")}</p> :
+              <RecordSplit selected={Boolean(selectedRecord)}>
+                {filteredChallenges.map((challenge) => {
+                  const visibility = getVisibilityStatus(challenge);
+                  return <ChallengeRecordPane key={challenge.id} {...recordProps("challenge-" + challenge.id)} title={challenge.title} meta={`${challenge.challengeType} · ${getTargetValue(challenge)} · ${challenge.required_count}`} status={visibility.label} imageUrl={challenge.heroImageUrl}>
+                    <header className="space-y-2"><h2 className="text-xl font-semibold">{challenge.title}</h2><span className={"inline-block rounded px-2 py-1 text-xs " + typeTone(challenge.challengeType)}>{challenge.challengeType}</span><p className="text-sm text-[var(--gl-ink-muted)]">{challenge.description || tr("No description", "Sin descripción")}</p></header>
+                    <div className="my-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                      <CertificateMetric label={tr("Type / access", "Tipo / acceso")} value={`${challenge.challengeType} · ${challenge.visibility || "public"}`} />
+                      <CertificateMetric label={tr("Target", "Objetivo")} value={`${challenge.targetKind || "brand"} · ${getTargetValue(challenge) || "-"}`} />
+                      <CertificateMetric label={tr("Required", "Requerido")} value={challenge.required_count} />
+                      <CertificateMetric label={tr("Shared progress", "Progreso compartido")} value={challenge.challengeType === "community" ? `${Number(challenge.sharedProgressCount || 0)} / ${challenge.required_count}` : "-"} />
+                      <CertificateMetric label={tr("Bonus EcoPoints", "EcoPoints extra")} value={challenge.challengeType === "community" ? `${challenge.bonus_points} / user` : challenge.bonus_points} />
+                      <CertificateMetric label={tr("Owner", "Organizador")} value={[challenge.ownerDisplayName, challenge.ownerEmail].filter(Boolean).join(" · ") || "-"} />
+                      <CertificateMetric label={tr("Reward", "Recompensa")} value={challenge.completionRewardTitle || "-"} />
+                      <CertificateMetric label={tr("Starts", "Inicio")} value={formatDateTime(challenge.starts_at)} />
+                      <CertificateMetric label={tr("Ends", "Fin")} value={formatDateTime(challenge.ends_at)} />
+                      <CertificateMetric label={tr("Status", "Estado")} value={visibility.label + " · " + visibility.detail} />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => startEdit(challenge)} className={commandClass + " bg-[var(--gl-green)] text-white"}>{tr("Edit", "Editar")}</button>
+                      <button type="button" onClick={() => startEdit(challenge, true)} className={commandClass + " bg-[var(--gl-card-cream)]"}>{tr("Change image", "Cambiar imagen")}</button>
+                      <Link href={`/admin/challenges/${challenge.id}`} className={commandClass}>{tr("View record", "Ver ficha")}</Link>
+                      <ActionMenu label={tr("Challenge actions", "Acciones del reto")}>
+                      <button type="button" onClick={() => toggleChallenge(challenge.id)} disabled={actionId === `toggle-${challenge.id}`} className={commandClass + " bg-[var(--gl-card-cream)]"}>{challenge.active ? tr("Deactivate", "Desactivar") : tr("Activate", "Activar")}</button>
+                      <button type="button" onClick={() => deleteChallenge(challenge)} disabled={actionId === `delete-${challenge.id}`} className={commandClass + " bg-red-50 text-red-700"}>{actionId === `delete-${challenge.id}` ? tr("Deleting...", "Eliminando...") : tr("Delete", "Eliminar")}</button>
+                      </ActionMenu>
+                    </div>
+                  </ChallengeRecordPane>;
+                })}
+              </RecordSplit>}
+          </section>
+          <form id="challenge-editor" hidden={!editorOpen} onSubmit={handleSubmit} className="scroll-mt-4 bg-[var(--gl-paper)] p-3 sm:p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">{editingId ? tr("Edit challenge", "Editar reto") : tr("Create challenge", "Crear reto")}</h2>
+              <button type="button" disabled={busy} onClick={resetForm} className={commandClass}><ArrowLeft size={16} />{tr("Back", "Volver")}</button>
             </div>
+            <fieldset disabled={busy} className="min-w-0">
+          <div className="grid gap-4 lg:grid-cols-2">
             {editingId ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] hover:border-[var(--gl-green)]"
-              >
-                Close
-              </button>
-            ) : null}
-          </div>
-          <div className="space-y-4">
-            {editingId ? (
-              <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-4 py-2.5 text-xs leading-5 text-[var(--gl-amber-ink)]">
+              <div className="lg:col-span-2 rounded-md bg-[var(--gl-amber-soft)] px-3 py-2 text-xs text-[var(--gl-amber-ink)]">
                 You are editing an existing challenge, including live/ongoing challenges. Changes to target, description, owner, dates, and reward are saved in place and existing participant progress is kept.
               </div>
             ) : null}
@@ -2084,6 +1888,8 @@ export function AdminChallengesWorkspace() {
             ) : null}
             <Field label="Title" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} required />
             <Textarea label="Description" value={form.description} onChange={(value) => setForm((current) => ({ ...current, description: value }))} required />
+            <details open={imageExpanded} onToggle={(event) => setImageExpanded(event.currentTarget.open)} className="lg:col-span-2">
+              <summary className="w-fit cursor-pointer py-2 text-sm font-medium">{tr("Challenge image", "Imagen del reto")}</summary>
             <ChallengeImageField
               challengeType={form.challengeType}
               imageUrl={form.heroImageUrl}
@@ -2098,6 +1904,7 @@ export function AdminChallengesWorkspace() {
               onSelect={handleChallengeImageSelect}
               onClear={handleChallengeImageClear}
             />
+            </details>
             <Select label="Challenge owner" value={form.ownerUserId} onChange={(value) => setForm((current) => ({ ...current, ownerUserId: value }))}>
               <option value="">No owner assigned</option>
               {owners.map((owner) => (
@@ -2132,14 +1939,57 @@ export function AdminChallengesWorkspace() {
               <Field label="Starts at" type="datetime-local" value={form.starts_at} onChange={(value) => setForm((current) => ({ ...current, starts_at: value }))} required />
               <Field label="Ends at" type="datetime-local" value={form.ends_at} onChange={(value) => setForm((current) => ({ ...current, ends_at: value }))} required />
             </div>
-            <button disabled={saving} className="w-full rounded-lg bg-[var(--gl-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--gl-green)] disabled:opacity-60">
+            <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-[var(--gl-hairline)] bg-[var(--gl-paper)] py-2 lg:col-span-2">
+            <button type="button" disabled={busy} onClick={resetForm} className={commandClass}>{tr("Cancel", "Cancelar")}</button>
+            <button disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[var(--gl-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Save size={16} />
               {saving ? "Saving..." : editingId ? "Update challenge" : "Create challenge"}
             </button>
+            </div>
           </div>
-        </form>
+            </fieldset>
+          </form>
+        </div> : null}
       </div>
-      ) : null}
     </div>
+  );
+}
+
+function ChallengeRecordPane({ recordKey, selection, title, meta, status, imageUrl, busy, onOpen, onBack, children }: {
+  recordKey: string; selection: string | null; title: string; meta: string; status: string;
+  imageUrl?: string | null; busy: boolean; onOpen: () => void; onBack: () => void; children: React.ReactNode;
+}) {
+  const { language } = useDashboardLanguage();
+  const root = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const position = useRef({ page: 0, list: 0 });
+  const selected = selection === recordKey;
+  useEffect(() => { if (selected) root.current?.focus({ preventScroll: true }); }, [selected]);
+  return (
+    <>
+      <button ref={trigger} type="button" aria-pressed={selected} aria-label={(language === "es" ? "Abrir " : "Open ") + title} disabled={busy} onClick={() => {
+        position.current = { page: window.scrollY, list: trigger.current?.closest("[data-record-list]")?.scrollTop || 0 };
+        onOpen();
+      }} className="crm-record-row flex w-full items-center gap-3 border-b border-[var(--gl-hairline)] px-3 py-3 text-left hover:bg-[var(--gl-green-soft)] disabled:opacity-50">
+        {imageUrl ? <span className="h-12 w-14 shrink-0 overflow-hidden rounded bg-[var(--gl-card-cream)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        </span> : null}
+        <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{title}</span><span className="mt-1 block text-xs text-[var(--gl-ink-muted)]">{meta}</span></span>
+        <span className="max-w-[30%] text-right text-xs text-[var(--gl-ink-muted)]">{status}</span><ChevronRight size={16} className="shrink-0" aria-hidden="true" />
+      </button>
+      {selected ? <RecordPaneContent><article ref={root} tabIndex={-1} aria-label={title} className="min-w-0 outline-none [overflow-wrap:anywhere]" onKeyDown={(event) => { if (event.key === "Escape" && !busy) { event.stopPropagation(); onBack(); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })); } }}>
+        <button type="button" disabled={busy} onClick={() => {
+          onBack();
+          requestAnimationFrame(() => {
+            const list = trigger.current?.closest("[data-record-list]");
+            if (list) list.scrollTop = position.current.list;
+            window.scrollTo({ top: position.current.page });
+            trigger.current?.focus({ preventScroll: true });
+          });
+        }} className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-medium disabled:opacity-50"><ArrowLeft size={17} />{language === "es" ? "Volver a la lista" : "Back to list"}</button>
+        <fieldset disabled={busy} className="min-w-0">{children}</fieldset>
+      </article></RecordPaneContent> : null}
+    </>
   );
 }
 
@@ -2281,27 +2131,27 @@ function ChallengeImageField({
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value}</p>
+    <div className="min-w-0">
+      <p className="text-xs text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
 
 function MiniKpi({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-16 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] px-3 py-2">
+    <div className="flex items-center gap-1.5">
       <p className="text-xs font-medium text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="text-lg font-semibold text-[var(--gl-ink)]">{value}</p>
+      <p className="text-xs font-semibold text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
 
 function CertificateMetric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-[var(--gl-ink)]">{value}</p>
+    <div className="min-w-0">
+      <p className="text-xs text-[var(--gl-ink-muted)]">{label}</p>
+      <p className="mt-1 text-sm font-medium text-[var(--gl-ink)] [overflow-wrap:anywhere]">{value}</p>
     </div>
   );
 }
@@ -2319,7 +2169,7 @@ function Textarea({ label, value, onChange, ...props }: Omit<React.TextareaHTMLA
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
-      <textarea {...props} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15" />
+      <textarea {...props} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15" />
     </label>
   );
 }
@@ -2328,7 +2178,7 @@ function Select({ label, value, onChange, children }: { label: string; value: st
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green)]/15">
+      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="w-full min-w-0 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]">
         {children}
       </select>
     </label>

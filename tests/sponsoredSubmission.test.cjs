@@ -30,6 +30,7 @@ function fixture() {
   const context = { exports: exported, crypto: { randomUUID },
     FormData: class { constructor(form) { assert.equal(form.marker, 'form'); } get(key) { return values[key] ?? null; } },
     require: id => id === 'react' ? react : id === '@/lib/api' ? { apiFetch } :
+      id === '@/components/crm/WorkspaceLabels' ? { useWorkspaceLabels: () => value => value, WorkspaceLabel: ({text}) => text } :
       id === '@/lib/auth' ? { getToken: () => 'fixture-token' } : require(id),
   };
   vm.runInNewContext(compiled, context);

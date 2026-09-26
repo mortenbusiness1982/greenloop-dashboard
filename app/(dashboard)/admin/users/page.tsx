@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Download, Filter, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type AdminUser = {
   id: string;
@@ -22,6 +26,12 @@ type AdminUser = {
   last_activity_at?: string | null;
   latest_city?: string | null;
   latest_province?: string | null;
+  profile_city?: string | null;
+  profile_country?: string | null;
+  signup_city?: string | null;
+  signup_country?: string | null;
+  signup_location_source?: "ip_estimate" | "unavailable" | null;
+  signup_location_recorded_at?: string | null;
   app_platform?: string | null;
   appPlatform?: string | null;
   app_version?: string | null;
@@ -191,6 +201,21 @@ function getUserPlatformClasses(user?: AdminUser | null) {
 
 export default function AdminUsersPage() {
   const router = useRouter();
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const signupLocation = (user: AdminUser) => user.signup_location_source === "ip_estimate"
+    ? [user.signup_city, user.signup_country].filter(Boolean).join(", ") + tr(" (approximate IP location)", " (ubicación IP aproximada)")
+    : user.signup_location_source === "unavailable"
+      ? tr("Unavailable at signup", "No disponible al registrarse")
+      : tr("Not recorded", "Sin registrar");
+  const [paneOpen, setPaneOpen] = useState(false);
+  const [userTab, setUserTab] = useState<"overview" | "activity" | "challenges" | "account">("overview");
+  const [pointsMode, setPointsMode] = useState<"add" | "remove">("add");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const listScroll = useRef(0);
+  const listPaneScroll = useRef(0);
+  const opener = useRef<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -271,7 +296,7 @@ export default function AdminUsersPage() {
     const query = search.trim().toLowerCase();
     return users.filter((user) =>
       (!query ||
-        [user.display_name, user.email, user.role, formatUserPlatform(user), getUserAppVersion(user)]
+        [user.display_name, user.email, user.role, user.profile_city, user.profile_country, user.signup_city, user.signup_country, formatUserPlatform(user), getUserAppVersion(user)]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query))) &&
       (!userTableFilters.name.trim() ||
@@ -568,6 +593,12 @@ export default function AdminUsersPage() {
       "last_activity_at",
       "latest_city",
       "latest_province",
+      "profile_city",
+      "profile_country",
+      "signup_city",
+      "signup_country",
+      "signup_location_source",
+      "signup_location_recorded_at",
     ];
 
     const rows = filteredUsers.map((user) => ({
@@ -585,6 +616,12 @@ export default function AdminUsersPage() {
       recycled_units_count: user.recycled_units_count,
       last_activity_at: user.last_activity_at ?? "",
       latest_city: user.latest_city ?? "",
+      profile_city: user.profile_city ?? "",
+      profile_country: user.profile_country ?? "",
+      signup_city: user.signup_city ?? "",
+      signup_country: user.signup_country ?? "",
+      signup_location_source: user.signup_location_source ?? "",
+      signup_location_recorded_at: user.signup_location_recorded_at ?? "",
       latest_province: user.latest_province ?? "",
     }));
 
@@ -614,744 +651,428 @@ export default function AdminUsersPage() {
     void loadUserActivity(selectedUser.user.id, resetFilters);
   }
 
-  if (loading) {
+  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageUsers = filteredUsers.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const busy = activityLoading || savingEdit || addingEcoPoints || removingEcoPoints || savingPassword || Boolean(activeAction || resettingAvatarUserId || removingChallengeId);
+  const inputClass = "min-w-0 w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]";
+  const commandClass = "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
+  const userTabs = [
+    { id: "overview", label: tr("Overview", "Resumen") },
+    { id: "activity", label: tr("Activity", "Actividad") },
+    { id: "challenges", label: tr("Challenges", "Retos") },
+    { id: "account", label: tr("Account", "Cuenta") },
+  ] as const;
+  const filterFields: { key: keyof UserTableFiltersState; label: string; type: "text" | "number" | "date" }[] = [
+    { key: "name", label: tr("Name", "Nombre"), type: "text" },
+    { key: "email", label: tr("Email", "Correo electrónico"), type: "text" },
+    { key: "minWallet", label: tr("Min wallet", "Saldo mínimo"), type: "number" },
+    { key: "minRewards", label: tr("Min rewards", "Recompensas mínimas"), type: "number" },
+    { key: "minRecyclingEvents", label: tr("Min recycling events", "Eventos mínimos"), type: "number" },
+    { key: "minUnits", label: tr("Min units", "Unidades mínimas"), type: "number" },
+    { key: "signedUpFrom", label: tr("Signed up from", "Registro desde"), type: "date" },
+    { key: "signedUpTo", label: tr("Signed up to", "Registro hasta"), type: "date" },
+    { key: "lastActivityFrom", label: tr("Last activity from", "Actividad desde"), type: "date" },
+    { key: "lastActivityTo", label: tr("Last activity to", "Actividad hasta"), type: "date" },
+  ];
+
+  function openUser(userId: string, element: HTMLElement) {
+    if (busy) return;
+    listScroll.current = window.scrollY;
+    listPaneScroll.current = document.getElementById("users-list")?.scrollTop || 0;
+    opener.current = element;
+    setSelectedUser(null);
+    setUserTab("overview");
+    setPaneOpen(true);
+    void loadUserActivity(userId);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0 });
+      document.getElementById("user-pane-heading")?.focus();
+    });
+  }
+
+  function closeUser() {
+    if (busy) return;
+    setPaneOpen(false);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: listScroll.current });
+      document.getElementById("users-list")?.scrollTo({ top: listPaneScroll.current });
+      opener.current?.focus({ preventScroll: true });
+    });
+  }
+
+  function statusLabel(user: AdminUser) {
     return (
-      <div className="space-y-5">
-        <p className="text-sm text-[var(--gl-ink-muted)]">Loading users...</p>
-      </div>
+      <span className={"inline-flex max-w-full rounded px-1.5 py-0.5 text-xs font-medium " + (user.deactivated_at
+        ? "bg-[var(--gl-hairline)] text-[var(--gl-ink-soft)]"
+        : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]")}>
+        {user.deactivated_at ? tr("Deactivated", "Desactivado") : tr("Active", "Activo")}
+      </span>
     );
   }
 
+  if (loading) {
+    return <p role="status" className="text-sm text-[var(--gl-ink-muted)]">{tr("Loading users...", "Cargando usuarios...")}</p>;
+  }
+
   return (
-    <div className="space-y-5">
-      <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-green)]">
-            Admin · Network
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--gl-ink)] md:text-4xl">
-            Users
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">
-            Search, export, and inspect registered user activity.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/admin/activity"
-            className="inline-flex items-center rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
-          >
-            Review Total Activity
-          </Link>
-          <Link
-            href="/admin/activity"
-            className="inline-flex items-center rounded-md border border-transparent bg-[var(--gl-green-soft)] px-3 py-2 text-sm font-medium text-[var(--gl-green-deep)] transition hover:opacity-90"
-          >
-            Overall Filters
-          </Link>
-          <button
-            onClick={exportVisibleUsers}
-            className="inline-flex items-center rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
-          >
-            Export CSV
-          </button>
-        </div>
-      </header>
+    <div data-user-workspace data-open={paneOpen || undefined} className="min-w-0 space-y-4 text-[var(--gl-ink)]">
+      {error ? <div role="alert" className="rounded-md bg-[var(--gl-coral-soft)] px-3 py-2 text-sm text-[var(--gl-coral-ink)]">{error}</div> : null}
 
-      {error ? (
-        <div role="alert" className="rounded-xl border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] px-5 py-4 text-sm text-[var(--gl-coral-ink)]">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-4 py-2.5 shadow-sm">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Search users</span>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by display name, email, role, or app platform"
-            className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-          />
-        </label>
-      </div>
-
-      <section className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Table filters</h2>
-            <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-              Filter by name, email, role, points, rewards, recycling totals, signup date, last activity, and status.
-            </p>
+      <div data-user-list className="space-y-3">
+        <WorkspaceHeader className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold">{tr("Users", "Usuarios")}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/activity" className={commandClass + " text-[var(--gl-green)] hover:bg-[var(--gl-green-soft)]"}>
+              {tr("Recycling activity", "Actividad de reciclaje")}<ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+            </Link>
+            <button type="button" onClick={exportVisibleUsers} className={commandClass + " bg-[var(--gl-paper)] hover:bg-[var(--gl-green-soft)]"}>
+              <Download aria-hidden="true" className="h-4 w-4" />{tr("Export CSV", "Exportar CSV")}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setUserTableFilters(emptyUserTableFilters)}
-            disabled={activeUserTableFilterCount === 0}
-            className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Reset filters{activeUserTableFilterCount ? ` (${activeUserTableFilterCount})` : ""}
-          </button>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <FilterText label="Name" value={userTableFilters.name} onChange={(value) => updateUserTableFilter("name", value)} placeholder="Display name" />
-          <FilterText label="Email" value={userTableFilters.email} onChange={(value) => updateUserTableFilter("email", value)} placeholder="Email address" />
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Role</span>
-            <select
-              value={userTableFilters.role}
-              onChange={(event) => updateUserTableFilter("role", event.target.value)}
-              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            >
-              <option value="">All roles</option>
-              <option value="user">user</option>
-              <option value="partner">partner</option>
-              <option value="brand_admin">brand_admin</option>
-              <option value="organization">organization</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">Status</span>
-            <select
-              value={userTableFilters.status}
-              onChange={(event) => updateUserTableFilter("status", event.target.value)}
-              className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-            >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="deactivated">Deactivated</option>
-            </select>
-          </label>
-          <FilterText label="Min wallet" type="number" value={userTableFilters.minWallet} onChange={(value) => updateUserTableFilter("minWallet", value)} placeholder="0" />
-          <FilterText label="Min rewards" type="number" value={userTableFilters.minRewards} onChange={(value) => updateUserTableFilter("minRewards", value)} placeholder="0" />
-          <FilterText label="Min recycling events" type="number" value={userTableFilters.minRecyclingEvents} onChange={(value) => updateUserTableFilter("minRecyclingEvents", value)} placeholder="0" />
-          <FilterText label="Min units" type="number" value={userTableFilters.minUnits} onChange={(value) => updateUserTableFilter("minUnits", value)} placeholder="0" />
-          <FilterText label="Signed up from" type="date" value={userTableFilters.signedUpFrom} onChange={(value) => updateUserTableFilter("signedUpFrom", value)} />
-          <FilterText label="Signed up to" type="date" value={userTableFilters.signedUpTo} onChange={(value) => updateUserTableFilter("signedUpTo", value)} />
-          <FilterText label="Last activity from" type="date" value={userTableFilters.lastActivityFrom} onChange={(value) => updateUserTableFilter("lastActivityFrom", value)} />
-          <FilterText label="Last activity to" type="date" value={userTableFilters.lastActivityTo} onChange={(value) => updateUserTableFilter("lastActivityTo", value)} />
-        </div>
-        <p className="mt-3 text-xs text-[var(--gl-ink-muted)]">
-          Showing {filteredUsers.length.toLocaleString()} of {users.length.toLocaleString()} users.
-        </p>
-      </section>
+        </WorkspaceHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <section className="overflow-x-auto rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm">
-          <table className="min-w-[1120px] w-full border-collapse text-left">
-            <thead className="bg-[var(--gl-card-cream)]">
-              <tr className="border-b border-[var(--gl-hairline)]">
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Name</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Signed Up</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Role</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Wallet</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Rewards</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Recycling Events</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Units</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Last Activity</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Status</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Actions</th>
-                <th className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink-muted)]">Email</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.length === 0 ? (
+        <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_10rem]">
+          <label className="col-span-2 block min-w-0 sm:col-span-1">
+            <span className="sr-only">{tr("Search users", "Buscar usuarios")}</span>
+            <div className="relative">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-[var(--gl-ink-muted)]" />
+              <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+                placeholder={tr("Name, email, role or app", "Nombre, correo, rol o app")} className={inputClass + " pl-9"} />
+            </div>
+          </label>
+          <label className="block min-w-0">
+            <span className="sr-only">{tr("Role", "Rol")}</span>
+            <select value={userTableFilters.role} onChange={(event) => { updateUserTableFilter("role", event.target.value); setPage(0); }} className={inputClass}>
+              <option value="">{tr("All roles", "Todos los roles")}</option>
+              {["user", "partner", "brand_admin", "organization", "admin"].map((role) => <option key={role} value={role}>{role}</option>)}
+            </select>
+          </label>
+          <label className="block min-w-0">
+            <span className="sr-only">{tr("Status", "Estado")}</span>
+            <select value={userTableFilters.status} onChange={(event) => { updateUserTableFilter("status", event.target.value); setPage(0); }} className={inputClass}>
+              <option value="">{tr("All statuses", "Todos los estados")}</option>
+              <option value="active">{tr("Active", "Activo")}</option>
+              <option value="deactivated">{tr("Deactivated", "Desactivado")}</option>
+            </select>
+          </label>
+        </div>
+
+        <details className="group">
+          <summary className="flex min-h-10 w-fit cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-[var(--gl-ink-muted)] [&::-webkit-details-marker]:hidden">
+            <Filter aria-hidden="true" className="h-3.5 w-3.5" />
+            {tr("More filters", "Más filtros")}{activeUserTableFilterCount > 0 ? " (" + activeUserTableFilterCount + ")" : ""}
+            <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="grid gap-3 bg-[var(--gl-paper)] p-3 sm:grid-cols-2 xl:grid-cols-5">
+            {filterFields.map((field) => <FilterText key={field.key} label={field.label} type={field.type} value={userTableFilters[field.key]}
+              onChange={(value) => { updateUserTableFilter(field.key, value); setPage(0); }} />)}
+          </div>
+        </details>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--gl-ink-muted)]">
+          <p role="status">{filteredUsers.length ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, filteredUsers.length)} / {filteredUsers.length.toLocaleString()} {tr("users", "usuarios")}
+            {filteredUsers.length !== users.length ? " · " + users.length.toLocaleString() + " " + tr("total", "en total") : ""}</p>
+          {(search || activeUserTableFilterCount > 0) ? <button type="button" onClick={() => { setSearch(""); setUserTableFilters(emptyUserTableFilters); setPage(0); }}
+            className="min-h-9 text-sm font-medium text-[var(--gl-green)]">{tr("Reset filters", "Restablecer filtros")}</button> : null}
+        </div>
+
+        <section id="users-list" tabIndex={0} aria-label={tr("User list", "Lista de usuarios")} className="max-h-[max(16rem,calc(100dvh-22rem))] overflow-auto">
+          <div className="hidden overflow-x-auto bg-[var(--gl-paper)] xl:block">
+            <table className="w-full min-w-[880px] table-fixed text-left text-sm">
+              <thead className="sticky top-0 bg-[var(--gl-paper)] text-xs text-[var(--gl-ink-muted)]">
                 <tr>
-                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-[var(--gl-ink-muted)]">
-                    No users found.
-                  </td>
+                  <th scope="col" className="w-[24%] px-3 py-2">{tr("Name / Email", "Nombre / Correo")}</th>
+                  <th scope="col" className="w-[10%] px-2 py-2">{tr("Signed up", "Registro")}</th>
+                  <th scope="col" className="w-[9%] px-2 py-2">{tr("Role", "Rol")}</th>
+                  <th scope="col" className="w-[7%] px-2 py-2 text-right">{tr("Wallet", "Saldo")}</th>
+                  <th scope="col" className="w-[10%] px-2 py-2 text-right">{tr("Rewards", "Recompensas")}</th>
+                  <th scope="col" className="w-[8%] px-2 py-2 text-right">{tr("Events", "Eventos")}</th>
+                  <th scope="col" className="w-[7%] px-2 py-2 text-right">{tr("Units", "Unidades")}</th>
+                  <th scope="col" className="w-[14%] px-3 py-2">{tr("Last activity", "Última actividad")}</th>
+                  <th scope="col" className="w-[11%] px-2 py-2">{tr("Status", "Estado")}</th>
                 </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr
-                    key={user.id}
-                    onClick={() => loadUserActivity(user.id)}
-                    className={`border-b border-[var(--gl-hairline)] align-top transition ${
-                      selectedUser?.user.id === user.id ? "bg-[var(--gl-green-soft)]/40" : "hover:bg-[var(--gl-card-cream)]"
-                    }`}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-[var(--gl-ink)]">
-                      <div>{user.display_name}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getUserPlatformClasses(user)}`}>
-                          {formatUserPlatform(user)}
-                        </span>
-                        {getUserAppVersion(user) ? (
-                          <span className="text-[11px] font-normal text-[var(--gl-ink-muted)]">
-                            v{getUserAppVersion(user)}
-                          </span>
-                        ) : null}
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-[var(--gl-hairline)]">
+                {pageUsers.map((user) => (
+                  <tr key={user.id} data-selected={paneOpen && selectedUser?.user.id === user.id || undefined} className="align-top hover:bg-[var(--gl-card-cream)]">
+                    <td className="break-words px-3 py-2 [overflow-wrap:anywhere]">
+                      <button type="button" onClick={(event) => openUser(user.id, event.currentTarget)}
+                        className="block min-h-6 text-left font-semibold text-[var(--gl-green)] underline-offset-2 hover:underline">
+                        {user.display_name || user.email}
+                      </button>
+                      <p title={user.email} className="text-xs text-[var(--gl-ink-muted)]">{user.email}</p>
+                      <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Profile city / country", "Ciudad / país del perfil")}: {[user.profile_city, user.profile_country].filter(Boolean).join(", ") || tr("Not recorded", "Sin registrar")}</p>
+                      <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Signup city / country", "Ciudad / país de registro")}: {signupLocation(user)}</p>
+                      <p className="mt-0.5 text-xs text-[var(--gl-ink-muted)]"><span className={"rounded px-1 " + getUserPlatformClasses(user)}>{formatUserPlatform(user)}</span>{getUserAppVersion(user) ? " · v" + getUserAppVersion(user) : ""}</p>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]" title={formatDateTime(user.created_at)}>{formatDate(user.created_at)}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.role}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.wallet_points}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.redeemed_rewards_count ?? 0}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.recycling_events_count}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{user.recycled_units_count}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">{formatDateTime(user.last_activity_at)}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          user.deactivated_at
-                            ? "bg-[var(--gl-hairline)] text-[var(--gl-ink-soft)]"
-                            : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
-                        }`}
-                      >
-                        {user.deactivated_at ? "Deactivated" : "Active"}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm">
-                      <div className="flex flex-nowrap items-center gap-2">
-                        <Link
-                          href={`/admin/users/${user.id}`}
-                          onClick={(event) => event.stopPropagation()}
-                          className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
-                        >
-                          View Detail
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            loadUserActivity(user.id);
-                          }}
-                          className="rounded-md border border-[var(--gl-hairline)] px-3 py-1.5 text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)]"
-                        >
-                          {selectedUser?.user.id === user.id ? "Viewing Activity" : "Review Activity"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            loadUserActivity(user.id);
-                          }}
-                          className="rounded-md border border-transparent bg-[var(--gl-green-soft)] px-3 py-1.5 font-medium text-[var(--gl-green-deep)] transition hover:opacity-90"
-                        >
-                          Add EcoPoints
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            resetAvatarProgress(user);
-                          }}
-                          disabled={resettingAvatarUserId === user.id}
-                          className="rounded-md border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-3 py-1.5 font-medium text-[var(--gl-amber-ink)] transition hover:bg-[var(--gl-amber-soft)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {resettingAvatarUserId === user.id ? "Resetting..." : "Reset Avatar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleDeactivate(user.id);
-                          }}
-                          disabled={activeAction === user.id}
-                          className="rounded-md bg-[var(--gl-green)] px-3 py-1.5 text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {user.deactivated_at ? "Reactivate" : "Deactivate"}
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-[var(--gl-ink-soft)]">
-                      <span className="block max-w-[240px] truncate" title={user.email}>{user.email}</span>
-                    </td>
+                    <td className="px-2 py-2 text-xs" title={formatDateTime(user.created_at)}>{formatDate(user.created_at)}</td>
+                    <td className="break-words px-2 py-2 text-xs">{user.role}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{user.wallet_points}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{user.redeemed_rewards_count ?? 0}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{user.recycling_events_count}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{user.recycled_units_count}</td>
+                    <td className="px-3 py-2 text-xs">{formatDateTime(user.last_activity_at)}</td>
+                    <td className="px-2 py-2">{statusLabel(user)}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="divide-y divide-[var(--gl-hairline)] bg-[var(--gl-paper)] xl:hidden">
+            {pageUsers.map((user) => (
+              <button key={user.id} type="button" onClick={(event) => openUser(user.id, event.currentTarget)}
+                className="block w-full space-y-2 px-3 py-3 text-left hover:bg-[var(--gl-card-cream)]">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 break-words [overflow-wrap:anywhere]">
+                    <p className="text-sm font-semibold text-[var(--gl-green)]">{user.display_name || user.email}</p>
+                    <p className="text-xs text-[var(--gl-ink-muted)]">{user.email}</p>
+                    <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Profile city / country", "Ciudad / país del perfil")}: {[user.profile_city, user.profile_country].filter(Boolean).join(", ") || tr("Not recorded", "Sin registrar")}</p>
+                    <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Signup city / country", "Ciudad / país de registro")}: {signupLocation(user)}</p>
+                    <p className="text-xs text-[var(--gl-ink-muted)]">{user.role} · {formatUserPlatform(user)}{getUserAppVersion(user) ? " · v" + getUserAppVersion(user) : ""}</p>
+                  </div>
+                  <span className="shrink-0">{statusLabel(user)}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-xs text-[var(--gl-ink-muted)]">
+                  {[[tr("Wallet", "Saldo"), user.wallet_points], [tr("Rewards", "Recompensas"), user.redeemed_rewards_count ?? 0], [tr("Events", "Eventos"), user.recycling_events_count], [tr("Units", "Unidades"), user.recycled_units_count]].map(([label, value]) =>
+                    <p key={label}><span className="block">{label}</span><span className="font-semibold tabular-nums text-[var(--gl-ink)]">{value}</span></p>)}
+                </div>
+                <div className="flex flex-wrap justify-between gap-1 text-xs text-[var(--gl-ink-muted)]">
+                  <p>{tr("Signed up", "Registro")}: {formatDate(user.created_at)}</p>
+                  <p>{tr("Last activity", "Última actividad")}: {formatDateTime(user.last_activity_at)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          {pageUsers.length === 0 ? <p className="bg-[var(--gl-paper)] px-3 py-6 text-sm text-[var(--gl-ink-muted)]">{tr("No users found.", "No se encontraron usuarios.")}</p> : null}
         </section>
 
-        <aside className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
-          <div className="mb-3">
-            <h2 className="text-lg font-semibold text-[var(--gl-ink)]">User Activity</h2>
-            <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-              Recent scans and recycling activity for the selected user.
-            </p>
+        <nav aria-label={tr("User pages", "Páginas de usuarios")} className="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--gl-ink-muted)]">
+          <label className="flex items-center gap-2">{tr("Rows", "Filas")}
+            <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} className="rounded-md bg-[var(--gl-paper)] px-2 py-2">
+              {[25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
+          <div className="flex items-center gap-2">
+            <button type="button" title={tr("Previous page", "Página anterior")} aria-label={tr("Previous page", "Página anterior")}
+              disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)} className={commandClass}>
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            </button>
+            <span>{currentPage + 1} / {pageCount}</span>
+            <button type="button" title={tr("Next page", "Página siguiente")} aria-label={tr("Next page", "Página siguiente")}
+              disabled={currentPage + 1 >= pageCount} onClick={() => setPage(currentPage + 1)} className={commandClass}>
+              <ChevronRight aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+        </nav>
+      </div>
+
+      <section data-user-detail hidden={!paneOpen} aria-labelledby="user-pane-heading" className="min-w-0 space-y-4"
+        onKeyDown={(event) => { if (event.key === "Escape" && !busy) { event.stopPropagation(); closeUser(); } }}>
+        <header className="space-y-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button type="button" disabled={busy} onClick={closeUser} className={commandClass + " -ml-3 text-[var(--gl-green)]"}>
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />{tr("Users", "Usuarios")}
+            </button>
+            {selectedUser ? <div className="flex flex-wrap items-center gap-2">
+              {statusLabel(selectedUser.user)}
+              <Link href={"/admin/users/" + selectedUser.user.id} className={commandClass + " text-[var(--gl-green)]"}>
+                {tr("Record page", "Ficha de usuario")}<ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </div> : null}
+          </div>
+          <div className="min-w-0">
+            <h2 id="user-pane-heading" tabIndex={-1} className="break-words text-2xl font-semibold outline-none [overflow-wrap:anywhere]">
+              {selectedUser?.user.display_name || selectedUser?.user.email || tr("User", "Usuario")}
+            </h2>
+            {selectedUser ? <p className="break-words text-sm text-[var(--gl-ink-muted)]">{selectedUser.user.email} · {selectedUser.user.role}</p> : null}
+          </div>
+        </header>
+
+        {activityLoading ? <p role="status" className="py-4 text-sm text-[var(--gl-ink-muted)]">{tr("Loading user activity...", "Cargando actividad del usuario...")}</p> : null}
+        {!activityLoading && !selectedUser ? <p className="text-sm text-[var(--gl-ink-muted)]">{tr("User activity is unavailable.", "La actividad del usuario no está disponible.")}</p> : null}
+
+        {selectedUser ? <>
+          <div role="tablist" aria-label={tr("User workspace", "Espacio de usuario")} className="flex overflow-x-auto border-b border-[var(--gl-hairline)]">
+            {userTabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={"user-tab-" + tab.id} aria-controls={"user-panel-" + tab.id}
+              aria-selected={userTab === tab.id} tabIndex={userTab === tab.id ? 0 : -1}
+              onClick={() => setUserTab(tab.id)}
+              onKeyDown={(event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === "Home" ? 0 : event.key === "End" ? userTabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + userTabs.length) % userTabs.length;
+                setUserTab(userTabs[next].id);
+                document.getElementById("user-tab-" + userTabs[next].id)?.focus();
+              }}
+              className={"min-h-11 shrink-0 border-b-2 px-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--gl-green)] " + (userTab === tab.id ? "border-[var(--gl-green)] text-[var(--gl-green)]" : "border-transparent text-[var(--gl-ink-muted)]")}>
+              {tab.label}
+            </button>)}
           </div>
 
-          {activityLoading ? (
-            <p className="text-sm text-[var(--gl-ink-muted)]">Loading user activity...</p>
-          ) : !selectedUser ? (
-            <p className="text-sm text-[var(--gl-ink-muted)]">Select a user to inspect recent activity.</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-[var(--gl-ink)]">{selectedUser.user.display_name}</p>
-                    <p className="text-sm text-[var(--gl-ink-muted)]">{selectedUser.user.email}</p>
+          <fieldset disabled={busy} className="min-w-0">
+            <div role="tabpanel" tabIndex={0} id="user-panel-overview" aria-labelledby="user-tab-overview" hidden={userTab !== "overview"} className="space-y-4">
+              <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[[tr("Wallet", "Saldo"), selectedUser.user.wallet_points], [tr("Rewards redeemed", "Recompensas canjeadas"), selectedUser.user.redeemed_rewards_count ?? 0],
+                  [tr("Recycling events", "Eventos de reciclaje"), selectedUser.user.recycling_events_count], [tr("Recycled units", "Unidades recicladas"), selectedUser.user.recycled_units_count]].map(([label, value]) => (
+                  <div key={label} className="rounded-md bg-[var(--gl-paper)] px-3 py-2">
+                    <dt className="text-xs text-[var(--gl-ink-muted)]">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd>
                   </div>
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      selectedUser.user.deactivated_at
-                        ? "bg-[var(--gl-hairline)] text-[var(--gl-ink-soft)]"
-                        : "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
-                    }`}
-                  >
-                    {selectedUser.user.deactivated_at ? "Deactivated" : "Active"}
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-[var(--gl-ink-soft)]">
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink-muted)]">Role</p>
-                    <p>{selectedUser.user.role}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink-muted)]">App</p>
-                    <p>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getUserPlatformClasses(selectedUser.user)}`}>
-                        {formatUserPlatform(selectedUser.user)}
-                      </span>
-                    </p>
-                    {getUserAppVersion(selectedUser.user) || getUserPlatformSeenAt(selectedUser.user) ? (
-                      <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                        {getUserAppVersion(selectedUser.user) ? `v${getUserAppVersion(selectedUser.user)}` : ""}
-                        {getUserAppVersion(selectedUser.user) && getUserPlatformSeenAt(selectedUser.user) ? " · " : ""}
-                        {getUserPlatformSeenAt(selectedUser.user) ? `seen ${formatDateTime(getUserPlatformSeenAt(selectedUser.user))}` : ""}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink-muted)]">Wallet</p>
-                    <p>{selectedUser.user.wallet_points} EcoPoints</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink-muted)]">Rewards Redeemed</p>
-                    <p>{selectedUser.user.redeemed_rewards_count ?? 0}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink-muted)]">Joined</p>
-                    <p>{formatDateTime(selectedUser.user.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-[var(--gl-ink-muted)]">Last Activity</p>
-                    <p>{formatDateTime(selectedUser.user.last_activity_at)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-[var(--gl-hairline)] p-3.5">
-                <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-faint)]">
-                  Manage Balance & Avatar
-                </h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)]/70 p-3.5">
-                  <div className="mb-2.5">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-amber-ink)]">
-                      Add EcoPoints
-                    </h3>
-                    <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-                      Add exactly the EcoPoints amount entered below.
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">EcoPoints amount</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={ecoPointsToAdd}
-                        onChange={(e) => setEcoPointsToAdd(e.target.value)}
-                        placeholder="e.g. 50"
-                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={addEcoPoints}
-                      disabled={addingEcoPoints || !ecoPointsToAdd}
-                      className="w-full rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {addingEcoPoints ? "Adding..." : "Add Requested Points"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-red-200 bg-red-50/70 p-3.5">
-                  <div className="mb-2.5">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-red-800">
-                      Remove EcoPoints
-                    </h3>
-                    <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-                      Remove exactly the EcoPoints amount entered below.
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">EcoPoints amount</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={ecoPointsToRemove}
-                        onChange={(e) => setEcoPointsToRemove(e.target.value)}
-                        placeholder="e.g. 50"
-                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-red-600 focus:ring-2 focus:ring-red-600/20"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={removeEcoPoints}
-                      disabled={removingEcoPoints || !ecoPointsToRemove}
-                      className="w-full rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {removingEcoPoints ? "Removing..." : "Remove Requested Points"}
-                    </button>
-                  </div>
-                </div>
-                </div>
-
-                <div className="mt-3 rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)]/70 p-3.5">
-                <div className="mb-2.5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-amber-ink)]">
-                    Reset Avatar Progress
-                  </h3>
-                  <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-                    Return this user to the turtle at 0 avatar progress for testing from scratch.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => resetAvatarProgress(selectedUser.user)}
-                  disabled={resettingAvatarUserId === selectedUser.user.id}
-                  className="w-full rounded-md bg-[var(--gl-amber-ink)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-amber-ink)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {resettingAvatarUserId === selectedUser.user.id ? "Resetting..." : "Reset to Turtle"}
-                </button>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)]/50 p-3.5">
-                <div className="mb-2.5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-green-deep)]">
-                    Active Challenges
-                  </h3>
-                  <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-                    Joined challenges currently active for this user.
-                  </p>
-                </div>
-                {!selectedUser.active_challenges?.length ? (
-                  <p className="text-sm text-[var(--gl-ink-muted)]">No active joined challenges.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedUser.active_challenges.map((challenge) => {
-                      const progress =
-                        challenge.required_count > 0
-                          ? Math.min(100, Math.round((challenge.progress_count / challenge.required_count) * 100))
-                          : 0;
-                      return (
-                        <div key={challenge.user_challenge_id} className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-medium text-[var(--gl-ink)]">{challenge.title}</p>
-                              <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                                {challenge.challenge_type} · joined {formatDateTime(challenge.accepted_at)}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeUserFromChallenge(challenge.id, challenge.title)}
-                              disabled={removingChallengeId === challenge.id}
-                              className="shrink-0 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {removingChallengeId === challenge.id ? "Removing..." : "Remove"}
-                            </button>
-                          </div>
-                          <div className="mt-3">
-                            <div className="mb-1 flex justify-between text-xs text-[var(--gl-ink-muted)]">
-                              <span>Progress</span>
-                              <span>
-                                {challenge.progress_count}/{challenge.required_count || 1}
-                              </span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-[var(--gl-green-soft)]">
-                              <div className="h-full rounded-full bg-[var(--gl-green)]" style={{ width: `${progress}%` }} />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-lg border border-[var(--gl-hairline)] p-3.5">
-                <div className="mb-2.5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                    Edit User
-                  </h3>
-                </div>
-                <div className="space-y-3">
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Display Name</span>
-                    <input
-                      value={editForm.display_name}
-                      onChange={(e) =>
-                        setEditForm((current) => ({ ...current, display_name: e.target.value }))
-                      }
-                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Role</span>
-                    <select
-                      value={editForm.role}
-                      onChange={(e) =>
-                        setEditForm((current) => ({ ...current, role: e.target.value }))
-                      }
-                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                    >
-                      <option value="user">user</option>
-                      <option value="partner">partner</option>
-                      <option value="brand_admin">brand_admin</option>
-                      <option value="organization">organization</option>
-                      <option value="admin">admin</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">Brand</span>
-                    <select
-                      value={editForm.brand_id}
-                      onChange={(e) =>
-                        setEditForm((current) => ({ ...current, brand_id: e.target.value }))
-                      }
-                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                    >
-                      <option value="">No brand</option>
-                      {brands.map((brand) => (
-                        <option key={brand.id} value={brand.id}>
-                          {brand.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <button
-                    onClick={saveUserEdits}
-                    disabled={savingEdit}
-                    className="w-full rounded-md bg-[var(--gl-green)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {savingEdit ? "Saving..." : "Save Changes"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)]/70 p-3.5">
-                <div className="mb-2.5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--gl-amber-ink)]">
-                    Manual Password
-                  </h3>
-                  <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
-                    Set a new login password for this user. Use this only when support needs to recover account access.
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-[var(--gl-ink-soft)]">New password</span>
-                    <input
-                      type="password"
-                      value={manualPassword}
-                      onChange={(e) => setManualPassword(e.target.value)}
-                      placeholder="Minimum 8 characters"
-                      autoComplete="new-password"
-                      className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={changeUserPassword}
-                    disabled={savingPassword || manualPassword.length < 8}
-                    className="w-full rounded-md bg-[var(--gl-amber-ink)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-amber-ink)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {savingPassword ? "Saving password..." : "Set New Password"}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                  Recycle History
-                </h3>
-                <div className="mb-3 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                        From
-                      </span>
-                      <input
-                        type="date"
-                        value={activityFilters.from}
-                        onChange={(e) =>
-                          setActivityFilters((current) => ({ ...current, from: e.target.value }))
-                        }
-                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                        To
-                      </span>
-                      <input
-                        type="date"
-                        value={activityFilters.to}
-                        onChange={(e) =>
-                          setActivityFilters((current) => ({ ...current, to: e.target.value }))
-                        }
-                        className="w-full rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm text-[var(--gl-ink)] outline-none transition focus:border-[var(--gl-green)] focus:ring-2 focus:ring-[var(--gl-green-ring)]"
-                      />
-                    </label>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={applyActivityFilters}
-                      disabled={!selectedUser || activityLoading}
-                      className="rounded-md bg-[var(--gl-green)] px-3 py-2 text-sm font-medium text-white transition hover:bg-[var(--gl-green-deep)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {activityLoading ? "Loading..." : "Apply Date Filter"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetActivityFilters}
-                      disabled={!selectedUser || activityLoading}
-                      className="rounded-md border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink-soft)] transition hover:bg-[var(--gl-card-cream)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-                {selectedUser.recycling_events.length > 0 ? (
-                  <div className="mb-3 grid grid-cols-3 gap-2">
-                    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm">
-                      <p className="font-medium text-[var(--gl-ink-muted)]">Events</p>
-                      <p className="mt-1 text-base font-semibold text-[var(--gl-ink)]">
-                        {recycleHistorySummary.totalEvents}
-                      </p>
+                ))}
+              </dl>
+              <div className="grid gap-5 xl:grid-cols-2">
+                <section className="space-y-3">
+                  <h2 className="text-base font-semibold">{tr("User information", "Información del usuario")}</h2>
+                  <dl className="grid grid-cols-2 gap-x-5 gap-y-3 bg-[var(--gl-paper)] p-3 text-sm">
+                    <div><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("Signed up", "Registro")}</dt><dd>{formatDateTime(selectedUser.user.created_at)}</dd></div>
+                    <div><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("Last activity", "Última actividad")}</dt><dd>{formatDateTime(selectedUser.user.last_activity_at)}</dd></div>
+                    <div><dt className="text-xs text-[var(--gl-ink-muted)]">App</dt><dd>{formatUserPlatform(selectedUser.user)}{getUserAppVersion(selectedUser.user) ? " · v" + getUserAppVersion(selectedUser.user) : ""}</dd></div>
+                    <div><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("App last seen", "Último acceso a la app")}</dt><dd>{formatDateTime(getUserPlatformSeenAt(selectedUser.user))}</dd></div>
+                    <div><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("Profile country", "País del perfil")}</dt><dd>{selectedUser.user.profile_country || tr("Not recorded", "Sin registrar")}</dd></div>
+                    <div><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("Profile city", "Ciudad del perfil")}</dt><dd>{selectedUser.user.profile_city || tr("Not recorded", "Sin registrar")}</dd></div>
+                    <div className="col-span-2"><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("Signup country / city", "País / ciudad de registro")}</dt><dd>{signupLocation(selectedUser.user)}{selectedUser.user.signup_location_recorded_at ? <span className="block text-xs text-[var(--gl-ink-muted)]">{formatDateTime(selectedUser.user.signup_location_recorded_at)}</span> : null}</dd></div>
+                    <div className="col-span-2"><dt className="text-xs text-[var(--gl-ink-muted)]">{tr("Latest recycling location", "Última ubicación de reciclaje")}</dt><dd>{[selectedUser.user.latest_city, selectedUser.user.latest_province].filter(Boolean).join(", ") || "—"}</dd></div>
+                  </dl>
+                </section>
+                <section className="space-y-3">
+                  <h2 className="text-base font-semibold">EcoPoints</h2>
+                  <div className="space-y-3 bg-[var(--gl-paper)] p-3">
+                    <div className="flex gap-5">
+                      <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm">
+                        <input type="radio" name="points-mode" value="add" checked={pointsMode === "add"} onChange={() => setPointsMode("add")} />{tr("Add", "Añadir")}
+                      </label>
+                      <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm">
+                        <input type="radio" name="points-mode" value="remove" checked={pointsMode === "remove"} onChange={() => setPointsMode("remove")} />{tr("Remove", "Retirar")}
+                      </label>
                     </div>
-                    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm">
-                      <p className="font-medium text-[var(--gl-ink-muted)]">Units</p>
-                      <p className="mt-1 text-base font-semibold text-[var(--gl-ink)]">
-                        {recycleHistorySummary.totalUnits}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-3 text-sm">
-                      <p className="font-medium text-[var(--gl-ink-muted)]">EcoPoints</p>
-                      <p className="mt-1 text-base font-semibold text-[var(--gl-ink)]">
-                        {recycleHistorySummary.totalPoints}
-                      </p>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="min-w-0 flex-1"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("EcoPoints amount", "Cantidad de EcoPoints")}</span>
+                        <input type="number" min="1" step="1" value={pointsMode === "add" ? ecoPointsToAdd : ecoPointsToRemove}
+                          onChange={(event) => pointsMode === "add" ? setEcoPointsToAdd(event.target.value) : setEcoPointsToRemove(event.target.value)}
+                          className={inputClass} />
+                      </label>
+                      <button type="button" onClick={pointsMode === "add" ? addEcoPoints : removeEcoPoints}
+                        disabled={pointsMode === "add" ? addingEcoPoints || !ecoPointsToAdd : removingEcoPoints || !ecoPointsToRemove}
+                        className={commandClass + (pointsMode === "add" ? " bg-[var(--gl-green)] text-white" : " bg-red-600 text-white")}>
+                        {addingEcoPoints || removingEcoPoints ? tr("Updating...", "Actualizando...") : pointsMode === "add" ? tr("Add points", "Añadir puntos") : tr("Remove points", "Retirar puntos")}
+                      </button>
                     </div>
                   </div>
-                ) : null}
-                <div className="space-y-2">
-                  {selectedUser.recycling_events.length === 0 ? (
-                    <p className="text-sm text-[var(--gl-ink-muted)]">No recycling events yet.</p>
-                  ) : (
-                    selectedUser.recycling_events.map((event) => (
-                      <div key={event.id} className="rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-[var(--gl-ink)]">
-                              {event.units} units
-                              {event.city || event.province
-                                ? ` · ${[event.city, event.province].filter(Boolean).join(", ")}`
-                                : ""}
-                            </p>
-                            <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                              Event ID: {event.id}
-                            </p>
-                            <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                              User: {selectedUser.user.display_name}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(event.created_at)}</p>
-                            <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                              Day: {new Date(event.created_at).toLocaleDateString()}
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-[var(--gl-amber-ink)]">
-                              {event.points_issued} EcoPoints
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              event.verification_status === "approved"
-                                ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
-                                : event.verification_status === "rejected"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"
-                            }`}
-                          >
-                            {event.verification_status}
-                          </span>
-                        </div>
-                        {event.items.length > 0 ? (
-                          <div className="mt-3 rounded-md bg-[var(--gl-card-cream)] p-3">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                              Recycled Products
-                            </p>
-                            <div className="space-y-1.5">
-                              {event.items.map((item, index) => (
-                                <div
-                                  key={`${event.id}-${item.barcode}-${index}`}
-                                  className="flex items-start justify-between gap-3 text-xs"
-                                >
-                                  <p className="font-medium text-[var(--gl-ink-soft)]">{item.product_name}</p>
-                                  <p className="text-[var(--gl-ink-muted)]">{item.barcode || "—"}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                        {(event.lat !== null && event.lng !== null) ? (
-                          <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                            {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                  Recent Scan Events
-                </h3>
-                <div className="space-y-2">
-                  {selectedUser.scan_events.length === 0 ? (
-                    <p className="text-sm text-[var(--gl-ink-muted)]">No scan events yet.</p>
-                  ) : (
-                    selectedUser.scan_events.map((event) => (
-                      <div key={event.id} className="rounded-lg border border-[var(--gl-hairline)] p-3 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-medium text-[var(--gl-ink)]">{event.barcode}</p>
-                          <p className="text-xs text-[var(--gl-ink-muted)]">{formatDateTime(event.created_at)}</p>
-                        </div>
-                        <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">{event.trust_tier}</p>
-                        {(event.lat !== null && event.lng !== null) ? (
-                          <p className="mt-1 text-xs text-[var(--gl-ink-muted)]">
-                            {event.lat.toFixed(4)}, {event.lng.toFixed(4)}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
+                </section>
               </div>
             </div>
-          )}
-        </aside>
-      </div>
+
+            <div role="tabpanel" tabIndex={0} id="user-panel-activity" aria-labelledby="user-tab-activity" hidden={userTab !== "activity"} className="space-y-4">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="min-w-0"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("From", "Desde")}</span>
+                  <input type="date" value={activityFilters.from} onChange={(event) => setActivityFilters((current) => ({ ...current, from: event.target.value }))} className={inputClass} /></label>
+                <label className="min-w-0"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("To", "Hasta")}</span>
+                  <input type="date" value={activityFilters.to} onChange={(event) => setActivityFilters((current) => ({ ...current, to: event.target.value }))} className={inputClass} /></label>
+                <button type="button" onClick={applyActivityFilters} disabled={!selectedUser || activityLoading} className={commandClass + " bg-[var(--gl-green)] text-white"}>{tr("Apply", "Aplicar")}</button>
+                <button type="button" onClick={resetActivityFilters} disabled={!selectedUser || activityLoading} className={commandClass + " bg-[var(--gl-paper)]"}>{tr("Reset", "Restablecer")}</button>
+              </div>
+              {selectedUser.recycling_events.length > 0 ? <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--gl-ink-muted)]">
+                <p>{tr("Events", "Eventos")}: <strong className="text-[var(--gl-ink)]">{recycleHistorySummary.totalEvents}</strong></p>
+                <p>{tr("Units", "Unidades")}: <strong className="text-[var(--gl-ink)]">{recycleHistorySummary.totalUnits}</strong></p>
+                <p>EcoPoints: <strong className="text-[var(--gl-ink)]">{recycleHistorySummary.totalPoints}</strong></p>
+              </div> : null}
+              <section aria-label={tr("Recycling history", "Historial de reciclaje")} className="divide-y divide-[var(--gl-hairline)] bg-[var(--gl-paper)]">
+                {selectedUser.recycling_events.length === 0 ? <p className="p-3 text-sm text-[var(--gl-ink-muted)]">{tr("No recycling events yet.", "Aún no hay eventos de reciclaje.")}</p> : selectedUser.recycling_events.map((event) => (
+                  <details key={event.id} className="group px-3 py-2">
+                    <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-sm [&::-webkit-details-marker]:hidden">
+                      <span className="min-w-0"><span className="font-semibold">{event.units} {tr("units", "unidades")}</span> · {[event.city, event.province].filter(Boolean).join(", ") || "—"}<span className="block text-xs text-[var(--gl-ink-muted)]">{formatDateTime(event.created_at)}</span></span>
+                      <span className="flex items-center gap-2 text-xs"><span>{event.points_issued} EcoPoints</span>
+                        <span className={"rounded px-1.5 py-0.5 " + (event.verification_status === "approved" ? "bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]" : event.verification_status === "rejected" ? "bg-red-100 text-red-700" : "bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]")}>{event.verification_status}</span>
+                        <ChevronDown aria-hidden="true" className="h-4 w-4 group-open:rotate-180" /></span>
+                    </summary>
+                    <div className="space-y-2 py-2 text-xs [overflow-wrap:anywhere]">
+                      <p className="text-[var(--gl-ink-muted)]">Event ID: {event.id}</p>
+                      <p className="font-semibold">{tr("Recycled products", "Productos reciclados")}</p>
+                      {event.items.map((item, index) => <div key={event.id + "-" + item.barcode + "-" + index} className="flex flex-wrap justify-between gap-2"><p>{item.product_name}</p><p className="text-[var(--gl-ink-muted)]">{item.barcode || "—"}</p></div>)}
+                      {event.lat !== null && event.lng !== null ? <p className="text-[var(--gl-ink-muted)]">{event.lat.toFixed(4)}, {event.lng.toFixed(4)}</p> : null}
+                    </div>
+                  </details>
+                ))}
+              </section>
+              <details className="group bg-[var(--gl-paper)] p-3">
+                <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                  {tr("Recent scan events", "Escaneos recientes")} ({selectedUser.scan_events.length})<ChevronDown aria-hidden="true" className="h-4 w-4 group-open:rotate-180" />
+                </summary>
+                <div className="divide-y divide-[var(--gl-hairline)]">
+                  {selectedUser.scan_events.length === 0 ? <p className="py-2 text-sm text-[var(--gl-ink-muted)]">{tr("No scan events yet.", "Aún no hay escaneos.")}</p> : selectedUser.scan_events.map((event) =>
+                    <div key={event.id} className="flex flex-wrap justify-between gap-2 py-2 text-xs">
+                      <p>{event.barcode}<span className="block text-[var(--gl-ink-muted)]">{event.trust_tier}</span></p>
+                      <div className="text-[var(--gl-ink-muted)]"><p>{formatDateTime(event.created_at)}</p>{event.lat !== null && event.lng !== null ? <p>{event.lat.toFixed(4)}, {event.lng.toFixed(4)}</p> : null}</div>
+                    </div>)}
+                </div>
+              </details>
+            </div>
+
+            <div role="tabpanel" tabIndex={0} id="user-panel-challenges" aria-labelledby="user-tab-challenges" hidden={userTab !== "challenges"}>
+              {!selectedUser.active_challenges?.length ? <p className="py-3 text-sm text-[var(--gl-ink-muted)]">{tr("No active joined challenges.", "No hay retos activos para este usuario.")}</p> :
+                <div className="divide-y divide-[var(--gl-hairline)] bg-[var(--gl-paper)]">
+                  {selectedUser.active_challenges.map((challenge) => {
+                    const progress = challenge.required_count > 0 ? Math.min(100, Math.round((challenge.progress_count / challenge.required_count) * 100)) : 0;
+                    return <article key={challenge.user_challenge_id} className="space-y-2 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0"><h2 className="break-words text-sm font-semibold">{challenge.title}</h2>
+                          <p className="text-xs text-[var(--gl-ink-muted)]">{challenge.challenge_type} · {tr("Joined", "Inscrito")}: {formatDateTime(challenge.accepted_at)}</p></div>
+                        <button type="button" onClick={() => removeUserFromChallenge(challenge.id, challenge.title)} disabled={removingChallengeId === challenge.id}
+                          className={commandClass + " shrink-0 text-red-700 hover:bg-red-50"}>{removingChallengeId === challenge.id ? tr("Removing...", "Retirando...") : tr("Remove", "Retirar")}</button>
+                      </div>
+                      <p className="text-xs text-[var(--gl-ink-muted)]">{tr("Progress", "Progreso")}: {challenge.progress_count}/{challenge.required_count || 1}</p>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--gl-green-soft)]"><div className="h-full bg-[var(--gl-green)]" style={{ width: progress + "%" }} /></div>
+                    </article>;
+                  })}
+                </div>}
+            </div>
+
+            <div role="tabpanel" tabIndex={0} id="user-panel-account" aria-labelledby="user-tab-account" hidden={userTab !== "account"} className="grid items-start gap-5 xl:grid-cols-2">
+              <section className="space-y-3">
+                <h2 className="text-base font-semibold">{tr("Edit user", "Editar usuario")}</h2>
+                <div className="space-y-3 bg-[var(--gl-paper)] p-3">
+                  <label className="block"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("Display name", "Nombre visible")}</span>
+                    <input value={editForm.display_name} onChange={(event) => setEditForm((current) => ({ ...current, display_name: event.target.value }))} className={inputClass} /></label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block min-w-0"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("Role", "Rol")}</span>
+                      <select aria-label={tr("Role", "Rol")} value={editForm.role} onChange={(event) => setEditForm((current) => ({ ...current, role: event.target.value }))} className={inputClass}>
+                        {["user", "partner", "brand_admin", "organization", "admin"].map((role) => <option key={role} value={role}>{role}</option>)}
+                      </select></label>
+                    <label className="block min-w-0"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("Brand", "Marca")}</span>
+                      <select aria-label={tr("Brand", "Marca")} value={editForm.brand_id} onChange={(event) => setEditForm((current) => ({ ...current, brand_id: event.target.value }))} className={inputClass}>
+                        <option value="">{tr("No brand", "Sin marca")}</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                      </select></label>
+                  </div>
+                  <button type="button" onClick={saveUserEdits} disabled={savingEdit} className={commandClass + " bg-[var(--gl-green)] text-white"}>{savingEdit ? tr("Saving...", "Guardando...") : tr("Save changes", "Guardar cambios")}</button>
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h2 className="text-base font-semibold">{tr("Password", "Contraseña")}</h2>
+                <div className="space-y-3 bg-[var(--gl-paper)] p-3">
+                  <label className="block"><span className="mb-1 block text-xs text-[var(--gl-ink-muted)]">{tr("New password", "Nueva contraseña")}</span>
+                    <input type="password" value={manualPassword} onChange={(event) => setManualPassword(event.target.value)} placeholder={tr("Minimum 8 characters", "Mínimo 8 caracteres")}
+                      autoComplete="new-password" className={inputClass} /></label>
+                  <button type="button" onClick={changeUserPassword} disabled={savingPassword || manualPassword.length < 8} className={commandClass + " bg-[var(--gl-paper)] ring-1 ring-inset ring-[var(--gl-hairline)]"}>
+                    {savingPassword ? tr("Saving password...", "Guardando contraseña...") : tr("Set new password", "Establecer contraseña")}</button>
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h2 className="text-base font-semibold">{tr("Avatar progress", "Progreso del avatar")}</h2>
+                <p className="text-sm text-[var(--gl-ink-muted)]">{tr("Return to the turtle at 0 avatar progress.", "Volver a la tortuga con 0 puntos de progreso.")}</p>
+                <button type="button" onClick={() => resetAvatarProgress(selectedUser.user)} disabled={resettingAvatarUserId === selectedUser.user.id}
+                  className={commandClass + " bg-[var(--gl-amber-soft)] text-[var(--gl-amber-ink)]"}>{resettingAvatarUserId === selectedUser.user.id ? tr("Resetting...", "Restableciendo...") : tr("Reset to Turtle", "Restablecer a tortuga")}</button>
+              </section>
+              <section className="space-y-3">
+                <h2 className="text-base font-semibold">{tr("Account status", "Estado de la cuenta")}</h2>
+                <div>{statusLabel(selectedUser.user)}</div>
+                <button type="button" onClick={() => toggleDeactivate(selectedUser.user.id)} disabled={activeAction === selectedUser.user.id}
+                  className={commandClass + (selectedUser.user.deactivated_at ? " bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]" : " bg-red-50 text-red-700")}>
+                  {activeAction === selectedUser.user.id ? tr("Updating...", "Actualizando...") : selectedUser.user.deactivated_at ? tr("Reactivate", "Reactivar") : tr("Deactivate", "Desactivar")}
+                </button>
+              </section>
+            </div>
+          </fieldset>
+        </> : null}
+      </section>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -34,6 +34,9 @@ import {
   isRouteAllowedForRole,
 } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
+
+import styles from "./CrmShell.module.css";
+import { WorkspaceHeaderTarget } from "./WorkspaceHeader";
 
 type NavItem = {
   key: NavItemKey;
@@ -398,6 +401,13 @@ export function CrmShell({ children }: { children: ReactNode }) {
   const copy = shellCopy[language];
   const [session, setSession] = useState<ReturnType<typeof getSession> | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [headerTarget, setHeaderTarget] = useState<HTMLDivElement | null>(null);
+  const drawer = useRef<HTMLDialogElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (sidebarOpen) drawer.current?.showModal();
+    else if (drawer.current?.open) drawer.current.close();
+  }, [sidebarOpen]);
   const envLabel = useMemo(() => resolveEnvLabel(language), [language]);
 
   useEffect(() => {
@@ -436,179 +446,70 @@ export function CrmShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const sidebar = (
-    <aside className="flex h-full w-72 flex-col border-r border-[var(--gl-hairline)] bg-[var(--gl-paper)]">
-      <div className="flex h-16 items-center justify-between border-b border-[var(--gl-hairline)] px-5">
-        <Link href={getHomeForRole(session.role)} className="flex min-w-0 items-center gap-3">
-          <Image
-            src="/greenloop-mark.png"
-            alt="GreenLoop"
-            width={36}
-            height={36}
-            priority
-            unoptimized
-            className="h-9 w-9 shrink-0"
-          />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[var(--gl-ink)]">GreenLoop</p>
-            <p className="flex items-center gap-1.5 text-xs text-[var(--gl-ink-muted)]">
-              <span className="truncate">{copy.roles[session.role]}</span>
-              <span
-                className="inline-flex shrink-0 items-center rounded-full border px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide"
-                style={{
-                  background: "var(--gl-green-soft)",
-                  borderColor: "var(--gl-hairline)",
-                  color: "var(--gl-green-deep)",
-                }}
-                title={copy.environmentTitle(envLabel)}
-              >
-                {envLabel}
-              </span>
-            </p>
-          </div>
+  const sidebar = (mobile = false) => (
+    <aside className={styles.sidebar}>
+      <div className={styles.brand}>
+        <Link href={getHomeForRole(session.role)} className={styles.brandLink} onClick={() => setSidebarOpen(false)}>
+          <Image src="/greenloop-mark.png" alt="GreenLoop" width={30} height={30} priority unoptimized className="h-[30px] w-[30px] shrink-0" />
+          <div className={styles.brandText}><p className="font-semibold">GreenLoop</p><p>{copy.roles[session.role]}</p></div>
         </Link>
-        <button
-          className="rounded-md p-2 text-[var(--gl-ink-muted)] hover:bg-[var(--gl-card-cream)] hover:text-[var(--gl-ink)] lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-          aria-label={copy.closeNavigation}
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {mobile ? <button type="button" className={styles.icon} onClick={() => setSidebarOpen(false)} aria-label={copy.closeNavigation}><X size={18} /></button> : null}
       </div>
-
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {groups.map((group) => (
-          <div key={group.key} className="mb-5">
-            <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--gl-ink-muted)]">
-              {copy.groups[group.key]}
-            </div>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const active = isActive(pathname, item.href);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      active
-                        ? ""
-                        : "text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)] hover:text-[var(--gl-ink)]"
-                    }`}
-                    style={
-                      active
-                        ? {
-                            background: "var(--gl-green-soft)",
-                            color: "var(--gl-green-deep)",
-                          }
-                        : undefined
-                    }
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {active ? (
-                      <span
-                        aria-hidden
-                        className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r"
-                        style={{ background: "var(--gl-green)" }}
-                      />
-                    ) : null}
-                    <Icon className="h-4 w-4" />
-                    <span className="truncate">{copy.items[item.key]}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      <nav className={styles.nav} aria-label={copy.roles[session.role]}>
+        {groups.map((group) => <div key={group.key} className={styles.group}>
+          <div className={styles.groupLabel}>{copy.groups[group.key]}</div>
+          {group.items.map((item) => {
+            const active = isActive(pathname, item.href) && !groups.some((candidate) => candidate.items.some((other) => other.href.length > item.href.length && isActive(pathname, other.href)));
+            const Icon = item.icon;
+            return <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)} className={styles.navLink} aria-current={active ? "page" : undefined} title={copy.items[item.key]}>
+              <Icon aria-hidden /><span className={styles.navText}>{copy.items[item.key]}</span>
+            </Link>;
+          })}
+        </div>)}
       </nav>
+      <footer className={styles.account}>
+        <span className={styles.avatar} aria-hidden>{(session.email || "G").slice(0, 1).toUpperCase()}</span>
+        <div className={styles.identity}><p title={session.email || copy.signedIn}>{session.email || copy.signedIn}</p><p>{copy.roleNames[session.role]}</p></div>
+        <button type="button" onClick={logout} className={styles.icon} aria-label={copy.logout} title={copy.logout}><LogOut size={16} /></button>
+      </footer>
     </aside>
   );
 
   return (
-    <div
-      className="min-h-screen bg-[var(--gl-bg-cream)] text-[var(--gl-ink)] lg:grid lg:grid-cols-[18rem_minmax(0,1fr)]"
-      style={{ width: "100vw", maxWidth: "none", marginLeft: "calc(50% - 50vw)" }}
-    >
-      <div className="hidden lg:sticky lg:top-0 lg:block lg:h-screen">{sidebar}</div>
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button
-            className="absolute inset-0 bg-[var(--gl-green-forest)]/40"
-            onClick={() => setSidebarOpen(false)}
-            aria-label={copy.closeNavigationOverlay}
-          />
-          <div className="absolute inset-y-0 left-0">{sidebar}</div>
+    <WorkspaceHeaderTarget.Provider value={headerTarget}>
+      <div className={styles.shell}>
+        <div className={styles.desktop}>{sidebar()}</div>
+        <dialog ref={drawer} className={styles.dialog} aria-label={copy.openNavigation}
+          onKeyDown={(event) => {
+            if (event.key !== "Tab") return;
+            const stops = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), [tabindex="0"]')).filter(element => element.offsetParent !== null);
+            const first = stops[0], last = stops[stops.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+          }}
+          onCancel={() => setSidebarOpen(false)}
+          onClose={() => { setSidebarOpen(false); menuButton.current?.focus({ preventScroll: true }); }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              if (event.clientX > bounds.right || event.clientY > bounds.bottom) setSidebarOpen(false);
+            }
+          }}>
+          {sidebar(true)}
+        </dialog>
+        <div className={styles.content}>
+          <header className={styles.bar}>
+            <button ref={menuButton} type="button" className={styles.icon + " " + styles.mobileButton} onClick={() => setSidebarOpen(true)} aria-label={copy.openNavigation} aria-expanded={sidebarOpen}><Menu size={20} /></button>
+            <Link className={styles.breadcrumb} href={getHomeForRole(session.role)} title={copy.environmentTitle(envLabel)}>{copy.roleNames[session.role]} /</Link>
+            <div ref={setHeaderTarget} className={styles.titleSlot} data-fallback={formatPath(pathname, language)} />
+            <div className={styles.language} role="group" aria-label={copy.languageLabel} title={copy.languageLabel}>
+              <Globe2 size={14} className="ml-1 text-[var(--gl-ink-muted)]" aria-hidden />
+              {(["en", "es"] as DashboardLanguage[]).map((option) => <button key={option} type="button" onClick={() => setLanguage(option)} title={option === "en" ? copy.english : copy.spanish} aria-pressed={option === language}>{option.toUpperCase()}</button>)}
+            </div>
+          </header>
+          <main className={styles.main + " crm-workspace"}>{children}</main>
         </div>
-      )}
-
-      <div className="w-full min-w-0 max-w-none">
-        <header className="relative z-30 flex h-16 w-full min-w-0 items-center justify-between gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-paper)]/95 px-4 backdrop-blur md:gap-6 md:px-6 lg:sticky lg:top-0">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              className="rounded-md p-2 text-[var(--gl-ink-muted)] hover:bg-[var(--gl-card-cream)] hover:text-[var(--gl-ink)] lg:hidden"
-              onClick={() => setSidebarOpen(true)}
-              aria-label={copy.openNavigation}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gl-ink-muted)]">
-                {copy.roles[session.role]}
-              </p>
-              <p className="truncate text-sm font-semibold capitalize text-[var(--gl-ink)]">
-                {formatPath(pathname, language)}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 sm:gap-2">
-            <div
-              className="inline-flex items-center gap-0.5 rounded-full border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-0.5 shadow-[0_1px_2px_rgba(20,32,26,0.06)]"
-              role="group"
-              aria-label={copy.languageLabel}
-              title={copy.languageLabel}
-            >
-              <Globe2 className="ml-2 mr-0.5 h-3.5 w-3.5 shrink-0 text-[var(--gl-ink-muted)]" aria-hidden />
-              {(["en", "es"] as DashboardLanguage[]).map((option) => {
-                const active = option === language;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setLanguage(option)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide transition-colors ${
-                      active
-                        ? "bg-[var(--gl-green)] text-white shadow-[0_1px_2px_rgba(20,32,26,0.12)]"
-                        : "text-[var(--gl-ink-muted)] hover:text-[var(--gl-ink)]"
-                    }`}
-                    title={option === "en" ? copy.english : copy.spanish}
-                    aria-pressed={active}
-                  >
-                    {option.toUpperCase()}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="hidden text-right sm:block">
-              <p className="truncate text-sm font-medium text-[var(--gl-ink)]">
-                {session.email || copy.signedIn}
-              </p>
-              <p className="text-xs capitalize text-[var(--gl-ink-muted)]">
-                {copy.roleNames[session.role]}
-              </p>
-            </div>
-            <button
-              onClick={logout}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-medium text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">{copy.logout}</span>
-            </button>
-          </div>
-        </header>
-        <main className="min-h-[calc(100vh-4rem)] w-full min-w-0 max-w-none p-4 md:p-6">{children}</main>
       </div>
-    </div>
+    </WorkspaceHeaderTarget.Provider>
   );
 }

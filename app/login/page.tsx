@@ -57,8 +57,10 @@ export default function LoginPage() {
 
         <div className="mt-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label htmlFor="login-email" className="block text-sm font-medium text-gray-700">Email</label>
             <input
+              id="login-email"
+              autoComplete="username"
               type="email"
               className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
               value={email}
@@ -68,8 +70,10 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">Password</label>
             <input
+              id="login-password"
+              autoComplete="current-password"
               type="password"
               className="mt-1 w-full rounded border border-gray-300 px-3 py-2"
               value={password}
@@ -79,12 +83,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-red-600">{error}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          className="mt-5 w-full rounded bg-green-700 px-4 py-2 text-white disabled:opacity-60"
+          className="mt-5 min-h-11 w-full rounded bg-green-700 px-4 py-2 text-white disabled:opacity-60"
         >
           {loading ? "Logging in..." : "Login"}
         </button>

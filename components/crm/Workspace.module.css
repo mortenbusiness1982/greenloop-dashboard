@@ -1,0 +1,23 @@
+.root { min-width: 0; }
+.table { width: 100%; table-layout: fixed; text-align: left; font-size: 13px; font-variant-numeric: tabular-nums; }
+.table th, .table td { overflow-wrap: anywhere; vertical-align: top; }
+.table th { font-weight: 500; }
+.table tbody { background: var(--gl-paper); }
+.table tbody tr { border-top: 1px solid var(--gl-hairline); }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; overflow: hidden; background: var(--gl-paper); border: 1px solid var(--gl-hairline); border-radius: 8px; }
+.metrics > * { min-width: 0; background: none; border: 0; border-right: 1px solid var(--gl-hairline); border-bottom: 1px solid var(--gl-hairline); border-radius: 0; padding: 10px 14px; box-shadow: none; }
+.metrics > * > :last-child { margin-top: 3px; font-variant-numeric: tabular-nums; }
+.root input:not([type=checkbox]):not([type=radio]), .root select { min-width: 0; max-width: 100%; min-height: 44px; }
+.root button, .root summary { touch-action: manipulation; min-height: 44px; }
+@media (min-width: 768px) {
+  .metrics { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .root input:not([type=checkbox]):not([type=radio]), .root select, .root button, .root summary { min-height: 32px; }
+}
+@media (max-width: 767px) {
+  .table, .table tbody { display: block; min-width: 0; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 0; }
+  .table tbody td { display: block; min-width: 0; padding: 6px 10px; text-align: left; }
+  .table tbody td:first-child, .table tbody td:last-child, .table tbody td[colspan] { grid-column: 1 / -1; }
+  .table tbody td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 11px; color: var(--gl-ink-muted); font-weight: 400; }
+}

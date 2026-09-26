@@ -1,5 +1,7 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Building2,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type LeaderboardScope = "team" | "school" | "hotel" | "brand" | "organization" | "country";
 
@@ -52,6 +55,13 @@ function number(value: number) {
 }
 
 export function AdminLeaderboardsWorkspace() {
+  const { language } = useDashboardLanguage();
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const scopeLabels: Record<LeaderboardScope, string> = {
+    team: tr("Teams", "Equipos"), school: tr("Schools", "Colegios"),
+    hotel: tr("Hotels", "Hoteles"), brand: tr("Brands", "Marcas"),
+    organization: tr("Organizations", "Organizaciones"), country: tr("Countries", "Países"),
+  };
   const [scope, setScope] = useState<LeaderboardScope>("team");
   const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,27 +90,26 @@ export function AdminLeaderboardsWorkspace() {
   }, [loadLeaderboard]);
 
   return (
-    <main className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[var(--gl-green)]">Community performance</p>
-          <h1 className="mt-1 text-3xl font-semibold text-[var(--gl-ink)]">Leaderboards</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[var(--gl-ink-muted)]">
-            Compare approved recycling across GreenLoop communities. Pending and rejected events never count.
-          </p>
-        </div>
+    <div className="min-w-0 space-y-4">
+      <WorkspaceHeader className="flex items-center justify-between gap-3">
+        <h1 className="flex min-w-0 items-center gap-2 text-2xl font-semibold text-[var(--gl-ink)]">
+          <Trophy aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-[var(--gl-green)] sm:block" />
+          {tr("Leaderboards", "Clasificaciones")}
+        </h1>
         <button
           type="button"
           onClick={() => void loadLeaderboard()}
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-4 py-2 text-sm font-semibold text-[var(--gl-ink)] disabled:opacity-50"
+          aria-label={tr("Refresh rankings", "Actualizar clasificaciones")}
+          title={tr("Refresh rankings", "Actualizar clasificaciones")}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)] disabled:opacity-50"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <RefreshCw aria-hidden="true" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </button>
-      </header>
+      </WorkspaceHeader>
 
-      <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Leaderboard type">
-        {scopes.map((item) => {
+      <div className="grid grid-cols-3 border-b border-[var(--gl-hairline)] sm:flex" role="tablist" aria-label={tr("Leaderboard type", "Tipo de clasificación")}>
+        {scopes.map((item, index) => {
           const Icon = item.icon;
           const selected = item.id === scope;
           return (
@@ -108,53 +117,74 @@ export function AdminLeaderboardsWorkspace() {
               key={item.id}
               type="button"
               role="tab"
+              id={`leaderboard-tab-${item.id}`}
+              aria-controls="leaderboard-panel"
               aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              disabled={loading}
               onClick={() => setScope(item.id)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+              onKeyDown={(event) => {
+                const target = event.key === "Home" ? 0 : event.key === "End" ? scopes.length - 1
+                  : event.key === "ArrowRight" ? (index + 1) % scopes.length
+                  : event.key === "ArrowLeft" ? (index + scopes.length - 1) % scopes.length : null;
+                if (target === null) return;
+                event.preventDefault();
+                document.getElementById(`leaderboard-tab-${scopes[target].id}`)?.focus();
+                setScope(scopes[target].id);
+              }}
+              className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 border-b-2 px-1 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${
                 selected
-                  ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
-                  : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-bg-cream)]"
+                  ? "border-[var(--gl-green)] bg-[var(--gl-green-soft)] text-[var(--gl-green-deep)]"
+                  : "border-transparent text-[var(--gl-ink-muted)] hover:bg-[var(--gl-paper)]"
               }`}
             >
-              <Icon className="h-4 w-4" /> {item.label}
+              <Icon aria-hidden="true" className="hidden h-4 w-4 shrink-0 lg:block" />
+              <span className="break-words">{scopeLabels[item.id]}</span>
             </button>
           );
         })}
       </div>
 
-      <section className="overflow-hidden rounded-[var(--gl-radius)] border border-[var(--gl-hairline)] bg-white shadow-[var(--gl-shadow-sm)]">
-        <div className="flex items-start gap-3 border-b border-[var(--gl-hairline)] bg-[var(--gl-bg-cream)] px-5 py-4">
-          <Trophy className="mt-0.5 h-5 w-5 text-[var(--gl-green)]" />
-          <div>
-            <h2 className="font-semibold text-[var(--gl-ink)]">{activeScope.label}</h2>
-            <p className="text-sm text-[var(--gl-ink-muted)]">{activeScope.description}</p>
-          </div>
-          {leaderboard ? <span className="ml-auto text-xs font-semibold text-[var(--gl-ink-muted)]">{leaderboard.participantCount} ranked</span> : null}
+      <section id="leaderboard-panel" role="tabpanel" aria-labelledby={`leaderboard-tab-${activeScope.id}`} aria-busy={loading} className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-[var(--gl-ink-muted)]">
+          <p>{tr("Only approved recycling counts.", "Solo cuenta el reciclaje aprobado.")}</p>
+          {!loading && leaderboard ? <p>{tr("Top", "Top")} {number(leaderboard.top.length)} · {number(leaderboard.participantCount)} {tr("ranked", "en la clasificación")}</p> : null}
         </div>
 
-        {loading ? <p className="px-5 py-10 text-center text-sm text-[var(--gl-ink-muted)]">Loading rankings...</p> : null}
-        {error ? <p className="m-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">{error}</p> : null}
+        {loading ? <p role="status" className="bg-[var(--gl-paper)] px-4 py-8 text-center text-sm text-[var(--gl-ink-muted)]">{tr("Loading rankings...", "Cargando clasificaciones...")}</p> : null}
+        {error ? <p role="alert" className="rounded-lg border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] p-4 text-sm font-medium text-[var(--gl-coral-ink)]">{error}</p> : null}
         {!loading && !error && leaderboard?.top.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-[var(--gl-ink-muted)]">No ranked communities yet.</p>
+          <p className="bg-[var(--gl-paper)] px-4 py-8 text-center text-sm text-[var(--gl-ink-muted)]">{tr("No ranked communities yet.", "Todavía no hay comunidades clasificadas.")}</p>
         ) : null}
         {!loading && !error && leaderboard?.top.length ? (
-          <div className="divide-y divide-[var(--gl-hairline)]">
-            {leaderboard.top.map((entry) => (
-              <div key={entry.entityId} className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-3.5">
-                <span className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${entry.rank <= 3 ? "bg-amber-100 text-amber-800" : "bg-[var(--gl-bg-cream)] text-[var(--gl-ink)]"}`}>#{entry.rank}</span>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-[var(--gl-ink)]">{entry.displayName}</p>
-                  <p className="text-xs text-[var(--gl-ink-muted)]">{number(entry.memberCount)} members</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold tabular-nums text-[var(--gl-ink)]">{number(entry.approvedRecycles)}</p>
-                  <p className="text-xs text-[var(--gl-ink-muted)]">approved recycles</p>
-                </div>
-              </div>
-            ))}
+          <div role="region" aria-label={tr("Rankings", "Clasificación")} tabIndex={0} className="max-h-[65dvh] overflow-auto bg-[var(--gl-paper)] focus-visible:outline-2 focus-visible:outline-[var(--gl-green)]">
+            <table className="w-full table-fixed text-sm">
+              <caption className="sr-only">{scopeLabels[activeScope.id]} — {tr("Top 10 by approved recycles", "Top 10 por reciclajes aprobados")}</caption>
+              <thead className="sticky top-0 bg-[var(--gl-card-cream)] text-xs text-[var(--gl-ink-muted)]">
+                <tr>
+                  <th scope="col" className="w-11 px-2 py-3 text-center"><span aria-hidden="true">#</span><span className="sr-only">{tr("Rank", "Puesto")}</span></th>
+                  <th scope="col" className="px-2 py-3 text-left font-medium">{scopeLabels[activeScope.id]}</th>
+                  <th scope="col" className="hidden w-28 px-3 py-3 text-right font-medium sm:table-cell">{tr("Members", "Miembros")}</th>
+                  <th scope="col" className="w-28 px-3 py-3 text-right font-medium sm:w-40">{tr("Approved recycles", "Reciclajes aprobados")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--gl-hairline)]">
+                {leaderboard.top.map((entry) => (
+                  <tr key={entry.entityId}>
+                    <td className="px-2 py-3 align-top"><span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold tabular-nums ${entry.rank <= 3 ? "bg-amber-100 text-amber-800" : "text-[var(--gl-ink-muted)]"}`}>{entry.rank}</span></td>
+                    <th scope="row" className="break-words px-2 py-3 text-left align-top font-medium text-[var(--gl-ink)]">
+                      {entry.displayName}
+                      <span className="mt-0.5 block text-xs font-normal text-[var(--gl-ink-muted)] sm:hidden">{number(entry.memberCount)} {tr("members", "miembros")}</span>
+                    </th>
+                    <td className="hidden px-3 py-3 text-right align-top tabular-nums text-[var(--gl-ink-muted)] sm:table-cell">{number(entry.memberCount)}</td>
+                    <td className="break-words px-3 py-3 text-right align-top font-semibold tabular-nums text-[var(--gl-ink)]">{number(entry.approvedRecycles)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : null}
       </section>
-    </main>
+    </div>
   );
 }

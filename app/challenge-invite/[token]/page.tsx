@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { invitationCopy, formatInvitationCopy, resolveInvitationLanguage } from "@/lib/invitationLanguage";
 import { API_BASE } from "@/lib/api";
 import ChallengeInvitationClient, { type InvitationPreview } from "./ChallengeInvitationClient";
 
@@ -8,6 +10,7 @@ const INVITATION_BASE_URL = (
 
 type ChallengeInvitationPageProps = {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ lang?: string | string[] }>;
 };
 
 async function loadInvitation(token: string): Promise<InvitationPreview | null> {
@@ -26,20 +29,21 @@ async function loadInvitation(token: string): Promise<InvitationPreview | null> 
   }
 }
 
-function previewDescription(invitation: InvitationPreview | null) {
-  if (!invitation) return "Join a private GreenLoop recycling challenge.";
-  const title = invitation.challenge.title.trim();
-  return `You’re invited to join “${title}” on GreenLoop.`;
+async function pageLanguage(searchParams: ChallengeInvitationPageProps["searchParams"]) {
+  const query = await searchParams;
+  return resolveInvitationLanguage(query.lang, (await headers()).get("accept-language") || "");
 }
 
-export async function generateMetadata({ params }: ChallengeInvitationPageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: ChallengeInvitationPageProps): Promise<Metadata> {
   const { token } = await params;
+  const language = await pageLanguage(searchParams);
+  const copy = invitationCopy[language];
   const invitation = await loadInvitation(token);
-  const challengeTitle = invitation?.challenge.title.trim() || "GreenLoop challenge";
-  const title = `Join “${challengeTitle}” | GreenLoop`;
-  const description = previewDescription(invitation);
-  const pageUrl = `${INVITATION_BASE_URL}/i/${encodeURIComponent(token)}`;
-  const imageUrl = `${INVITATION_BASE_URL}/challenge-invite/${encodeURIComponent(token)}/preview`;
+  const challengeTitle = invitation?.challenge.title.trim() || copy.title;
+  const title = `${copy.title}: ${challengeTitle} | GreenLoop`;
+  const description = invitation ? formatInvitationCopy(copy.meta, "title", challengeTitle) : copy.preview;
+  const pageUrl = `${INVITATION_BASE_URL}/i/${encodeURIComponent(token)}?lang=${language}`;
+  const imageUrl = `${INVITATION_BASE_URL}/challenge-invite/${encodeURIComponent(token)}/preview?lang=${language}`;
 
   return {
     title,
@@ -62,9 +66,10 @@ export async function generateMetadata({ params }: ChallengeInvitationPageProps)
   };
 }
 
-export default async function ChallengeInvitationPage({ params }: ChallengeInvitationPageProps) {
+export default async function ChallengeInvitationPage({ params, searchParams }: ChallengeInvitationPageProps) {
   const { token } = await params;
   const invitation = await loadInvitation(token);
 
-  return <ChallengeInvitationClient token={token} initialInvitation={invitation} />;
+  const language = await pageLanguage(searchParams);
+  return <ChallengeInvitationClient token={token} initialInvitation={invitation} language={language} />;
 }

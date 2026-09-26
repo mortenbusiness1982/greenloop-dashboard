@@ -1,10 +1,13 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare2, Send, X } from "lucide-react";
+import { ArrowLeft, Check, CheckSquare2, Plus, RefreshCw, Send, X } from "lucide-react";
 import { API_BASE, apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { buildIsolatedEmailPreview } from "@/lib/emailPreview";
+import { getContactTitle, withContactTitle } from "@/lib/outreachContact";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
 
 type OutreachStatus =
@@ -67,6 +70,7 @@ type OutreachDeleteResponse = {
 type OutreachForm = {
   campaign_name: string;
   lead_name: string;
+  contactTitle: string;
   lead_email: string;
   organization_name: string;
   audience_type: string;
@@ -494,6 +498,7 @@ function emptyForm(): OutreachForm {
   return {
     campaign_name: "",
     lead_name: "",
+    contactTitle: "",
     lead_email: "",
     organization_name: "",
     audience_type: "",
@@ -518,6 +523,7 @@ function formFromEmail(email: OutreachEmail): OutreachForm {
   return {
     campaign_name: email.campaign_name ?? "",
     lead_name: email.lead_name ?? "",
+    contactTitle: getContactTitle(metadata),
     lead_email: email.lead_email ?? "",
     organization_name: email.organization_name ?? "",
     audience_type: email.audience_type ?? "",
@@ -704,6 +710,7 @@ function matchesSearch(email: OutreachEmail, query: string) {
   return [
     email.campaign_name,
     email.lead_name,
+    getContactTitle(email.metadata),
     email.lead_email,
     email.organization_name,
     email.audience_type,
@@ -846,6 +853,10 @@ export function AdminOutreachWorkspace() {
   const [selectedSendIds, setSelectedSendIds] = useState<Set<string>>(() => new Set());
   const [bulkSendProgress, setBulkSendProgress] = useState({ current: 0, total: 0 });
   const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
+  const [editorPane, setEditorPane] = useState("preview");
+  const listScroll = useRef(0);
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const editorTabs = [["preview", tr("Preview", "Vista previa")], ["contact", tr("Contact", "Contacto")], ["message", tr("Message", "Mensaje")], ["research", tr("Research", "Investigación")]];
 
   const selectedSummary = useMemo(
     () => emails.find((email) => email.id === selectedId) ?? null,
@@ -1054,13 +1065,15 @@ export function AdminOutreachWorkspace() {
       html_body: textToHtml(form.html_body),
       attachments,
       metadata: {
-        ...metadata,
+        ...withContactTitle(metadata, form.contactTitle),
         ...(form.researchNotes.trim() ? { research_notes: form.researchNotes.trim() } : {}),
       },
     };
   };
 
   const startNewDraft = () => {
+    listScroll.current = window.scrollY;
+    setEditorPane("contact");
     setIsCreating(true);
     setSelectedId(null);
     setSelectedDetail(null);
@@ -1070,29 +1083,28 @@ export function AdminOutreachWorkspace() {
     setMessage(null);
     setMobilePane("editor");
     window.setTimeout(() => {
-      if (window.innerWidth < 1280) {
-        editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      window.scrollTo({ top: 0 });
+      editorRef.current?.focus({ preventScroll: true });
     }, 0);
   };
 
   const selectEmailForReview = (emailId: string) => {
+    listScroll.current = window.scrollY;
+    setEditorPane("preview");
     setIsCreating(false);
     setSelectedId(emailId);
     setMobilePane("editor");
     window.setTimeout(() => {
-      if (window.innerWidth < 1280) {
-        editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      window.scrollTo({ top: 0 });
+      editorRef.current?.focus({ preventScroll: true });
     }, 0);
   };
 
   const returnToMobileList = () => {
     setMobilePane("list");
     window.setTimeout(() => {
-      if (window.innerWidth < 1280) {
-        listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      window.scrollTo({ top: listScroll.current });
+      document.getElementById(`outreach-row-${selectedId}`)?.focus({ preventScroll: true });
     }, 0);
   };
 
@@ -1451,41 +1463,41 @@ export function AdminOutreachWorkspace() {
   const disabled = Boolean(action) || detailLoading || (!isCreating && (!selected || ["sent", "sending", "deleted"].includes(selected.status)));
 
   return (
-    <div className="w-full min-w-0 max-w-none space-y-5">
-      <section className="mb-5 flex flex-col gap-4 sm:mb-6 lg:flex-row lg:items-end lg:justify-between">
+    <div className="w-full min-w-0 space-y-4">
+      <WorkspaceHeader className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.eyebrow}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--gl-ink)] sm:text-3xl">{c.title}</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{c.description}</p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{c.eyebrow}</h1>
         </div>
-        <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:max-w-full sm:flex-wrap lg:max-w-[620px] lg:justify-end">
+        <div hidden={mobilePane === "editor" || sentArchiveOpen} className="flex flex-wrap gap-2">
           <button
-            className="whitespace-nowrap rounded-lg border border-[var(--gl-green)] bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--gl-green-deep)] sm:px-4"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--gl-green)] px-3 text-sm font-semibold text-white hover:bg-[var(--gl-green-deep)]"
             onClick={startNewDraft}
             disabled={Boolean(action)}
             type="button"
           >
-            {c.actions.newDraft}
+            <Plus className="h-4 w-4" />{c.actions.newDraft}
           </button>
           <button
-            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)] sm:px-4"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] disabled:opacity-50"
+            aria-label={c.actions.reload}
+            title={c.actions.reload}
             onClick={loadEmails}
             disabled={loading || Boolean(action)}
             type="button"
           >
-            {c.actions.reload}
-          </button>
-          <button
-            className="whitespace-nowrap rounded-lg border border-[var(--gl-hairline)] bg-[var(--gl-paper)] px-3 py-2 text-sm font-semibold text-[var(--gl-ink)] shadow-sm hover:bg-[var(--gl-card-cream)] sm:px-4"
-            onClick={() => setSentArchiveOpen(true)}
-            type="button"
-          >
-            {c.actions.sentArchive} ({sentEmails.length})
+            <RefreshCw className="h-4 w-4" />
           </button>
         </div>
-      </section>
+      </WorkspaceHeader>
 
-      <section className="mb-5 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm">
+      <nav hidden={mobilePane === "editor"} aria-label={tr("Outreach views", "Vistas de prospección")} className="flex overflow-x-auto border-b border-[var(--gl-hairline)]">
+        <button type="button" aria-pressed={!sentArchiveOpen} onClick={() => setSentArchiveOpen(false)} className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${!sentArchiveOpen?'border-[var(--gl-green)] text-[var(--gl-green)]':'border-transparent text-[var(--gl-ink-muted)]'}`}>{tr("Proposals", "Propuestas")}</button>
+        <button type="button" aria-pressed={sentArchiveOpen} onClick={() => setSentArchiveOpen(true)} className={`shrink-0 border-b-2 px-3 py-2 text-sm font-medium ${sentArchiveOpen?'border-[var(--gl-green)] text-[var(--gl-green)]':'border-transparent text-[var(--gl-ink-muted)]'}`}>{c.actions.sentArchive} ({sentEmails.length})</button>
+      </nav>
+
+      <div hidden={mobilePane === "editor" || sentArchiveOpen} className="space-y-3">
+      <details className="bg-[var(--gl-paper)] p-3">
+        <summary className="cursor-pointer text-sm font-medium">{tr("Bulk actions", "Acciones en grupo")} · {counts.total} {tr("records", "registros")}{selectedReadyEmails.length ? ` · ${c.selectedCount(selectedReadyEmails.length)}` : ""}</summary>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm font-semibold text-[var(--gl-ink)]">
             {compactSummary([
@@ -1549,9 +1561,9 @@ export function AdminOutreachWorkspace() {
             ) : null}
           </div>
         </div>
-      </section>
+      </details>
 
-      <section className="mb-5 flex gap-2 overflow-x-auto rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-3 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <section aria-label={tr("Outreach queues", "Colas de contacto")} className="hidden flex-wrap border-b border-[var(--gl-hairline)] lg:flex">
         {[
           ["drafted", c.list.bucketDrafts, counts.drafted],
           ["approved", c.list.bucketReady, counts.approved],
@@ -1559,15 +1571,18 @@ export function AdminOutreachWorkspace() {
           ["disregarded", c.list.bucketDisregarded, counts.disregarded + counts.skipped],
           ["deleted", c.list.bucketDeleted, counts.deleted],
           ["sent", c.actions.sentArchive, counts.sent],
+          ["failed", c.kpis.failed, counts.failed],
         ].map(([status, label, count]) => (
           <button
             key={status}
             type="button"
             onClick={() => setStatusFilter(String(status))}
-            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition ${
+            aria-pressed={statusFilter === status}
+            disabled={Boolean(action)}
+            className={`min-h-11 min-w-0 border-b-2 px-2 py-2 text-xs font-medium transition sm:text-sm ${
               statusFilter === status
-                ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
-                : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
+                ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]"
+                : "border-transparent text-[var(--gl-ink-muted)] hover:bg-[var(--gl-paper)]"
             }`}
           >
             {label} <span className="opacity-70">{count}</span>
@@ -1576,18 +1591,20 @@ export function AdminOutreachWorkspace() {
         <button
           type="button"
           onClick={() => setStatusFilter("")}
-          className={`shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition ${
+          aria-pressed={statusFilter === ""}
+          disabled={Boolean(action)}
+          className={`min-h-11 border-b-2 px-2 py-2 text-xs font-medium transition sm:text-sm ${
             statusFilter === ""
-              ? "border-[var(--gl-green)] bg-[var(--gl-green)] text-white"
-              : "border-[var(--gl-hairline)] bg-white text-[var(--gl-ink)] hover:bg-[var(--gl-card-cream)]"
+              ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]"
+              : "border-transparent text-[var(--gl-ink-muted)] hover:bg-[var(--gl-paper)]"
           }`}
         >
           {c.filters.allStatuses}
         </button>
       </section>
 
-      <section className="mb-5 grid gap-3 rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-4 shadow-sm md:grid-cols-2 xl:grid-cols-4">
-        <label className="md:col-span-2 xl:col-span-1">
+      <section className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
+        <label>
           <span className="sr-only">{c.filters.search}</span>
           <input
             className="w-full rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)]"
@@ -1597,7 +1614,8 @@ export function AdminOutreachWorkspace() {
           />
         </label>
         <select
-          className="rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)]"
+          aria-label={c.editor.status}
+          className="rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] lg:hidden"
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value)}
         >
@@ -1607,6 +1625,7 @@ export function AdminOutreachWorkspace() {
           ))}
         </select>
         <select
+          aria-label={c.editor.audienceType}
           className="rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)]"
           value={audienceFilter}
           onChange={(event) => setAudienceFilter(event.target.value)}
@@ -1626,32 +1645,30 @@ export function AdminOutreachWorkspace() {
           />
         </label>
       </section>
+      </div>
 
       {error ? (
-        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
           {error}
         </div>
       ) : null}
       {message ? (
-        <div className="mb-5 rounded-xl border border-[var(--gl-green)]/25 bg-[var(--gl-green-soft)] px-4 py-3 text-sm font-semibold text-[var(--gl-green-deep)]">
+        <div role="status" className="rounded-lg bg-[var(--gl-green-soft)] px-4 py-3 text-sm font-semibold text-[var(--gl-green-deep)]">
           {message}
         </div>
       ) : null}
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.25fr)]">
+      <section hidden={sentArchiveOpen} className="min-w-0">
         <div
           ref={listRef}
-          className={`overflow-hidden rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-sm ${
-            mobilePane === "editor" ? "hidden xl:block" : ""
+          className={`overflow-hidden bg-[var(--gl-paper)] ${
+            mobilePane === "editor" ? "hidden" : ""
           }`}
         >
           <div className="border-b border-[var(--gl-hairline)] p-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-bold text-[var(--gl-ink)]">{c.list.activeTitle}</h2>
+              <h2 className="text-sm font-semibold text-[var(--gl-ink)]">{statusFilter ? c.statuses[statusFilter as OutreachStatus] : c.filters.allStatuses} · {listEmails.length}</h2>
               <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-[var(--gl-ink-muted)] xl:hidden">
-                  {language === "es" ? "Toca un borrador para revisarlo." : "Tap a draft to review it."}
-                </p>
                 {selectedReadyEmails.length ? (
                   <span className="rounded-full bg-[var(--gl-green-soft)] px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)]">
                     {c.selectedCount(selectedReadyEmails.length)}
@@ -1660,7 +1677,7 @@ export function AdminOutreachWorkspace() {
               </div>
             </div>
           </div>
-          <div className="max-h-[780px] overflow-y-auto">
+          <div className="max-h-[65dvh] overflow-y-auto" role="region" aria-label={tr("Proposals", "Propuestas")}>
             {loading ? (
               <p className="p-5 text-sm text-[var(--gl-ink-muted)]">{c.list.loading}</p>
             ) : listEmails.length === 0 ? (
@@ -1685,7 +1702,9 @@ export function AdminOutreachWorkspace() {
                   return (
                     <div
                       key={email.id}
+                      id={`outreach-row-${email.id}`}
                       role="button"
+                      aria-label={`${tr("Open proposal", "Abrir propuesta")} ${email.organization_name || email.lead_email}`}
                       tabIndex={0}
                       onClick={() => selectEmailForReview(email.id)}
                       onKeyDown={(event) => {
@@ -1694,7 +1713,7 @@ export function AdminOutreachWorkspace() {
                           selectEmailForReview(email.id);
                         }
                       }}
-                      className={`block w-full px-4 py-4 text-left transition ${
+                      className={`relative block w-full px-3 py-3 text-left transition ${
                         selectedRow ? "bg-[var(--gl-green-soft)]" : "hover:bg-[var(--gl-card-cream)]"
                       }`}
                     >
@@ -1712,7 +1731,7 @@ export function AdminOutreachWorkspace() {
                             />
                           ) : null}
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-[var(--gl-ink)]">
+                            <p className="break-words text-sm font-semibold text-[var(--gl-ink)]">
                               {email.organization_name || email.lead_name || email.lead_email || c.list.noSubject}
                             </p>
                             <p className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--gl-ink)]">
@@ -1727,19 +1746,23 @@ export function AdminOutreachWorkspace() {
                           {["drafted", "saved_for_later"].includes(email.status) ? (
                             <button
                               type="button"
+                              aria-label={`${c.actions.quickApprove}: ${email.organization_name || email.lead_email}`}
+                              title={c.actions.quickApprove}
+                              disabled={Boolean(action)}
+                              onKeyDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 quickApprove(email);
                               }}
-                              className="rounded-full border border-[var(--gl-green)] bg-white px-2 py-1 text-[11px] font-bold text-[var(--gl-green-deep)] hover:bg-[var(--gl-green-soft)]"
+                              className="flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--gl-hairline)] text-[var(--gl-green-deep)] hover:bg-[var(--gl-green-soft)] disabled:opacity-50"
                             >
-                              {action === `approve-${email.id}` ? "..." : c.actions.quickApprove}
+                              {action === `approve-${email.id}` ? "..." : <Check className="h-4 w-4" />}
                             </button>
                           ) : null}
                         </div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-2 flex flex-wrap gap-1.5">
                         <Badge tone={contactQuality === "missingContact" || contactQuality === "genericContact" ? "warning" : "green"}>
                           {c.badges[contactQuality]}
                         </Badge>
@@ -1748,15 +1771,15 @@ export function AdminOutreachWorkspace() {
                         {email.error_message ? <Badge tone="danger">{c.list.error}</Badge> : null}
                       </div>
 
-                      <p className="mt-3 truncate text-xs font-semibold text-[var(--gl-ink-muted)]">
-                        {compactSummary([email.lead_name || null, email.lead_email || null]) || c.badges.needsContact}
+                      <p className="mt-2 truncate text-xs text-[var(--gl-ink-muted)]">
+                        {compactSummary([email.lead_name || null, getContactTitle(email.metadata), email.lead_email || null]) || c.badges.needsContact}
                       </p>
                       {researchReason ? (
-                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--gl-ink-muted)]">
+                        <p hidden>
                           <span className="font-bold text-[var(--gl-ink-soft)]">{c.editor.whyThisLead}:</span> {researchReason}
                         </p>
                       ) : null}
-                      <p className="mt-3 truncate text-xs text-[var(--gl-ink-muted)]">{summary}</p>
+                      <p className="mt-1 truncate text-xs text-[var(--gl-ink-muted)]">{summary}</p>
                     </div>
                   );
                 })}
@@ -1767,22 +1790,24 @@ export function AdminOutreachWorkspace() {
 
         <div
           ref={editorRef}
-          className={`rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] p-5 shadow-sm ${
-            mobilePane === "list" ? "hidden xl:block" : ""
+          tabIndex={-1}
+          className={`min-w-0 outline-none ${
+            mobilePane === "list" ? "hidden" : ""
           }`}
         >
           <button
             type="button"
             onClick={returnToMobileList}
-            className="mb-4 inline-flex items-center rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-semibold text-[var(--gl-ink-soft)] shadow-sm xl:hidden"
+            disabled={Boolean(action)}
+            className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-[var(--gl-ink-soft)] disabled:opacity-50"
           >
-            {language === "es" ? "Volver a propuestas" : "Back to proposals"}
+            <ArrowLeft className="h-4 w-4" />{language === "es" ? "Volver a propuestas" : "Back to proposals"}
           </button>
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-xl font-bold text-[var(--gl-ink)]">{isCreating ? c.editor.newTitle : c.editor.title}</h2>
               {selected && !isCreating ? (
-                <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
+                <p className="mt-1 break-all text-sm text-[var(--gl-ink-muted)]">
                   {c.editor.recipient}: <span className="font-semibold text-[var(--gl-ink)]">{selected.lead_email}</span>
                 </p>
               ) : null}
@@ -1794,8 +1819,15 @@ export function AdminOutreachWorkspace() {
             ) : null}
           </div>
 
+          <div role="tablist" aria-label={tr("Proposal workspace", "Área de propuesta")} className="sticky top-16 z-10 mb-4 grid grid-cols-4 border-b border-[var(--gl-hairline)] bg-[var(--gl-bg-cream)] sm:flex">
+            {editorTabs.map(([id, label], index) => <button key={id} type="button" role="tab" id={`outreach-tab-${id}`} aria-controls="outreach-editor-panel" aria-selected={editorPane === id} tabIndex={editorPane === id ? 0 : -1} onClick={() => { setEditorPane(id); if (id === "research") setAdvancedDetailsOpen(true); }} onKeyDown={(event) => {
+              const next = event.key === "Home" ? 0 : event.key === "End" ? editorTabs.length - 1 : event.key === "ArrowRight" ? (index + 1) % editorTabs.length : event.key === "ArrowLeft" ? (index + editorTabs.length - 1) % editorTabs.length : null;
+              if (next === null) return;
+              event.preventDefault(); const id = editorTabs[next][0]; setEditorPane(id); if (id === "research") setAdvancedDetailsOpen(true); document.getElementById(`outreach-tab-${id}`)?.focus();
+            }} className={`min-h-11 min-w-0 break-words border-b-2 px-1 py-2 text-xs font-medium sm:px-4 sm:text-sm ${editorPane === id ? "border-[var(--gl-green)] text-[var(--gl-green-deep)]" : "border-transparent text-[var(--gl-ink-muted)]"}`}>{label}</button>)}
+          </div>
           {detailLoading && selectedId && !isCreating ? (
-            <p className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)] p-5 text-sm text-[var(--gl-ink-muted)]">
+            <p role="status" className="p-5 text-sm text-[var(--gl-ink-muted)]">
               {c.list.loading}
             </p>
           ) : !selected && !isCreating ? (
@@ -1803,15 +1835,15 @@ export function AdminOutreachWorkspace() {
               {c.editor.empty}
             </p>
           ) : (
-            <div className="space-y-5">
+            <div id="outreach-editor-panel" role="tabpanel" aria-labelledby={`outreach-tab-${editorPane}`} className="min-w-0 space-y-4">
               {!isCreating ? (
                 <div className="rounded-xl border border-[var(--gl-amber)]/30 bg-[var(--gl-amber-soft)] px-4 py-3 text-sm font-semibold text-[var(--gl-amber-ink)]">
                   {c.editor.realRecipientWarning}
                 </div>
               ) : null}
 
-              <div className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
-                <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4">
+              <div hidden={editorPane !== "contact" && editorPane !== "research"}>
+                <div hidden={editorPane !== "contact"} className="bg-white p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--gl-ink-muted)]">{c.editor.contactQuality}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Badge tone={selectedContactQuality === "missingContact" || selectedContactQuality === "genericContact" ? "warning" : "green"}>
@@ -1821,10 +1853,11 @@ export function AdminOutreachWorkspace() {
                     {selectedAssetRecommended ? <Badge tone="blue">{c.badges.assetRecommended}</Badge> : null}
                   </div>
                   <p className="mt-3 text-sm font-semibold text-[var(--gl-ink)]">{form.lead_name || c.badges.contactNameOnly}</p>
+                  {form.contactTitle.trim() ? <p className="mt-1 break-words text-sm text-[var(--gl-ink-muted)]">{form.contactTitle}</p> : null}
                   <p className="mt-1 break-all text-sm text-[var(--gl-ink-muted)]">{form.lead_email || c.badges.needsContact}</p>
                 </div>
 
-                <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4">
+                <div hidden={editorPane !== "research"} className="bg-white p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--gl-ink-muted)]">{c.editor.whyThisLead}</p>
                   <p className={`mt-2 text-sm leading-6 ${selectedResearchReason ? "text-[var(--gl-ink)]" : "text-[var(--gl-ink-muted)]"}`}>
                     {selectedResearchReason || c.editor.noLeadReason}
@@ -1839,17 +1872,21 @@ export function AdminOutreachWorkspace() {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div hidden={editorPane !== "contact"}>
+              <div className="grid gap-4 bg-white p-4 md:grid-cols-2 [&>*]:min-w-0">
                 <Field label={c.editor.organizationName} value={form.organization_name} onChange={(value) => updateForm("organization_name", value)} disabled={disabled} />
                 <Field label={c.editor.audienceType} value={form.audience_type} onChange={(value) => updateForm("audience_type", value)} disabled={disabled} />
                 <Field label={c.editor.leadName} value={form.lead_name} onChange={(value) => updateForm("lead_name", value)} disabled={disabled} />
+                <Field label={tr("Job title / contact role", "Cargo / función del contacto")} value={form.contactTitle} onChange={(value) => updateForm("contactTitle", value)} disabled={disabled} />
                 <Field label={c.editor.leadEmail} value={form.lead_email} onChange={(value) => updateForm("lead_email", value)} disabled={disabled} />
                 <Field label={c.editor.campaignName} value={form.campaign_name} onChange={(value) => updateForm("campaign_name", value)} disabled={disabled} />
               </div>
+              </div>
 
-              <Field label={c.editor.subject} value={form.subject} onChange={(value) => updateForm("subject", value)} disabled={disabled} />
+              <div hidden={editorPane !== "message"}><Field label={c.editor.subject} value={form.subject} onChange={(value) => updateForm("subject", value)} disabled={disabled} /></div>
 
-              <div>
+              <div hidden={editorPane !== "preview"}>
+                <p className="mb-3 break-words text-sm font-semibold">{form.subject}</p>
                 <Label>{c.editor.preview}</Label>
                 <div className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
                   formAttachments.length
@@ -1866,7 +1903,7 @@ export function AdminOutreachWorkspace() {
                             key={attachment.filename}
                             type="button"
                             onClick={() => openAttachment(attachment)}
-                            className="rounded-full border border-[var(--gl-green)]/30 bg-white px-3 py-1 text-xs font-bold text-[var(--gl-green-deep)] hover:bg-[var(--gl-paper)]"
+                            className="min-h-11 max-w-full break-all rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-left text-xs font-semibold text-[var(--gl-green-deep)] hover:bg-[var(--gl-paper)]"
                           >
                             {attachment.filename} · {c.editor.openAttachment}
                           </button>
@@ -1884,18 +1921,21 @@ export function AdminOutreachWorkspace() {
                     <span className="ml-1">{c.editor.noAttachments}</span>
                   )}
                 </div>
+                {/* Remount on body changes: WebKit can retain the initial empty srcDoc. */}
                 <iframe
+                  key={form.html_body}
                   title={c.editor.preview}
                   sandbox="allow-popups allow-popups-to-escape-sandbox"
                   referrerPolicy="no-referrer"
-                  className="h-[540px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white"
+                  className="h-[60dvh] min-h-80 w-full border border-[var(--gl-hairline)] bg-white"
                   srcDoc={buildIsolatedEmailPreview(buildPreviewHtml(form.html_body))}
                 />
               </div>
 
-              <div>
+              <div hidden={editorPane !== "message"}>
                 <Label>{c.editor.editMessage}</Label>
                 <textarea
+                  aria-label={c.editor.editMessage}
                   className="min-h-[220px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 font-mono text-xs leading-5 text-[var(--gl-ink)]"
                   value={form.html_body}
                   onChange={(event) => updateForm("html_body", event.target.value)}
@@ -1903,7 +1943,7 @@ export function AdminOutreachWorkspace() {
                 />
               </div>
 
-              <div className="rounded-xl border border-[var(--gl-hairline)] bg-[var(--gl-card-cream)]">
+              <div hidden={editorPane !== "research"} className="bg-white">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-bold text-[var(--gl-ink)]"
@@ -1917,6 +1957,7 @@ export function AdminOutreachWorkspace() {
                     <div>
                       <Label>{c.editor.researchNotes}</Label>
                       <textarea
+                        aria-label={c.editor.researchNotes}
                         className="min-h-[120px] w-full rounded-xl border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm leading-5 text-[var(--gl-ink)]"
                         value={form.researchNotes}
                         onChange={(event) => updateForm("researchNotes", event.target.value)}
@@ -1933,7 +1974,7 @@ export function AdminOutreachWorkspace() {
                               href={link}
                               target="_blank"
                               rel="noreferrer"
-                              className="block truncate text-sm font-semibold text-[var(--gl-green-deep)] underline"
+                              className="block break-all text-sm font-semibold text-[var(--gl-green-deep)] underline"
                             >
                               {link}
                             </a>
@@ -1958,7 +1999,7 @@ export function AdminOutreachWorkspace() {
                 </div>
               ) : null}
 
-              <div className="flex flex-col gap-3 border-t border-[var(--gl-hairline)] pt-5 md:flex-row md:flex-wrap">
+              <div className="grid grid-cols-2 gap-2 border-t border-[var(--gl-hairline)] pt-4 sm:flex sm:flex-wrap">
                 {isCreating ? (
                   <ActionButton onClick={createDraft} disabled={Boolean(action)} loading={action === "create"}>
                     {c.actions.createDraft}
@@ -1991,13 +2032,11 @@ export function AdminOutreachWorkspace() {
         </div>
       </section>
       {sentArchiveOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
-          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-[var(--gl-hairline)] bg-[var(--gl-paper)] shadow-2xl">
+        <div className="min-w-0">
+          <div className="w-full overflow-hidden bg-[var(--gl-paper)]">
             <div className="flex items-start justify-between gap-4 border-b border-[var(--gl-hairline)] p-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gl-green)]">{c.actions.sentArchive}</p>
-                <h2 className="mt-1 text-2xl font-bold text-[var(--gl-ink)]">{c.list.archiveTitle}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--gl-ink-muted)]">{c.list.archiveDescription}</p>
+                <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{c.list.archiveTitle}</h2>
               </div>
               <button
                 type="button"
@@ -2009,15 +2048,15 @@ export function AdminOutreachWorkspace() {
             </div>
             <div className="max-h-[65vh] overflow-y-auto">
               {sentEmails.length ? (
-                <table className="w-full min-w-[860px] text-left text-sm">
+                <table className="w-full table-fixed text-left text-sm">
                   <thead className="sticky top-0 bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
                     <tr>
-                      <th className="px-4 py-3">Organization</th>
-                      <th className="px-4 py-3">Recipient</th>
-                      <th className="px-4 py-3">Subject</th>
-                      <th className="px-4 py-3">Campaign</th>
-                      <th className="px-4 py-3">Sent</th>
-                      <th className="px-4 py-3">Resend</th>
+                      <th className="px-3 py-3">{c.editor.organizationName}</th>
+                      <th className="hidden px-3 py-3 lg:table-cell">{c.editor.recipient}</th>
+                      <th className="hidden px-3 py-3 md:table-cell">{c.editor.subject}</th>
+                      <th className="hidden px-3 py-3 lg:table-cell">{c.editor.campaignName}</th>
+                      <th className="w-32 px-3 py-3">{c.list.sent}</th>
+                      <th className="hidden px-3 py-3 xl:table-cell">{c.editor.resendId}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--gl-hairline)]">
@@ -2025,19 +2064,13 @@ export function AdminOutreachWorkspace() {
                       <tr
                         key={email.id}
                         className="cursor-pointer hover:bg-[var(--gl-card-cream)]"
-                        onClick={() => {
-                          setIsCreating(false);
-                          setSelectedId(email.id);
-                          setStatusFilter("sent");
-                          setSentArchiveOpen(false);
-                        }}
                       >
-                        <td className="px-4 py-3 font-semibold text-[var(--gl-ink)]">{email.organization_name || email.lead_name || "-"}</td>
-                        <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{email.lead_email}</td>
-                        <td className="max-w-[280px] truncate px-4 py-3 text-[var(--gl-ink)]">{email.subject}</td>
-                        <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{email.campaign_name || "-"}</td>
-                        <td className="px-4 py-3 text-[var(--gl-ink-muted)]">{formatDate(email.sent_at)}</td>
-                        <td className="max-w-[180px] truncate px-4 py-3 text-[var(--gl-ink-muted)]">{email.resend_email_id || "-"}</td>
+                        <td className="break-words px-3 py-3 font-semibold"><button type="button" onClick={() => { selectEmailForReview(email.id); setStatusFilter("sent"); setSentArchiveOpen(false); }} className="min-h-11 text-left text-[var(--gl-green)] underline">{email.organization_name || email.lead_name || "-"}</button><p className="break-all text-xs font-normal lg:hidden">{email.lead_email}</p><p className="text-xs font-normal md:hidden">{email.subject}</p></td>
+                        <td className="hidden break-all px-3 py-3 text-[var(--gl-ink-muted)] lg:table-cell">{email.lead_email}</td>
+                        <td className="hidden break-words px-3 py-3 md:table-cell">{email.subject}</td>
+                        <td className="hidden break-words px-3 py-3 lg:table-cell">{email.campaign_name || "-"}</td>
+                        <td className="px-3 py-3 text-xs text-[var(--gl-ink-muted)]">{formatDate(email.sent_at)}</td>
+                        <td className="hidden break-all px-3 py-3 xl:table-cell">{email.resend_email_id || "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2123,7 +2156,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className={`rounded-lg border px-4 py-2 text-sm font-bold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+      className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
     >
       {loading ? "..." : children}
     </button>

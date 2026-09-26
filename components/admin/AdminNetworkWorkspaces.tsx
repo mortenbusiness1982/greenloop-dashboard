@@ -1,8 +1,12 @@
 "use client";
 
+import { WorkspaceHeader } from "@/components/crm/WorkspaceHeader";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import styles from "@/components/crm/Workspace.module.css";
 import { useRouter } from "next/navigation";
+import { ChevronDown, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { DashboardLanguage, useDashboardLanguage } from "@/components/crm/DashboardLanguage";
@@ -244,9 +248,9 @@ export function AdminBrandsWorkspace() {
       <TableCard
         title={copy.brands.tableTitle}
         description={copy.brands.tableDescription}
-        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.brands.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />}
+        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={copy.brands.search} placeholder={copy.brands.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />}
       >
-        <table className="min-w-[850px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               {copy.brands.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
@@ -264,11 +268,11 @@ export function AdminBrandsWorkspace() {
                     <div className="font-semibold text-[var(--gl-ink)]">{brand.name}</div>
                     <div className="text-xs text-[var(--gl-ink-muted)]">{brand.id}</div>
                   </td>
-                  <td className="px-4 py-2.5">{brand.product_count || 0}</td>
-                  <td className="px-4 py-2.5">{brand.admin_count || 0}</td>
-                  <td className="px-4 py-2.5">{brand.reward_count || 0}</td>
-                  <td className="px-4 py-2.5">{brand.eco_points_issued || 0}</td>
-                  <td className="px-4 py-2.5">{formatDate(brand.created_at, language)}</td>
+                  <td data-label={copy.brands.headers[1]} className="px-4 py-2.5">{brand.product_count || 0}</td>
+                  <td data-label={copy.brands.headers[2]} className="px-4 py-2.5">{brand.admin_count || 0}</td>
+                  <td data-label={copy.brands.headers[3]} className="px-4 py-2.5">{brand.reward_count || 0}</td>
+                  <td data-label={copy.brands.headers[4]} className="px-4 py-2.5">{brand.eco_points_issued || 0}</td>
+                  <td data-label={copy.brands.headers[5]} className="px-4 py-2.5">{formatDate(brand.created_at, language)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-2">
                       <Link href={`/admin/brands/${brand.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">{copy.common.detail}</Link>
@@ -336,70 +340,119 @@ export function AdminProductsWorkspace() {
     [products]
   );
 
+  const tr = (en: string, es: string) => language === "es" ? es : en;
+  const number = (value: number) => value.toLocaleString(language === "es" ? "es-ES" : "en-US");
+  const statusLabel = (status?: string | null) => {
+    if (status === "verified") return copy.products.verified;
+    if (status === "pending") return copy.products.pending;
+    if (status === "imported") return copy.products.imported;
+    return status || copy.common.unknown;
+  };
+  const fieldClass = "min-h-11 w-full min-w-0 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm text-[var(--gl-ink)] focus:border-[var(--gl-green)] focus:outline-none focus:ring-2 focus:ring-[var(--gl-green-ring)]";
+
   return (
-    <WorkspaceFrame
-      eyebrow={copy.eyebrow}
-      title={copy.products.title}
-      description={copy.products.description}
-      error={error}
-    >
-      <KpiGrid>
-        <Kpi label={copy.products.kpis[0]} value={totals.products} />
-        <Kpi label={copy.products.kpis[1]} value={totals.placeholders} />
-        <Kpi label={copy.products.kpis[2]} value={totals.verified} />
-        <Kpi label={copy.products.kpis[3]} value={totals.units} />
-      </KpiGrid>
-      <TableCard
-        title={copy.products.tableTitle}
-        description={copy.products.tableDescription}
-        controls={
-          <div className="flex flex-col gap-2 lg:flex-row">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.products.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />
-            <select value={brandId} onChange={(event) => setBrandId(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
+    <div className="min-w-0 space-y-4">
+      <WorkspaceHeader className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{copy.products.title}</h1>
+        <button type="button" onClick={() => void loadProducts()} disabled={loading} aria-label={tr("Refresh products", "Actualizar productos")} title={tr("Refresh products", "Actualizar productos")} className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[var(--gl-hairline)] bg-white text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)] disabled:opacity-50">
+          <RefreshCw size={18} aria-hidden="true" className={loading ? "animate-spin" : ""} />
+        </button>
+      </WorkspaceHeader>
+      {error ? <div role="alert" className="rounded-lg border border-[var(--gl-coral)] bg-[var(--gl-coral-soft)] p-3 text-sm text-[var(--gl-coral-ink)]">{error}</div> : null}
+      <section aria-label={tr("Product filters", "Filtros de productos")} className="grid min-w-0 grid-cols-2 items-end gap-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <label className="col-span-2 min-w-0 xl:col-span-1">
+          <span className="sr-only">{copy.products.search}</span>
+          <span className="relative block">
+            <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 text-[var(--gl-ink-muted)]" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.products.search} className={`${fieldClass} pl-9`} />
+          </span>
+        </label>
+        <label className="min-w-0 text-xs text-[var(--gl-ink-muted)]">
+          <span className="mb-1 block">{copy.products.headers[1]}</span>
+          <select value={brandId} onChange={(event) => setBrandId(event.target.value)} className={fieldClass}>
               <option value="">{copy.products.allBrands}</option>
               {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
-            <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm">
+          </select>
+        </label>
+        <label className="min-w-0 text-xs text-[var(--gl-ink-muted)]">
+          <span className="mb-1 block">{copy.common.status}</span>
+          <select value={verificationStatus} onChange={(event) => setVerificationStatus(event.target.value)} className={fieldClass}>
               <option value="">{copy.products.allStatuses}</option>
               <option value="verified">{copy.products.verified}</option>
               <option value="imported">{copy.products.imported}</option>
               <option value="pending">{copy.products.pending}</option>
-            </select>
+          </select>
+        </label>
+        <button type="button" onClick={() => { setQuery(""); setBrandId(""); setVerificationStatus(""); }} disabled={!query && !brandId && !verificationStatus} aria-label={tr("Clear filters", "Borrar filtros")} title={tr("Clear filters", "Borrar filtros")} className="col-span-2 flex size-11 items-center justify-center justify-self-end rounded-lg border border-[var(--gl-hairline)] bg-white text-[var(--gl-ink-soft)] hover:bg-[var(--gl-card-cream)] disabled:opacity-40 xl:col-span-1">
+          <RotateCcw size={18} aria-hidden="true" />
+        </button>
+      </section>
+      <dl aria-label={tr("Loaded catalog summary", "Resumen del catálogo cargado")} className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-[var(--gl-hairline)] py-3 sm:grid-cols-4">
+        {[totals.products, totals.placeholders, totals.verified, totals.units].map((value, index) => (
+          <div key={copy.products.kpis[index]} className="min-w-0">
+            <dt className="text-xs text-[var(--gl-ink-muted)]">{copy.products.kpis[index]}</dt>
+            <dd className="mt-0.5 text-xl font-semibold tabular-nums text-[var(--gl-ink)]">{loading ? "..." : number(value)}</dd>
           </div>
-        }
-      >
-        <table className="min-w-[1050px] w-full text-left text-sm">
-          <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
+        ))}
+      </dl>
+      <section id="product-catalog" aria-label={copy.products.tableTitle} aria-busy={loading} className="min-w-0">
+        <p className="mb-2 text-xs text-[var(--gl-ink-muted)]">{tr("Up to 500 matching products · Summary reflects loaded rows", "Hasta 500 productos coincidentes · Resumen de las filas cargadas")}</p>
+        {loading ? <p role="status" className="py-8 text-center text-sm text-[var(--gl-ink-muted)]">{copy.products.loading}</p> : products.length === 0 ? <p className="py-8 text-center text-sm text-[var(--gl-ink-muted)]">{copy.products.empty}</p> : <>
+        <table className="hidden w-full table-fixed text-left text-sm xl:table">
+          <colgroup><col className="w-[30%]" /><col className="w-[17%]" /><col className="w-[13%]" /><col className="w-[12%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[14%]" /></colgroup>
+          <thead className="text-xs text-[var(--gl-ink-muted)]">
             <tr>
-              {copy.products.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
+              {copy.products.headers.map((header, index) => <th key={header} scope="col" className={`px-3 py-2.5 font-medium ${index === 4 || index === 5 ? "text-right" : ""}`}>{header}</th>)}
             </tr>
           </thead>
-          <tbody>
-            {loading ? (
-              <EmptyRow colSpan={7} text={copy.products.loading} />
-            ) : products.length === 0 ? (
-              <EmptyRow colSpan={7} text={copy.products.empty} />
-            ) : (
+          <tbody className="bg-white">
+            {
               products.map((product) => (
-                <tr key={product.id} className="border-t border-[var(--gl-card-cream)] hover:bg-[var(--gl-card-cream)]/70">
-                  <td className="px-4 py-2.5">
+                <tr key={product.id} className="border-t border-[var(--gl-hairline)] align-top [overflow-wrap:anywhere] hover:bg-[var(--gl-card-cream)]">
+                  <td className="px-3 py-3">
                     <div className="font-semibold text-[var(--gl-ink)]">{product.name || product.ean || copy.products.unknownProduct}</div>
                     <div className="text-xs text-[var(--gl-ink-muted)]">{product.ean || product.barcode || "-"}</div>
                     {product.is_placeholder_name ? <Badge tone="amber">{copy.products.placeholderName}</Badge> : null}
                   </td>
-                  <td className="px-4 py-2.5">{product.brand_name || "-"}</td>
-                  <td className="px-4 py-2.5"><Badge tone={product.verification_status === "verified" ? "green" : "slate"}>{product.verification_status || copy.common.unknown}</Badge></td>
-                  <td className="px-4 py-2.5">{product.source || "-"}</td>
-                  <td className="px-4 py-2.5">{product.scan_count || 0}</td>
-                  <td className="px-4 py-2.5">{product.recycled_units_count || 0}</td>
-                  <td className="px-4 py-2.5">{formatDate(product.updated_at, language)}</td>
+                  <td className="px-3 py-3">{product.brand_name || "-"}</td>
+                  <td className="px-3 py-3"><Badge tone={product.verification_status === "verified" ? "green" : "slate"}>{statusLabel(product.verification_status)}</Badge></td>
+                  <td className="px-3 py-3 text-[var(--gl-ink-muted)]">{product.source || "-"}</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{number(product.scan_count || 0)}</td>
+                  <td className="px-3 py-3 text-right font-semibold tabular-nums">{number(product.recycled_units_count || 0)}</td>
+                  <td className="px-3 py-3 text-[var(--gl-ink-muted)]">{formatDate(product.updated_at, language)}</td>
                 </tr>
               ))
-            )}
+            }
           </tbody>
         </table>
-      </TableCard>
-    </WorkspaceFrame>
+        <div className="divide-y divide-[var(--gl-hairline)] bg-white xl:hidden">
+          {products.map((product) => (
+            <details key={product.id} className="group px-3 py-3 [overflow-wrap:anywhere]">
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-sm font-semibold text-[var(--gl-ink)]">{product.name || product.ean || copy.products.unknownProduct}</h2>
+                    <p className="mt-0.5 text-xs text-[var(--gl-ink-muted)]">{product.ean || product.barcode || "-"} · {product.brand_name || "-"}</p>
+                  </div>
+                  <ChevronDown size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--gl-ink-muted)] transition-transform group-open:rotate-180" />
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                  <Badge tone={product.verification_status === "verified" ? "green" : "slate"}>{statusLabel(product.verification_status)}</Badge>
+                  <span className="tabular-nums text-[var(--gl-ink-soft)]">{copy.products.headers[4]}: {number(product.scan_count || 0)}</span>
+                  <span className="font-semibold tabular-nums text-[var(--gl-ink)]">{copy.products.headers[5]}: {number(product.recycled_units_count || 0)}</span>
+                  {product.is_placeholder_name ? <Badge tone="amber">{copy.products.placeholderName}</Badge> : null}
+                </div>
+              </summary>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                <div><dt className="text-[var(--gl-ink-muted)]">{copy.products.headers[3]}</dt><dd className="mt-1 text-[var(--gl-ink)]">{product.source || "-"}</dd></div>
+                <div><dt className="text-[var(--gl-ink-muted)]">{copy.products.headers[6]}</dt><dd className="mt-1 text-[var(--gl-ink)]">{formatDate(product.updated_at, language)}</dd></div>
+              </dl>
+            </details>
+          ))}
+        </div>
+        </>}
+      </section>
+    </div>
   );
 }
 
@@ -466,9 +519,9 @@ export function AdminPartnersWorkspace() {
       <TableCard
         title={copy.partners.tableTitle}
         description={copy.partners.tableDescription}
-        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.partners.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />}
+        controls={<input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={copy.partners.search} placeholder={copy.partners.search} className="rounded-lg border border-[var(--gl-hairline)] px-3 py-2 text-sm" />}
       >
-        <table className="min-w-[850px] w-full text-left text-sm">
+        <table className={styles.table}>
           <thead className="bg-[var(--gl-card-cream)] text-xs uppercase tracking-wide text-[var(--gl-ink-muted)]">
             <tr>
               {copy.partners.headers.map((header) => <th key={header} className="px-4 py-2.5">{header}</th>)}
@@ -487,9 +540,9 @@ export function AdminPartnersWorkspace() {
                     <div className="text-xs text-[var(--gl-ink-muted)]">{partner.email || partner.id}</div>
                   </td>
                   <td className="px-4 py-2.5"><Badge tone={partner.deactivated_at ? "slate" : "green"}>{partner.deactivated_at ? copy.common.inactive : copy.common.active}</Badge></td>
-                  <td className="px-4 py-2.5">{partner.fulfilled_unlocks_count || 0}</td>
-                  <td className="px-4 py-2.5">{formatDate(partner.last_fulfillment_at, language)}</td>
-                  <td className="px-4 py-2.5">{formatDate(partner.created_at, language)}</td>
+                  <td data-label={copy.partners.headers[2]} className="px-4 py-2.5">{partner.fulfilled_unlocks_count || 0}</td>
+                  <td data-label={copy.partners.headers[3]} className="px-4 py-2.5">{formatDate(partner.last_fulfillment_at, language)}</td>
+                  <td data-label={copy.partners.headers[4]} className="px-4 py-2.5">{formatDate(partner.created_at, language)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-2">
                       <Link href={`/admin/partners/${partner.id}`} className="text-sm font-semibold text-[var(--gl-green)] hover:text-[var(--gl-green-deep)]">{copy.common.detail}</Link>
@@ -524,15 +577,15 @@ function WorkspaceFrame({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className={`${styles.root} space-y-4`}>
+      <WorkspaceHeader className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-[var(--gl-green)]">{eyebrow}</p>
-          <h1 className="text-3xl font-semibold text-[var(--gl-ink)]">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--gl-ink-muted)]">{description}</p>
+          <p className="sr-only">{eyebrow}</p>
+          <h1 className="text-2xl font-semibold text-[var(--gl-ink)]">{title}</h1>
+          <p className="sr-only">{description}</p>
         </div>
         {actions}
-      </div>
+      </WorkspaceHeader>
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
       {children}
     </div>
@@ -540,14 +593,14 @@ function WorkspaceFrame({
 }
 
 function KpiGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-4 md:grid-cols-4">{children}</div>;
+  return <div className={styles.metrics}>{children}</div>;
 }
 
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border border-[var(--gl-hairline)] bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-[var(--gl-ink-muted)]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-[var(--gl-ink)]">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-[var(--gl-ink)]">{value}</p>
     </div>
   );
 }
@@ -564,10 +617,10 @@ function TableCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--gl-hairline)] bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] p-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="min-w-0">
+      <div className="flex flex-col gap-3 border-b border-[var(--gl-hairline)] py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--gl-ink)]">{title}</h2>
+          <h2 className="text-base font-semibold text-[var(--gl-ink)]">{title}</h2>
           <p className="text-sm text-[var(--gl-ink-muted)]">{description}</p>
         </div>
         {controls}

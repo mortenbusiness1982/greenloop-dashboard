@@ -1,11 +1,13 @@
 import { ImageResponse } from "next/og";
 import { API_BASE } from "@/lib/api";
+import { invitationCopy, resolveInvitationLanguage } from "@/lib/invitationLanguage";
 
 export const runtime = "nodejs";
 
 type InvitationPreview = {
   challenge?: {
     title?: string | null;
+    visibility?: "public" | "private";
     description?: string | null;
     heroImageUrl?: string | null;
   };
@@ -33,6 +35,8 @@ async function resolveImageDataUrl(imageUrl: string, allowedOrigins: Set<string>
 
 export async function GET(request: Request, { params }: PreviewRouteProps) {
   const { token } = await params;
+  const language = resolveInvitationLanguage(new URL(request.url).searchParams.get("lang"), request.headers.get("accept-language") || "");
+  const copy = invitationCopy[language];
   let invitation: InvitationPreview | null = null;
 
   try {
@@ -48,7 +52,7 @@ export async function GET(request: Request, { params }: PreviewRouteProps) {
     invitation = null;
   }
 
-  const title = invitation?.challenge?.title?.trim() || "Join a GreenLoop challenge";
+  const title = invitation?.challenge?.title?.trim() || copy.title;
   const requestOrigin = new URL(request.url).origin;
   const fallbackImageUrl = `${requestOrigin}/bella-stage-2.png`;
   const allowedImageOrigins = new Set([new URL(API_BASE).origin, requestOrigin]);
@@ -82,13 +86,13 @@ export async function GET(request: Request, { params }: PreviewRouteProps) {
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ color: "#168566", fontSize: 24, fontWeight: 700, letterSpacing: 4 }}>
-              PRIVATE CHALLENGE
+              {invitation?.challenge?.visibility === "public" ? copy.publicLabel : copy.privateLabel}
             </div>
             <div style={{ marginTop: 26, fontSize: 58, lineHeight: 1.05, fontWeight: 800 }}>
               {title}
             </div>
             <div style={{ marginTop: 24, color: "#55756c", fontSize: 28, lineHeight: 1.3, display: "flex" }}>
-              You’ve been invited to recycle together on GreenLoop.
+              {copy.preview}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -123,6 +127,7 @@ export async function GET(request: Request, { params }: PreviewRouteProps) {
       height: 630,
       headers: {
         "Cache-Control": "public, max-age=300, stale-while-revalidate=3600",
+        "Vary": "Accept-Language",
       },
     }
   );
