@@ -69,6 +69,12 @@ type Challenge = {
   ownerDisplayName?: string | null;
   owner_email?: string | null;
   ownerEmail?: string | null;
+  organization_id?: string | null;
+  organizationId?: string | null;
+  campaign_kind?: "organic" | "sponsored" | null;
+  campaignKind?: "organic" | "sponsored" | null;
+  review_status?: "draft" | "pending_review" | "approved" | "rejected" | "paused" | null;
+  reviewStatus?: "draft" | "pending_review" | "approved" | "rejected" | "paused" | null;
 };
 
 type CertificateDraft = {
@@ -296,6 +302,9 @@ function normalizeChallenge(raw: Challenge): Challenge {
     ownerUserId: raw.ownerUserId ?? raw.owner_user_id ?? null,
     ownerDisplayName: raw.ownerDisplayName ?? raw.owner_display_name ?? null,
     ownerEmail: raw.ownerEmail ?? raw.owner_email ?? null,
+    organizationId: raw.organizationId ?? raw.organization_id ?? null,
+    campaignKind: raw.campaignKind ?? raw.campaign_kind ?? "organic",
+    reviewStatus: raw.reviewStatus ?? raw.review_status ?? "approved",
     heroImageUrl: raw.heroImageUrl ?? raw.hero_image_url ?? null,
   };
 }
@@ -495,6 +504,7 @@ export function AdminChallengesWorkspace() {
   const [requestMessage, setRequestMessage] = useState<CertificateStatusMessage | null>(null);
   const [sponsoredReviewNotes, setSponsoredReviewNotes] = useState<Record<string, string>>({});
   const [sponsoredReviewActionId, setSponsoredReviewActionId] = useState<string | null>(null);
+  const [communityReviewActionId, setCommunityReviewActionId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<ChallengeWorkspaceSection>("requests");
   const [pendingEditorFocus, setPendingEditorFocus] = useState<"form" | "image" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -629,6 +639,15 @@ export function AdminChallengesWorkspace() {
         }),
     [challenges]
   );
+  const pendingUserCommunityChallenges = useMemo(
+    () => challenges.filter((challenge) =>
+      challenge.challengeType === "community" &&
+      challenge.campaignKind === "organic" &&
+      challenge.reviewStatus === "pending_review" &&
+      !challenge.organizationId
+    ),
+    [challenges]
+  );
 
   const sectionTabs = useMemo(
     () => [
@@ -636,7 +655,7 @@ export function AdminChallengesWorkspace() {
         key: "requests" as const,
         label: "Requests",
         description: "Review and publish requested community challenges.",
-        count: requestKpis.pending + sponsoredReviews.filter((challenge) => challenge.review_status === "pending_review").length,
+        count: requestKpis.pending + pendingUserCommunityChallenges.length + sponsoredReviews.filter((challenge) => challenge.review_status === "pending_review").length,
       },
       {
         key: "community" as const,
@@ -651,8 +670,34 @@ export function AdminChallengesWorkspace() {
         count: filteredChallenges.length,
       },
     ],
-    [communityChallenges.length, filteredChallenges.length, requestKpis.pending, sponsoredReviews]
+    [communityChallenges.length, filteredChallenges.length, pendingUserCommunityChallenges.length, requestKpis.pending, sponsoredReviews]
   );
+
+  async function reviewUserCommunityChallenge(challenge: Challenge, status: "approved" | "rejected") {
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    setCommunityReviewActionId(`${status}-${challenge.id}`);
+    setError(null);
+    try {
+      await apiFetch(`/admin/community-challenges/${challenge.id}/review`, {
+        token,
+        method: "PATCH",
+        body: { status },
+      });
+      setChallenges((current) => current.map((item) =>
+        item.id === challenge.id
+          ? { ...item, review_status: status, reviewStatus: status, active: status === "approved" ? item.active : false }
+          : item
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to review community challenge");
+    } finally {
+      setCommunityReviewActionId(null);
+    }
+  }
 
   function startEdit(challenge: Challenge, focusImage = false) {
     setEditingId(challenge.id);
@@ -1258,6 +1303,30 @@ export function AdminChallengesWorkspace() {
 
       {activeSection === "requests" ? (
       <>
+      {pendingUserCommunityChallenges.length ? (
+        <section className="rounded-xl border border-[var(--gl-green)]/30 bg-white shadow-sm">
+          <div className="border-b border-[var(--gl-hairline)] p-4">
+            <p className="text-sm font-medium text-[var(--gl-green)]">Public community review</p>
+            <h2 className="text-xl font-semibold text-[var(--gl-ink)]">Review user-created public challenges</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--gl-ink-muted)]">Creators can already use and share these challenges. Approval only controls appearance in public discovery.</p>
+          </div>
+          <div className="divide-y divide-[var(--gl-hairline)]">
+            {pendingUserCommunityChallenges.map((challenge) => (
+              <article key={challenge.id} className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--gl-ink)]">{challenge.title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-[var(--gl-ink-muted)]">{challenge.description || "No description provided."}</p>
+                  <p className="mt-2 text-xs text-[var(--gl-ink-muted)]">Owner: {challenge.ownerDisplayName || challenge.ownerEmail || "Authenticated user"}</p>
+                </div>
+                <div className="grid content-start gap-2">
+                  <button type="button" onClick={() => reviewUserCommunityChallenge(challenge, "approved")} disabled={Boolean(communityReviewActionId)} className="rounded-lg bg-[var(--gl-green)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">Approve for discovery</button>
+                  <button type="button" onClick={() => reviewUserCommunityChallenge(challenge, "rejected")} disabled={Boolean(communityReviewActionId)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-60">Reject and remove</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="rounded-xl border border-[var(--gl-amber)]/35 bg-white shadow-sm">
         <div className="border-b border-[var(--gl-hairline)] p-4">
           <p className="text-sm font-medium text-[var(--gl-amber-ink)]">Sponsored Challenge Reviews</p>
