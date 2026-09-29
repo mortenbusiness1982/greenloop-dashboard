@@ -120,6 +120,7 @@ const adminReportsCopy = {
     links: [
       { title: "Platform Reports", href: "/admin/reports/platform", description: "Units, events, EcoPoints, products, and activity rows." },
       { title: "Product Behavior / App Analytics", href: "/admin/reports/app-analytics", description: "Movement, funnels, drop-offs, friction, outcomes, and instrumentation health from app events." },
+      { title: "Outreach Intelligence", href: "/admin/reports/outreach-intelligence", description: "Exact sends, replies, routing, meetings, challenges, commercial outcomes, and evidence-backed learning." },
       { title: "Brand Reports", href: "/admin/reports/brands", description: "Brand customer reporting and brand-linked operational counts." },
       { title: "User Reports", href: "/admin/reports/users", description: "User activity, wallet points, recycling counts, and city signals." },
       { title: "Geo Reports", href: "/admin/reports/geo", description: "City performance and location export." },
@@ -213,6 +214,7 @@ const adminReportsCopy = {
     links: [
       { title: "Informes de plataforma", href: "/admin/reports/platform", description: "Unidades, eventos, EcoPoints, productos y filas de actividad." },
       { title: "Comportamiento de producto / analítica de app", href: "/admin/reports/app-analytics", description: "Movimiento, embudos, abandonos, fricción, resultados y salud de instrumentación desde eventos de la app." },
+      { title: "Inteligencia de outreach", href: "/admin/reports/outreach-intelligence", description: "Envíos exactos, respuestas, derivaciones, reuniones, retos, oportunidades comerciales y aprendizaje basado en evidencia." },
       { title: "Informes de marcas", href: "/admin/reports/brands", description: "Informes de clientes de marca y métricas operativas vinculadas a marcas." },
       { title: "Informes de usuarios", href: "/admin/reports/users", description: "Actividad de usuarios, puntos en wallet, recuentos de reciclaje y señales por ciudad." },
       { title: "Informes geográficos", href: "/admin/reports/geo", description: "Rendimiento por ciudad y exportación de ubicación." },
