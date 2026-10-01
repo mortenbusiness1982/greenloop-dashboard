@@ -324,8 +324,8 @@ export function AdminAppAnalyticsReports() {
           </h2>
           <p className="mt-1 text-sm text-[var(--gl-ink-muted)]">
             {es
-              ? "Cada día a las 08:00 · Resumen cada domingo · Europe/Madrid"
-              : "Every day at 08:00 · Weekly summary every Sunday · Europe/Madrid"}
+              ? "Cada día a las 08:00 · Resumen cada domingo a las 09:00 · Europe/Madrid"
+              : "Every day at 08:00 · Weekly summary every Sunday at 09:00 · Europe/Madrid"}
           </p>
         </div>
         <label className="text-sm">
