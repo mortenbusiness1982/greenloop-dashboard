@@ -225,8 +225,8 @@ const copy: Record<DashboardLanguage, {
     approved: "Draft approved.",
     savedForLater: "Draft saved for later.",
     disregarded: "Draft moved to disregarded drafts.",
-    approveAllConfirm: (count) => `Approve ${count} visible drafts?`,
-    approveAllDone: (count) => `${count} drafts approved.`,
+    approveAllConfirm: (count) => `Move ${count} visible drafts and their existing proposal attachments to Ready to send? No emails will be sent.`,
+    approveAllDone: (count) => `${count} drafts moved to Ready to send. No emails were sent.`,
     deleteAllConfirm: (count) => `Delete ${count} visible unsent outreach records? Sent emails will stay in the archive.`,
     deleteAllDone: (count) => `${count} outreach records deleted.`,
     deleteConfirm: "Delete this unsent outreach record? Sent emails are retained in the archive.",
@@ -364,8 +364,8 @@ const copy: Record<DashboardLanguage, {
     approved: "Borrador aprobado.",
     savedForLater: "Borrador guardado para más adelante.",
     disregarded: "Borrador movido a descartados.",
-    approveAllConfirm: (count) => `¿Aprobar ${count} borradores visibles?`,
-    approveAllDone: (count) => `${count} borradores aprobados.`,
+    approveAllConfirm: (count) => `¿Mover ${count} borradores visibles y sus propuestas adjuntas a Listos para enviar? No se enviará ningún email.`,
+    approveAllDone: (count) => `${count} borradores movidos a Listos para enviar. No se ha enviado ningún email.`,
     deleteAllConfirm: (count) => `¿Eliminar ${count} registros visibles sin enviar? Los emails enviados se conservarán en el archivo.`,
     deleteAllDone: (count) => `${count} registros eliminados.`,
     deleteConfirm: "¿Eliminar este registro sin enviar? Los emails enviados se conservan en el archivo.",
@@ -1562,6 +1562,22 @@ export function AdminOutreachWorkspace() {
           </div>
         </div>
       </details>
+
+      {statusFilter === "drafted" && !sentArchiveOpen && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={approveAllVisibleDrafts}
+            disabled={Boolean(action) || listEmails.length === 0}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CheckSquare2 size={16} aria-hidden="true" />
+            {action === "approveAll"
+              ? tr("Moving drafts…", "Moviendo borradores…")
+              : `${tr("Move drafts to Ready to send", "Mover borradores a Listos para enviar")} (${listEmails.length})`}
+          </button>
+        </div>
+      )}
 
       <section aria-label={tr("Outreach queues", "Colas de contacto")} className="hidden flex-wrap border-b border-[var(--gl-hairline)] lg:flex">
         {[
