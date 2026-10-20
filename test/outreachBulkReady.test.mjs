@@ -52,3 +52,53 @@ test("visible bulk button is confined to Drafts and disabled while busy or empty
   assert.match(source, /Move drafts to Ready to send/);
   assert.match(source, /Mover borradores a Listos para enviar/);
 });
+
+const sendBody = source.split("const sendSelectedReady = async () => {")[1]
+  .split("\n  const disabled")[0].replace(/;\s*$/, "");
+const sendHandler = `async () => {${sendBody}`
+  .replace(/apiFetch<OutreachMutationResponse>/g, "apiFetch")
+  .replace("const failedIds: string[]", "const failedIds");
+
+test("Ready to send exposes select-all, send-selected and clear without expanding Bulk actions", () => {
+  const toolbar = source.split('statusFilter === "approved" && !sentArchiveOpen && (')[1]
+    .split('statusFilter === "drafted"')[0];
+  assert.match(toolbar, /onClick=\{selectAllReady\}/);
+  assert.match(toolbar, /onClick=\{sendSelectedReady\}/);
+  assert.match(toolbar, /setSelectedSendIds\(new Set\(\)\)/);
+  assert.match(toolbar, /Boolean\(action\) \|\| selectedReadyEmails.length === 0/);
+});
+
+test("sending selected approved emails still requires confirmation", async () => {
+  let requests = 0;
+  await vm.runInNewContext(sendHandler, {
+    selectedReadyEmails: [{ id: "approved" }],
+    window: { confirm: () => false },
+    c: { bulkSendConfirm: String },
+    apiFetch: () => { requests++; },
+  })();
+  assert.equal(requests, 0);
+});
+
+test("confirmed send uses only selected targets and retains failed selections", async () => {
+  const requests = [];
+  let selection = new Set(["ok", "failed"]);
+  let reloaded = false;
+  await vm.runInNewContext(sendHandler, {
+    selectedReadyEmails: [{ id: "ok" }, { id: "failed" }],
+    window: { confirm: () => true }, getToken: () => "fixture",
+    c: { bulkSendConfirm: String, bulkSendFailed: String },
+    setAction() {}, setError() {}, setMessage() {}, setBulkSendProgress() {},
+    setEmails() {},
+    setSelectedSendIds: (update) => { selection = typeof update === "function" ? update(selection) : update; },
+    loadEmails: async () => { reloaded = true; },
+    apiFetch: async (url, options) => {
+      assert.equal(options.method, "POST");
+      requests.push(url);
+      if (url.includes("/failed/")) throw new Error("Fixture failure");
+      return { email: { id: "ok", status: "sent" } };
+    },
+  })();
+  assert.deepEqual(requests, ["/admin/outreach/emails/ok/send", "/admin/outreach/emails/failed/send"]);
+  assert.deepEqual([...selection], ["failed"]);
+  assert.equal(reloaded, true);
+});

@@ -1563,6 +1563,40 @@ export function AdminOutreachWorkspace() {
         </div>
       </details>
 
+      {statusFilter === "approved" && !sentArchiveOpen && (
+        <div role="group" aria-label={tr("Send approved emails", "Enviar emails aprobados")} className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={selectAllReady}
+            disabled={Boolean(action) || readyEmails.length === 0}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--gl-green)] bg-white px-4 py-2 text-sm font-bold text-[var(--gl-green-deep)] disabled:opacity-50"
+          >
+            <CheckSquare2 size={16} aria-hidden="true" />
+            {c.actions.selectAllReady} ({readyEmails.length})
+          </button>
+          <button
+            type="button"
+            onClick={sendSelectedReady}
+            disabled={Boolean(action) || selectedReadyEmails.length === 0}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--gl-green)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            <Send size={16} aria-hidden="true" />
+            {action === "bulkSend"
+              ? c.bulkSendProgress(bulkSendProgress.current, bulkSendProgress.total)
+              : `${c.actions.sendSelected} (${selectedReadyEmails.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedSendIds(new Set())}
+            disabled={Boolean(action) || selectedReadyEmails.length === 0}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--gl-hairline)] bg-white px-3 py-2 text-sm font-bold text-[var(--gl-ink)] disabled:opacity-50"
+          >
+            <X size={16} aria-hidden="true" />
+            {c.actions.clearSelection}
+          </button>
+        </div>
+      )}
+
       {statusFilter === "drafted" && !sentArchiveOpen && (
         <div className="flex flex-wrap items-center gap-3">
           <button
